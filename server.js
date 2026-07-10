@@ -128,30 +128,89 @@ app.post('/api/hotspot/login', async (req, res) => {
     }
 });
 
+const MikrotikClient = require('mikrotik-node');
+
 // 4. Multi-Tenant M-Pesa Callback Endpoint
 app.post('/api/mpesa/callback', async (req, res) => {
-    const { routerId } = req.query; // Grab the routerId we attached to the callback URL
+    const { routerId } = req.query; // Extracted from the URL query param we set in the STK Push
     const callbackData = req.body.Body.stkCallback;
     
-    console.log(`Received payment callback for Router ID: ${routerId}`);
+    console.log(`--- Processing M-Pesa Callback for Router ID: ${routerId} ---`);
 
+    // Safaricom ResultCode 0 means the customer successfully entered their PIN
     if (callbackData.ResultCode === 0) {
         try {
-            // Fetch this specific router's network address configuration to run actions against it
+            // 1. Fetch this specific ISP's router credentials from Firestore
             const doc = await db.collection('routers').doc(routerId).get();
-            if (doc.exists) {
-                const ispConfig = doc.data();
-                console.log(`Ready to trigger remote activation command on router: ${ispConfig.routerIp} using user ${ispConfig.routerUser}`);
-                
-                // TODO: Put the mikrotik-node connection block here to run commands 
-                // natively against ispConfig.routerIp using the saved user credentials.
+            
+            if (!doc.exists) {
+                console.error(`Router ID ${routerId} not found in database. Cannot activate user.`);
+                return res.status(404).json({ error: "Router profile missing" });
             }
+
+            const ispConfig = doc.data();
+
+            // Validate that the ISP has actually filled out their router IP details
+            if (!ispConfig.routerIp || !ispConfig.routerUser || !ispConfig.routerPassword) {
+                console.error(`ISP ${ispConfig.ispName} has incomplete Router configuration details.`);
+                return res.status(400).json({ error: "Incomplete router configurations" });
+            }
+
+            // Extract payment details from Safaricom metadata
+            const items = callbackData.CallbackMetadata.Item;
+            const amountPaid = items.find(i => i.Name === 'Amount').Value;
+            const payingPhone = items.find(i => i.Name === 'PhoneNumber').Value;
+
+            console.log(`Valid Transaction: ${payingPhone} paid KES ${amountPaid} to ISP: ${ispConfig.ispName}`);
+
+            // 2. Initialize connection details for the client's physical MikroTik router
+            const router = new MikrotikClient({
+                host: ispConfig.routerIp,
+                port: parseInt(ispConfig.routerPort || '8728'), // Defaults to standard RouterOS API port
+                user: ispConfig.routerUser,
+                password: ispConfig.routerPassword,
+                timeout: 10000 // 10 seconds timeout limit
+            });
+
+            // 3. Connect and execute user provisioning
+            router.connect()
+                .then(() => {
+                    console.log(`Connected successfully to MikroTik router at ${ispConfig.routerIp}`);
+
+                    // Determine which profile the user gets based on the amount paid
+                    // This tier logic can later be customized or pulled dynamically from Firestore!
+                    let assignedProfile = "1_Hour_Plan"; 
+                    if (amountPaid >= 20) assignedProfile = "3_Hour_Plan";
+                    if (amountPaid >= 50) assignedProfile = "24_Hour_Plan";
+
+                    // Issue the command to create the Hotspot User instance
+                    // We set both username and password to the user's phone number for simple login mechanics
+                    return router.write('/ip/hotspot/user/add', [
+                        `=name=${payingPhone}`,
+                        `=password=${payingPhone}`,
+                        `=profile=${assignedProfile}`,
+                        `=comment=AudiSpot_Mpesa_${payingPhone}`
+                    ]);
+                })
+                .then((mikrotikResponse) => {
+                    console.log(`Router Success: User profile [${assignedProfile}] provisioned on MikroTik for ${payingPhone}.`);
+                    router.close(); // Crucial: Always disconnect to free up router resources
+                })
+                .catch((routerError) => {
+                    console.error(`MikroTik hardware connection error:`, routerError.message);
+                    // Critical fallback setup: If the router connection fails (e.g. power blackout at the ISP site),
+                    // you can optionally implement an SMS gateway action here to send them a backup code manually!
+                });
+
         } catch (dbError) {
-            console.error("Failed to read routing target on completion:", dbError);
+            console.error("Database or execution workflow exception:", dbError);
         }
+    } else {
+        console.log(`Transaction aborted/canceled by user for Router ID ${routerId}. Result Code: ${callbackData.ResultCode}`);
     }
 
-    res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed" });
+    // Acknowledge receipt to Safaricom immediately so they stop retrying the webhook
+    res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
 
 const PORT = process.env.PORT || 8080;
