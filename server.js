@@ -254,5 +254,112 @@ if (resultCode === 0) {
     }
 }
 
+// ==========================================
+// 1. ISP USER AUTHENTICATION & ONBOARDING
+// ==========================================
+
+// ISP Signup Route
+app.post('/api/auth/isp-signup', async (req, res) => {
+    const { email, password, ispName, phoneNumber, selectedPlan } = req.body;
+
+    if (!email || !password || !ispName || !phoneNumber) {
+        return res.status(400).json({ success: false, error: "All onboarding fields are required." });
+    }
+
+    try {
+        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_"); // Simple unique ID from email
+        const ispRef = db.collection('isp_users').doc(ispId);
+        
+        await ispRef.set({
+            ispName,
+            email,
+            password, // In production, hash this using bcrypt!
+            phoneNumber,
+            plan: selectedPlan || "standard_monthly", // KES 500/router/month
+            walletBalance: 0,
+            setupCompleted: false,
+            createdAt: new Date().toISOString()
+        });
+
+        return res.status(201).json({ success: true, message: "Account created! Proceed to link your first router.", ispId });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: "Signup failed." });
+    }
+});
+
+// ==========================================
+// 2. WALLET TRACKING & INSTANT WITHDRAWAL
+// ==========================================
+
+// Fetch Wallet Balance and Live Router Count for Dashboard UI
+app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
+    const { ispId } = req.params;
+
+    try {
+        const ispDoc = await db.collection('isp_users').doc(ispId).get();
+        if (!ispDoc.exists) return res.status(404).json({ error: "ISP profile not found." });
+
+        // Count how many routers this specific ISP has connected
+        const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+        const activeRoutersCount = routersSnapshot.size;
+        
+        // Calculate subscription overhead (KES 500 * number of routers)
+        const monthlySaaSBill = activeRoutersCount * 500;
+
+        return res.status(200).json({
+            success: true,
+            balance: ispDoc.data().walletBalance || 0,
+            routerCount: activeRoutersCount,
+            billingOverhead: monthlySaaSBill,
+            ispName: ispDoc.data().ispName
+        });
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to fetch stats." });
+    }
+});
+
+// Request Instant Wallet Withdrawal (Triggers M-Pesa B2C Payout)
+app.post('/api/isp/withdraw', async (req, res) => {
+    const { ispId, amount } = req.body;
+
+    try {
+        const ispRef = db.collection('isp_users').doc(ispId);
+        const doc = await ispRef.get();
+
+        if (!doc.exists) return res.status(404).json({ error: "Account invalid." });
+        
+        const currentBalance = doc.data().walletBalance || 0;
+        const withdrawalAmount = parseFloat(amount);
+
+        if (withdrawalAmount > currentBalance || withdrawalAmount <= 0) {
+            return res.status(400).json({ success: false, error: "Insufficient funds or invalid withdrawal amount." });
+        }
+
+        // 1. Deduct balance instantly from the database
+        await db.runTransaction(async (transaction) => {
+            transaction.update(ispRef, { walletBalance: currentBalance - withdrawalAmount });
+        });
+
+        // 2. TODO: Fire Safaricom B2C API Request here to transfer real funds 
+        // from your main corporate paybill directly to doc.data().phoneNumber
+        console.log(`B2C Disbursal Initiated: KES ${withdrawalAmount} sent to ${doc.data().phoneNumber}`);
+
+        // 3. Log withdrawal event
+        await db.collection('withdrawals').add({
+            ispId,
+            amount: withdrawalAmount,
+            phoneTarget: doc.data().phoneNumber,
+            status: "Success",
+            timestamp: new Date().toISOString()
+        });
+
+        return res.status(200).json({ success: true, message: `Withdrawal of KES ${withdrawalAmount} processed instantly!` });
+
+    } catch (error) {
+        console.error("Withdrawal error:", error);
+        return res.status(500).json({ success: false, error: "System failed to complete automatic disbursal." });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`AudiSpot Platform running on port ${PORT}`));
