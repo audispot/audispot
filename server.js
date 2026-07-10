@@ -11,12 +11,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize Cloud Firestore securely
+// Initialize Cloud Firestore securely with explicit project target
 let db;
 try {
-    db = new Firestore();
+    db = new Firestore({
+        projectId: 'dotted-guru-367810'
+    });
 } catch (error) {
-    console.error("Firestore initialization warning:", error.message);
+    console.error("Firestore initialization error:", error.message);
+    process.exit(1); // Force failure visibility
 }
 
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
