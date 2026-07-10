@@ -213,5 +213,46 @@ app.post('/api/mpesa/callback', async (req, res) => {
     res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
 
+// 5. Secure Balance Processing Ledger Inside the Callback Execution Path
+if (resultCode === 0) {
+    try {
+        const doc = await db.collection('routers').doc(routerId).get();
+        if (doc.exists) {
+            const ispConfig = doc.data();
+            const items = callbackData.CallbackMetadata.Item;
+            const amountPaid = parseFloat(items.find(i => i.Name === 'Amount').Value);
+            const payingPhone = items.find(i => i.Name === 'PhoneNumber').Value;
+            const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber').Value;
+
+            // 1. Log payment event to a global transactions repository
+            await db.collection('global_transactions').doc(mpesaReceipt).set({
+                routerId: routerId,
+                ispOwner: ispConfig.ispName,
+                customerPhone: payingPhone,
+                grossAmount: amountPaid,
+                processedAt: new Date().toISOString()
+            });
+
+            // 2. Atomically increment the target ISP's platform wallet account balance
+            const accountRef = db.collection('isp_accounts').doc(routerId);
+            await db.runTransaction(async (transaction) => {
+                const accountDoc = await transaction.get(accountRef);
+                if (!accountDoc.exists) {
+                    transaction.set(accountRef, { currentWalletBalance: amountPaid });
+                } else {
+                    const currentBalance = accountDoc.data().currentWalletBalance || 0;
+                    transaction.update(accountRef, { currentWalletBalance: currentBalance + amountPaid });
+                }
+            });
+
+            console.log(`Financial Ledger updated. Account linked to Router ${routerId} credited with KES ${amountPaid}`);
+            
+            // Execute the native MikroTik API remote user provisioning loop from earlier here...
+        }
+    } catch (transactionChainError) {
+        console.error("Failed to commit wallet increment operations:", transactionChainError);
+    }
+}
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`AudiSpot Platform running on port ${PORT}`));
