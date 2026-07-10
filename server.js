@@ -1,8 +1,11 @@
 const express = require('express');
+const cors = require('cors'); // <-- Add this line
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
+const MikrotikClient = require('mikrotik-node');
 
 const app = express();
+app.use(cors()); // <-- Add this line right here to unblock frontend requests!
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -358,6 +361,48 @@ app.post('/api/isp/withdraw', async (req, res) => {
     } catch (error) {
         console.error("Withdrawal error:", error);
         return res.status(500).json({ success: false, error: "System failed to complete automatic disbursal." });
+    }
+});
+
+// One-time setup route to populate AudiSpot SaaS Packages in Firestore
+app.get('/api/admin/init-packages', async (req, res) => {
+    try {
+        const packagesRef = db.collection('subscriptions').doc('packages');
+        
+        await packagesRef.set({
+            standard_monthly: {
+                name: "AudiSpot Core Router Access",
+                price_per_router: 500,
+                currency: "KES",
+                features: [
+                    "M-Pesa STK Push", 
+                    "Branded captive portal", 
+                    "Voucher generation & bulk import", 
+                    "Bandwidth control", 
+                    "Real-time analytics", 
+                    "Anti-bypass firewall",
+                    "Multi-tenant agents",
+                    "WhatsApp support & system updates"
+                ]
+            },
+            one_time_installation: {
+                name: "Managed White-Glove Onboarding (Optional)",
+                price: 1000,
+                currency: "KES",
+                features: [
+                    "Device configuration",
+                    "VunaFlow/AudiSpot hotspot setup",
+                    "M-Pesa integration",
+                    "Customer login portal",
+                    "Basic testing & optimisation"
+                ]
+            }
+        });
+
+        return res.status(200).json({ success: true, message: "AudiSpot SaaS packages successfully initialized in Firestore! 💰" });
+    } catch (error) {
+        console.error("Failed to seed packages:", error);
+        return res.status(500).json({ success: false, error: "Database seeding failed." });
     }
 });
 
