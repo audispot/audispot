@@ -180,19 +180,25 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     }
                 });
 
-                // Trigger remote MikroTik router activation sequence if credentials exist
-                if (MikrotikClient && ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
-                    const router = new MikrotikClient({
-                        host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
-                        user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
-                    });
+                // Trigger remote MikroTik router activation sequence dynamically
+                if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
+                    try {
+                        // Dynamically require the module here to keep deployment completely container-safe
+                        const DynamicMikrotik = require('mikrotik-node');
+                        const router = new DynamicMikrotik({
+                            host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
+                            user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
+                        });
 
-                    router.connect().then(() => {
-                        let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                        return router.write('/ip/hotspot/user/add', [
-                            `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${mpesaReceipt}`
-                        ]);
-                    }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
+                        router.connect().then(() => {
+                            let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                            return router.write('/ip/hotspot/user/add', [
+                                `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${mpesaReceipt}`
+                            ]);
+                        }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
+                    } catch (modError) {
+                        console.error("Mikrotik execution engine skipped: Module compilation mismatch.", modError.message);
+                    }
                 }
             }
         } catch (dbError) {
