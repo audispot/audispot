@@ -1,11 +1,13 @@
+require('dotenv').config(); // <-- 1. CRITICAL: Must be at the very top of the file!
+
 const express = require('express');
-const cors = require('cors'); // <-- Add this line
+const cors = require('cors');
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
 const MikrotikClient = require('mikrotik-node');
 
 const app = express();
-app.use(cors()); // <-- Add this line right here to unblock frontend requests!
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
