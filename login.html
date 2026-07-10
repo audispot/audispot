@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudiSpot High-Speed WiFi</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center; }
+        .logo { font-size: 28px; font-weight: bold; color: #1e3a8a; margin-bottom: 5px; }
+        .tagline { color: #6b7280; font-size: 14px; margin-bottom: 25px; }
+        .form-group { text-align: left; margin-bottom: 20px; }
+        label { display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; outline: none; transition: 0.2s; }
+        input:focus, select:focus { border-color: #1e3a8a; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1); }
+        .btn { width: 100%; background: #1e3a8a; color: white; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+        #status-message { margin-top: 15px; font-size: 14px; font-weight: 500; display: none; }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .loading { color: #f59e0b; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="logo">AudiSpot WiFi</div>
+    <div class="tagline">Pay securely via M-Pesa to browse instantly</div>
+
+    <input type="hidden" id="link-login-only" value="$(link-login-only)">
+    <input type="hidden" id="dst" value="$(dst)">
+
+    <div class="form-group">
+        <label for="phone">M-Pesa Phone Number</label>
+        <input type="tel" id="phone" placeholder="e.g., 0712345678" required>
+    </div>
+
+    <div class="form-group">
+        <label for="package">Select Internet Bundle</label>
+        <select id="package">
+            <option value="10">1 Hour Access — KES 10</option>
+            <option value="20">3 Hours Access — KES 20</option>
+            <option value="50">24 Hours Access — KES 50</option>
+        </select>
+    </div>
+
+    <button class="btn" id="pay-btn" onclick="initiatePayment()">Pay with M-Pesa</button>
+
+    <div id="status-message"></div>
+</div>
+
+<script>
+    // ⚠️ CRITICAL CONFIGURATION: 
+    // When your ISP client downloads this bundle, your system will auto-inject THEIR custom RouterID here.
+    const AUDISPOT_ROUTER_ID = "ROUTER_MOMBASA_01"; 
+    const AUDISPOT_BACKEND_URL = "https://audispot-749056206562.europe-west1.run.app";
+
+    async function initiatePayment() {
+        const phoneInput = document.getElementById('phone').value.trim();
+        const amountInput = document.getElementById('package').value;
+        const statusDiv = document.getElementById('status-message');
+        const payBtn = document.getElementById('pay-btn');
+
+        if (!phoneInput || phoneInput.length < 10) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "Please enter a valid M-Pesa phone number.";
+            statusDiv.style.display = "block";
+            return;
+        }
+
+        // Lock button and update loading state
+        payBtn.disabled = true;
+        statusDiv.className = "loading";
+        statusDiv.innerText = "Sending M-Pesa STK Push... Please wait.";
+        statusDiv.style.display = "block";
+
+        try {
+            // Trigger payment via our Google Cloud Run multi-tenant endpoint
+            const response = await fetch(`${AUDISPOT_BACKEND_URL}/api/hotspot/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phoneNumber: phoneInput,
+                    amount: amountInput,
+                    routerId: AUDISPOT_ROUTER_ID
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                statusDiv.className = "success";
+                statusDiv.innerText = "STK Push sent! Enter your M-Pesa PIN on your phone. You will be logged in automatically in a moment.";
+                
+                // Start a background timer to check when the router lets the user online
+                startAutoLoginPolling(phoneInput);
+            } else {
+                throw new Error(data.error || "Failed to trigger payment.");
+            }
+        } catch (error) {
+            payBtn.disabled = false;
+            statusDiv.className = "error";
+            statusDiv.innerText = error.message || "An error occurred. Please try again.";
+        }
+    }
+
+    // Polling mechanism to seamlessly pass credentials once MikroTik registers the profile activation
+    function startAutoLoginPolling(phoneNumber) {
+        const nativeLoginUrl = document.getElementById('link-login-only').value;
+        const destinationUrl = document.getElementById('dst').value;
+
+        const interval = setInterval(async () => {
+            // Attempt to fire the native login credentials directly at the router interface
+            // If the backend has executed the script successfully via M-Pesa callback, this request clears.
+            try {
+                const routerFormUrl = `${nativeLoginUrl}?username=${phoneNumber}&password=${phoneNumber}&dst=${encodeURIComponent(destinationUrl)}`;
+                
+                // A lightweight hidden cross-origin check or dynamic page redirection
+                window.location.href = routerFormUrl;
+                clearInterval(interval);
+            } catch (e) {
+                // Router API hasn't registered the profile yet, wait and repeat cycle
+                console.log("Waiting for backend activation...");
+            }
+        }, 5000); // Poll every 5 seconds
+    }
+</script>
+
+</body>
+</html>
