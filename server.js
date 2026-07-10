@@ -408,5 +408,9 @@ app.get('/api/admin/init-packages', async (req, res) => {
     }
 });
 
+// CRITICAL: Cloud Run passes the port dynamically. It MUST check process.env.PORT!
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`AudiSpot Platform running on port ${PORT}`));
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`AudiSpot Engine is running smoothly on port ${PORT}`);
+});
