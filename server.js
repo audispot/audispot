@@ -133,8 +133,6 @@ app.post('/api/hotspot/login', async (req, res) => {
     }
 });
 
-const MikrotikClient = require('mikrotik-node');
-
 // 4. Multi-Tenant M-Pesa Callback Endpoint
 app.post('/api/mpesa/callback', async (req, res) => {
     const { routerId } = req.query; // Extracted from the URL query param we set in the STK Push
