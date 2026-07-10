@@ -4,7 +4,14 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
-const MikrotikClient = require('mikrotik-node');
+
+// Defensive wrapper for MikrotikClient to prevent startup crash if dependency acts up in container environment
+let MikrotikClient;
+try {
+    MikrotikClient = require('mikrotik-node');
+} catch (e) {
+    console.error("Warning: Mikrotik module load issue:", e.message);
+}
 
 const app = express();
 app.use(cors());
@@ -19,7 +26,7 @@ try {
     });
 } catch (error) {
     console.error("Firestore initialization error:", error.message);
-    process.exit(1); // Force failure visibility
+    // Remove process.exit(1) here so the web server can still start up and give you real diagnostic logs!
 }
 
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
@@ -174,7 +181,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 });
 
                 // Trigger remote MikroTik router activation sequence if credentials exist
-                if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
+                if (MikrotikClient && ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
                     const router = new MikrotikClient({
                         host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
                         user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
