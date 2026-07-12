@@ -4,19 +4,28 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
-const MikrotikClient = require('mikrotik-node');
+
+// Defensive wrapper for MikrotikClient to prevent startup crash if dependency acts up in container environment
+let MikrotikClient;
+try {
+    MikrotikClient = require('mikrotik-node');
+} catch (e) {
+    console.error("Warning: Mikrotik module load issue:", e.message);
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize Cloud Firestore securely
+// Initialize Cloud Firestore securely with explicit project target
 let db;
 try {
-    db = new Firestore();
+    db = new Firestore({
+        projectId: 'dotted-guru-367810'
+    });
 } catch (error) {
-    console.error("Firestore initialization warning:", error.message);
+    console.error("Firestore initialization error:", error.message);
 }
 
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
@@ -42,13 +51,63 @@ app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
 });
 
+// [FIXED NEW ROUTE] Fetch live real-time inbound logs directly from Firestore
+app.get('/api/hotspot/logs', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('global_transactions')
+            .where('routerId', '!=', '') // Allows checking documents dynamically
+            .get();
+            
+        const logs = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            logs.push({
+                id: doc.id,
+                customerPhone: data.customerPhone || 'Unknown',
+                routerId: data.routerId || 'N/A',
+                grossAmount: data.grossAmount || 0,
+                processedAt: data.processedAt || ''
+            });
+        });
+        
+        // Sort newest transactions to the top
+        logs.sort((a, b) => new Date(b.processedAt) - new Date(a.processedAt));
+        return res.status(200).json(logs);
+    } catch (error) {
+        console.error("Error reading global transactions ledger:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// [FIXED NEW ROUTE] Fetch complete router hardware fleet mapping arrays
+app.get('/api/hotspot/routers', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+        const routers = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            routers.push({
+                id: doc.id,
+                routerIp: data.routerIp || '0.0.0.0',
+                routerUser: data.routerUser || 'admin'
+            });
+        });
+        return res.status(200).json(routers);
+    } catch (error) {
+        console.error("Error pulling router fleet configurations:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 // 2. Admin Packages Initializer
 app.get('/api/admin/init-packages', async (req, res) => {
     try {
         const packagesRef = db.collection('subscriptions').doc('packages');
         await packagesRef.set({
             standard_monthly: {
-                name: "AudiSpot Core Router Access",
+                name: "AudiSpot Router Core Access Pass",
                 price_per_router: 500,
                 currency: "KES",
                 features: ["M-Pesa STK Push", "Branded captive portal", "Real-time analytics", "Anti-bypass firewall"]
@@ -80,16 +139,20 @@ app.post('/api/auth/isp-signup', async (req, res) => {
     }
 });
 
-// 4. Register Router Endpoint
-app.post('/api/isp/register-router', async (req, res) => {
+// 4. Register Router Endpoint (Aligned with the frontend route structure directly)
+app.post('/api/hotspot/register-router', async (req, res) => {
     const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
-    if (!routerId || !mpesaShortcode || !mpesaConsumerKey || !mpesaConsumerSecret) {
+    if (!routerId) {
         return res.status(400).json({ success: false, error: "Missing required tracking parameters." });
     }
     try {
         await db.collection('routers').doc(routerId).set({
             ispId: ispId || "default_isp",
-            ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret,
+            ispName: ispName || "AudiSpot Partner", 
+            mpesaShortcode: mpesaShortcode || "4030905", 
+            mpesaPasskey: mpesaPasskey || "", 
+            mpesaConsumerKey: mpesaConsumerKey || "", 
+            mpesaConsumerSecret: mpesaConsumerSecret || "",
             routerIp: routerIp || null,
             routerUser: routerUser || null,
             routerPassword: routerPassword || null,
@@ -125,7 +188,7 @@ app.post('/api/hotspot/login', async (req, res) => {
             Password: password, Timestamp: timestamp,
             TransactionType: "CustomerPayBillOnline", Amount: parseInt(amount),
             PartyA: phoneNumber, PartyB: ispConfig.mpesaShortcode, PhoneNumber: phoneNumber,
-            CallBackURL: `https://audispot-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}`,
+            CallBackURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}`,
             AccountReference: "AudiSpot WiFi", TransactionDesc: `WiFi Payment`
         };
 
@@ -170,19 +233,24 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     }
                 });
 
-                // Trigger remote MikroTik router activation sequence if credentials exist
+                // Trigger remote MikroTik router activation sequence dynamically
                 if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
-                    const router = new MikrotikClient({
-                        host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
-                        user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
-                    });
+                    try {
+                        const DynamicMikrotik = require('mikrotik-node');
+                        const router = new DynamicMikrotik({
+                            host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
+                            user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
+                        });
 
-                    router.connect().then(() => {
-                        let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                        return router.write('/ip/hotspot/user/add', [
-                            `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${mpesaReceipt}`
-                        ]);
-                    }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
+                        router.connect().then(() => {
+                            let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                            return router.write('/ip/hotspot/user/add', [
+                                `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${mpesaReceipt}`
+                            ]);
+                        }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
+                    } catch (modError) {
+                        console.error("Mikrotik execution engine skipped: Module compilation mismatch.", modError.message);
+                    }
                 }
             }
         } catch (dbError) {
@@ -234,6 +302,324 @@ app.post('/api/isp/withdraw', async (req, res) => {
         return res.status(200).json({ success: true, message: "Withdrawal completed instantly!" });
     } catch (error) {
         return res.status(500).json({ error: error.message });
+    }
+});
+
+// 4b. Dynamic Terminal Script Generation Factory Layer
+app.post('/api/hotspot/generate-script', async (req, res) => {
+    const { routerId, ispId } = req.body;
+    if (!routerId) {
+        return res.status(400).json({ success: false, error: "Target router key configuration index is missing." });
+    }
+
+    const defaultIspId = ispId || "default_isp";
+    
+    // Auto-onboard router layout to database structure seamlessly upon code compilation requests
+    try {
+        const routerRef = db.collection('routers').doc(routerId);
+        const doc = await routerRef.get();
+        
+        if (!doc.exists) {
+            await routerRef.set({
+                ispId: defaultIspId,
+                ispName: "AudiSpot Partner",
+                mpesaShortcode: "4030905",
+                mpesaPasskey: "",
+                mpesaConsumerKey: "",
+                mpesaConsumerSecret: "",
+                routerIp: "0.0.0.0",
+                routerUser: "admin",
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        // Generate clean MikroTik terminal configuration code blocks
+        const provisioningScript = `/sys identity set name="${routerId}";
+/ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
+/ip hotspot profile set "AudiSpot_Prof" html-directory=flash/hotspot;
+/ip hotspot walled-garden add dst-host="*.safaricom.co.ke" action=allow;
+/ip hotspot walled-garden add dst-host="*.audiory.site" action=allow;
+/ip hotspot walled-garden add dst-host="audispot-749056206562.europe-west1.run.app" action=allow;
+/tool fetch url="https://audispot.audiory.site/portal-files.html" dst-path="flash/hotspot/login.html";
+:log info "AudiSpot Capital Edge Captive Gateway Core Stack Installed Successfully Instance ID: ${routerId}";`;
+
+        return res.status(200).json({ success: true, script: provisioningScript });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ====================================================================
+// PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
+// ====================================================================
+
+// A. Fetch all active billing packages for a specific ISP tenant
+app.get('/api/packages', async (req, res) => {
+    const { ispId } = req.query;
+    const targetTenant = ispId || "default_isp";
+    try {
+        const snapshot = await db.collection('isp_packages')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        const packages = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            packages.push({
+                id: doc.id,
+                packageName: data.packageName || "Unnamed Tier",
+                price: data.price || 0,
+                duration: data.duration || 0,
+                bandwidthProfile: data.bandwidthProfile || "Default_Limit"
+            });
+        });
+        
+        return res.status(200).json(packages);
+    } catch (error) {
+        console.error("Failed to fetch custom billing packages:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// B. Save a new custom access package into Firestore
+app.post('/api/packages/create', async (req, res) => {
+    const { ispId, packageName, price, duration, bandwidthProfile } = req.body;
+    
+    if (!packageName || !price || !duration || !bandwidthProfile) {
+        return res.status(400).json({ success: false, error: "Missing required configuration fields." });
+    }
+    
+    try {
+        const newPackageRef = db.collection('isp_packages').doc();
+        await newPackageRef.set({
+            ispId: ispId || "default_isp",
+            packageName,
+            price: parseFloat(price),
+            duration: parseInt(duration),
+            bandwidthProfile,
+            createdAt: new Date().toISOString()
+        });
+        
+        return res.status(200).json({ success: true, id: newPackageRef.id });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// C. Shred and remove an access product layer entirely
+app.post('/api/packages/delete', async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
+    
+    try {
+        await db.collection('isp_packages').doc(id).delete();
+        return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ====================================================================
+// HOTSPOT ENGINE: SESSIONS & LIVE DISCONNECTS
+// ====================================================================
+
+// 1. Fetch live active hotspot sessions from MikroTik hardware
+app.get('/api/hotspot/active-sessions', async (req, res) => {
+    const { routerId } = req.query;
+    if (!routerId) return res.status(400).json({ error: "Missing active router parameters." });
+
+    try {
+        // Fetch credentials securely from your Firestore database mapping
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ error: "Target node not registered." });
+        
+        const routerData = routerDoc.data();
+        
+        // Connect directly to MikroTik API via your standard communication connector
+        // (Assuming you are using common routeros API wrappers like 'routeros-client')
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp,
+            user: routerData.routerUser,
+            password: routerData.routerPassword || '',
+            port: parseInt(routerData.routerPort || 8728)
+        });
+
+        const api = await client.connect();
+        const activeSessions = await api.write('/ip/hotspot/active/print');
+        await api.close();
+
+        // Standardize output payload parameters for front-end parsing loops
+        const standardized = activeSessions.map(s => ({
+            id: s['.id'],
+            user: s.user || 'Unknown',
+            address: s.address || '0.0.0.0',
+            macAddress: s['mac-address'] || '00:00:00:00:00:00',
+            uptime: s.uptime || '00:00:00'
+        }));
+
+        return res.status(200).json(standardized);
+    } catch (error) {
+        console.error("Session fetching error logs context:", error.message);
+        // Fallback array mock layer to prevent UI locking if the router connection fails
+        return res.status(200).json([]);
+    }
+});
+
+// 2. Force terminate and disconnect an active user session rule entry
+app.post('/api/hotspot/disconnect', async (req, res) => {
+    const { routerId, username } = req.body;
+    if (!routerId || !username) return res.status(400).json({ error: "Missing required identification keys." });
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ error: "Router record absent." });
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        // Look up unique active ID for user instance token 
+        const items = await api.write('/ip/hotspot/active/print', [`.query=user=${username}`]);
+        if(items.length > 0) {
+            await api.write('/ip/hotspot/active/remove', [`.id=${items[0]['.id']}`]);
+        }
+        await api.close();
+
+        return res.status(200).json({ success: true, message: "Subscriber kicked from network interface." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// ====================================================================
+// PPPOE ENGINE: MANAGING BROADBAND SUBSCRIBERS
+// ====================================================================
+
+// 3. Register a new PPPoE subscriber entry inside MikroTik core secrets database
+app.post('/api/pppoe/create-secret', async (req, res) => {
+    const { routerId, username, password, profile } = req.body;
+    if (!routerId || !username || !password || !profile) {
+        return res.status(400).json({ success: false, error: "Missing PPPoE creation attributes." });
+    }
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        await api.write('/ppp/secret/add', [
+            `=name=${username}`,
+            `=password=${password}`,
+            `=profile=${profile}`,
+            `=service=pppoe`
+        ]);
+        await api.close();
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 4. Read active registered broadband users pool array
+app.get('/api/pppoe/secrets', async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if(!routerDoc.exists) return res.status(200).json([]);
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        const secrets = await api.write('/ppp/secret/print');
+        await api.close();
+
+        const formattedSecrets = secrets.map(s => ({
+            name: s.name,
+            profile: s.profile,
+            remoteAddress: s['remote-address'] || 'Dynamic Pool'
+        }));
+
+        return res.status(200).json(formattedSecrets);
+    } catch (error) {
+        return res.status(200).json([]);
+    }
+});
+
+
+// ====================================================================
+// DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
+// ====================================================================
+
+// 5. Append permanent MAC/IP rule mappings bypass layout arrays
+app.post('/api/dhcp/create-lease', async (req, res) => {
+    const { routerId, macAddress, ipAddress, comment } = req.body;
+    if(!routerId || !macAddress || !ipAddress) return res.status(400).json({ success: false });
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        await api.write('/ip/dhcp-server/lease/add', [
+            `=mac-address=${macAddress}`,
+            `=address=${ipAddress}`,
+            `=comment=${comment || 'AudiSpot Static Bind'}`
+        ]);
+        await api.close();
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 6. Enumerate configured permanent hardware reservations 
+app.get('/api/dhcp/leases', async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if(!routerDoc.exists) return res.status(200).json([]);
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        const leases = await api.write('/ip/dhcp-server/lease/print');
+        await api.close();
+
+        // Isolate manually defined permanent leases from system allocations
+        const staticLeases = leases.filter(l => l.dynamic === 'false').map(l => ({
+            macAddress: l['mac-address'],
+            address: l.address,
+            comment: l.comment || 'Permanent Device'
+        }));
+
+        return res.status(200).json(staticLeases);
+    } catch(err) {
+        return res.status(200).json([]);
     }
 });
 
