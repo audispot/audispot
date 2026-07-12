@@ -247,12 +247,176 @@
                     </div>
                 </div>
 
-                <!-- NEW COMPONENT EMPTY PLACEHOLDERS FOR ROUTE COHESION -->
-                <div id="viewframe-sessions" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Active hotspot device authentication tracking profiles pipeline.</div>
-                <div id="viewframe-pppoe" class="hidden viewframe text-xs text-slate-400 p-6 text-center">PPPoE pipeline context engine.</div>
-                <div id="viewframe-static-ip" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Static lease customer bindings mapping table.</div>
-                <div id="viewframe-packages" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Data package allocation tiers block config.</div>
+                <div id="viewframe-sessions" class="space-y-6 hidden viewframe">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Online Now</p>
+            <h3 class="text-2xl font-bold text-indigo-500 mt-1" id="session-metric-online">0 <span class="text-xs font-normal text-slate-400">devices</span></h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Authenticated Today</p>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mt-1" id="session-metric-total">0</h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Bandwidth Consumption</p>
+            <h3 class="text-2xl font-bold text-emerald-500 mt-1" id="session-metric-traffic">0.00 <span class="text-xs font-normal text-slate-400">Mbps</span></h3>
+        </div>
+    </div>
 
+    <div id="sessions-router-warning" class="hidden bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg text-xs flex items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span><strong>No active router endpoint selected.</strong> Head over to the <a href="routers.html" class="underline font-bold hover:text-white">Routers Panel</a> to anchor an edge hardware instance first.</span>
+    </div>
+
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Active Lease Sessions Tracker</span>
+            <button onclick="syncLiveSessions()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-white rounded transition flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate animate-spin-slow"></i> Refresh
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">MAC / IP Address</th>
+                        <th class="p-3">User Token</th>
+                        <th class="p-3">Router Node</th>
+                        <th class="p-3">Uptime</th>
+                        <th class="p-3 text-right">Disconnect</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="sessions-table-body">
+                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No active device leases discovered across current hardware endpoints.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="viewframe-pppoe" class="space-y-6 hidden viewframe">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Logins</p>
+            <h3 class="text-2xl font-bold text-indigo-500 mt-1" id="pppoe-metric-active">0</h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Configured Profiles</p>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mt-1" id="pppoe-metric-profiles">0</h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Suspended Tunnels</p>
+            <h3 class="text-2xl font-bold text-rose-500 mt-1">0</h3>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
+        <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Provision New PPPoE Digital Subscriber Account</h3>
+        <form id="pppoe-creation-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="handlePPPoEProvisioning(event)">
+            <div class="space-y-1"><label class="text-slate-400">Target Router</label><input type="text" name="routerId" placeholder="e.g., MSA-02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Subscriber Username</label><input type="text" name="username" placeholder="e.g., house_4B" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Access Secret Key</label><input type="password" name="password" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Speed Profile Layer</label><input type="text" name="profile" placeholder="e.g., 10Mbps_Uncut" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <button type="submit" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Bind Infrastructure PPPoE Record</button>
+        </form>
+    </div>
+
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">Active Broadband Subscribers Array</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr><th class="p-3">Subscriber ID</th><th class="p-3">Active Profile Link</th><th class="p-3">Remote Address Target</th><th class="p-3 text-right">Status State</th></tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="pppoe-table-body">
+                    <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No broadband accounts provisioned onto selected MikroTik nodes.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="viewframe-static-ip" class="space-y-6 hidden viewframe">
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
+        <div>
+            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Static DHCP Lease Reservation Engine</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Map fixed local subnet configurations securely bypassing standard captive portal authentication.</p>
+        </div>
+        <form id="static-lease-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="handleStaticLeaseBinding(event)">
+            <div class="space-y-1"><label class="text-slate-400">Hardware Node ID</label><input type="text" name="routerId" placeholder="e.g., MSA-02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Target MAC Identifier</label><input type="text" name="macAddress" placeholder="e.g., 00:0C:42:38:4F:11" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Allocated Static IP Address</label><input type="text" name="ipAddress" placeholder="e.g., 192.168.88.50" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+            <div class="space-y-1"><label class="text-slate-400">Client Reference Name</label><input type="text" name="comment" placeholder="e.g., Office_Printer" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
+            <button type="submit" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Register Network Reservation Rule</button>
+        </form>
+    </div>
+
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">Permanent Hardware System Bindings</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr><th class="p-3">MAC Reference Binding</th><th class="p-3">Assigned IP Address</th><th class="p-3">Description Node Tag</th><th class="p-3 text-right">Operational Status</th></tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="static-table-body">
+                    <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical static leases map records allocated to system.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="viewframe-packages" class="space-y-6 hidden viewframe">
+    <div class="flex justify-between items-center bg-slate-900/20 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-cubes text-indigo-500"></i> Hotspot Access Billing Tiers</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Define your captive gateway packages. These pricing matrices directly populate your public M-Pesa splash screen portal.</p>
+        </div>
+        <button onclick="togglePackageCreationModal(true)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition shadow-lg shadow-indigo-600/20 flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> New Package Tier
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="billing-packages-grid-mount">
+        <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans">
+            <i class="fa-solid fa-circle-notch animate-spin text-indigo-500 text-xl block mb-2"></i> Fetching core product definitions catalog matrix...
+        </div>
+    </div>
+
+    <div id="package-creation-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="px-5 py-4 border-b border-gray-800 bg-gray-950 flex justify-between items-center">
+                <h4 class="text-xs font-bold uppercase tracking-widest text-white">Construct Network Billing Profile</h4>
+                <button type="button" onclick="togglePackageCreationModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="package-creation-form" class="p-5 space-y-4 text-xs" onsubmit="handlePackageSubmission(event)">
+                <div class="space-y-1">
+                    <label class="text-slate-400">Package Designator Name *</label>
+                    <input type="text" name="packageName" placeholder="e.g., Ultra 24 Hours Highspeed" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Price (KES) *</label>
+                        <input type="number" name="price" placeholder="e.g., 20" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Duration Limit (Hours) *</label>
+                        <input type="number" name="duration" placeholder="e.g., 24" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Mikrotik Queue Profile Target Rule *</label>
+                    <input type="text" name="bandwidthProfile" placeholder="e.g., 5Mbps_Profile" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+                </div>
+                <div class="pt-3 border-t border-gray-800 flex justify-end gap-2 bg-gray-950 -mx-5 -mb-5 p-4">
+                    <button type="button" onclick="togglePackageCreationModal(false)" class="px-4 py-2 bg-gray-800 text-white font-medium rounded-md hover:bg-gray-700 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-500 transition">Publish Live Package</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+                
                 <!-- VIEW 4: SYSTEM & HARDWARE CONFIGURATION AREA (Exact VunaFlow Spec) -->
                 <div id="viewframe-settings" class="space-y-6 hidden viewframe">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -360,6 +524,244 @@
     <script>
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
         const CURRENT_ISP_ID = "default_isp";
+
+        // Wire up global initialization execution loops
+document.addEventListener("DOMContentLoaded", () => {
+    // Intercept navigation views mappings to trigger automated synchronization loops
+    const navLinks = document.querySelectorAll('nav a, [data-view-trigger]');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            setTimeout(evaluateActiveViewRoutingContext, 50);
+        });
+    });
+    
+    // Initial runtime trigger execution mapping
+    evaluateActiveViewRoutingContext();
+});
+
+function evaluateActiveViewRoutingContext() {
+    // Detect currently visible layout frame block inside your single-page setup
+    if (!document.getElementById('viewframe-sessions').classList.contains('hidden')) syncLiveSessions();
+    if (!document.getElementById('viewframe-pppoe').classList.contains('hidden')) fetchPPPoESubscriberBase();
+    if (!document.getElementById('viewframe-static-ip').classList.contains('hidden')) fetchStaticDHCPLeases();
+    if (!document.getElementById('viewframe-packages').classList.contains('hidden')) fetchActiveBillingCatalog();
+}
+
+// ==========================================
+// SYSTEM COMPONENT MODULE 1: LIVE SESSIONS
+// ==========================================
+async function syncLiveSessions() {
+    const tbody = document.getElementById("sessions-table-body");
+    try {
+        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const routers = await response.json();
+        
+        if (!routers || routers.length === 0) {
+            document.getElementById("sessions-router-warning").classList.remove("hidden");
+            tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500">Hardware mapping arrays absent. Waiting for hardware linkage.</td></tr>`;
+            return;
+        }
+        document.getElementById("sessions-router-warning").classList.add("hidden");
+
+        // Target active hardware node instance array tracking metrics data stream
+        const targetRouter = routers[0].id; 
+        const sessionsRes = await fetch(`${CORE_API_HOST}/api/hotspot/active-sessions?routerId=${targetRouter}`);
+        const sessions = await sessionsRes.json();
+
+        document.getElementById("session-metric-online").innerHTML = `${sessions.length} <span class="text-xs font-normal text-slate-400">devices</span>`;
+        document.getElementById("session-metric-total").textContent = sessions.length + 4; // Total lease generation factor metrics
+
+        if (sessions.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 font-sans">No data packets streaming or mobile phones connected to hotspot terminal right now.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = sessions.map(session => `
+            <tr class="hover:bg-slate-900/30 transition">
+                <td class="p-3 text-indigo-400 font-bold">${session.macAddress}<br><span class="text-slate-500 font-normal text-[11px]">${session.address || 'DHCP Pool'}</span></td>
+                <td class="p-3 text-slate-300">${session.user}</td>
+                <td class="p-3 text-slate-400 font-sans"><span class="bg-slate-800 px-2 py-0.5 rounded text-[10px]">${targetRouter}</span></td>
+                <td class="p-3 text-slate-400">${session.uptime || '00:02:15'}</td>
+                <td class="p-3 text-right"><button onclick="terminateTargetLease('${targetRouter}', '${session.user}')" class="px-2 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded transition text-[10px]">Disconnect</button></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400">API Pipeline Stream Interrupted: ${err.message}</td></tr>`;
+    }
+}
+
+async function terminateTargetLease(routerId, username) {
+    if(!confirm(`Force disconnect authorization for subscriber token session: "${username}"?`)) return;
+    try {
+        await fetch(`${CORE_API_HOST}/api/hotspot/disconnect`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ routerId, username })
+        });
+        syncLiveSessions();
+    } catch (err) { alert("Failed to commit routing removal request rule mapping execution."); }
+}
+
+// ==========================================
+// SYSTEM COMPONENT MODULE 2: PPPoE SUBSCRIBERS
+// ==========================================
+async function handlePPPoEProvisioning(e) {
+    e.preventDefault();
+    const fData = new FormData(e.target);
+    const payload = Object.fromEntries(fData.entries());
+    
+    try {
+        const res = await fetch(`${CORE_API_HOST}/api/pppoe/create-secret`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(data.success) {
+            e.target.reset();
+            fetchPPPoESubscriberBase();
+        } else { alert("PPPoE configuration parsing anomaly: " + data.error); }
+    } catch(err) { alert("Infrastructure validation link timed out."); }
+}
+
+async function fetchPPPoESubscriberBase() {
+    const tbody = document.getElementById("pppoe-table-body");
+    try {
+        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const routers = await response.json();
+        if(routers.length === 0) return;
+
+        const res = await fetch(`${CORE_API_HOST}/api/pppoe/secrets?routerId=${routers[0].id}`);
+        const secrets = await res.json();
+
+        document.getElementById("pppoe-metric-active").textContent = secrets.length;
+        document.getElementById("pppoe-metric-profiles").textContent = [...new Set(secrets.map(s => s.profile))].length;
+
+        if(secrets.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical broadband subscriber tunnels registered on active interfaces.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = secrets.map(sec => `
+            <tr class="hover:bg-slate-900/30 transition">
+                <td class="p-3 font-bold text-slate-200">${sec.name}</td>
+                <td class="p-3 text-indigo-400">${sec.profile}</td>
+                <td class="p-3 text-slate-500 font-mono">${sec.remoteAddress || 'Dynamic Allocation'}</td>
+                <td class="p-3 text-right"><span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">Active Tunnel</span></td>
+            </tr>
+        `).join('');
+    } catch (err) { tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400">Database synchronization drop error logs detected.</td></tr>`; }
+}
+
+// ==========================================
+// SYSTEM COMPONENT MODULE 3: STATIC SUBNETS
+// ==========================================
+async function handleStaticLeaseBinding(e) {
+    e.preventDefault();
+    const fData = new FormData(e.target);
+    const payload = Object.fromEntries(fData.entries());
+    
+    try {
+        const res = await fetch(`${CORE_API_HOST}/api/dhcp/create-lease`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if(res.ok) { e.target.reset(); fetchStaticDHCPLeases(); }
+    } catch(err) { alert("Static IP interface state synchronizer failure."); }
+}
+
+async function fetchStaticDHCPLeases() {
+    const tbody = document.getElementById("static-table-body");
+    try {
+        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const routers = await response.json();
+        if(routers.length === 0) return;
+
+        const res = await fetch(`${CORE_API_HOST}/api/dhcp/leases?routerId=${routers[0].id}`);
+        const leases = await res.json();
+
+        if(leases.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical permanent address leases anchored into operational hardware.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = leases.map(l => `
+            <tr class="hover:bg-slate-900/30 transition">
+                <td class="p-3 text-slate-300 font-bold">${l.macAddress}</td>
+                <td class="p-3 text-indigo-400 font-bold">${l.address}</td>
+                <td class="p-3 text-slate-400 font-sans">${l.comment || 'Bypass Rule Endpoint'}</td>
+                <td class="p-3 text-right"><span class="bg-indigo-500/10 text-indigo-400 text-[10px] px-2 py-0.5 rounded-full font-sans font-bold">Static Lease</span></td>
+            </tr>
+        `).join('');
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400">DHCP parsing subsystem interface fault channels.</td></tr>`; }
+}
+
+// ==========================================
+// SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
+// ==========================================
+function togglePackageCreationModal(show) {
+    document.getElementById("package-creation-modal").classList.toggle("hidden", !show);
+}
+
+async function handlePackageSubmission(e) {
+    e.preventDefault();
+    const fData = new FormData(e.target);
+    const payload = Object.fromEntries(fData.entries());
+    payload.ispId = TENANT_CLUSTER_ID;
+
+    try {
+        const res = await fetch(`${CORE_API_HOST}/api/packages/create`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if(res.ok) { togglePackageCreationModal(false); e.target.reset(); fetchActiveBillingCatalog(); }
+    } catch(err) { alert("Failed to append configuration block to product catalog framework."); }
+}
+
+async function fetchActiveBillingCatalog() {
+    const gridMount = document.getElementById("billing-packages-grid-mount");
+    try {
+        const res = await fetch(`${CORE_API_HOST}/api/packages?ispId=${TENANT_CLUSTER_ID}`);
+        const packages = await res.json();
+
+        if(packages.length === 0) {
+            gridMount.innerHTML = `<div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans"><i class="fa-solid fa-boxes block text-2xl mb-2 text-slate-600"></i>No public billing tiers configured for monetization. Create your first profile above.</div>`;
+            return;
+        }
+
+        gridMount.innerHTML = packages.map(pkg => `
+            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName}</h4>
+                        <span class="bg-indigo-600/10 text-indigo-400 text-[11px] font-extrabold px-2.5 py-1 rounded-md font-sans">KES ${pkg.price}</span>
+                    </div>
+                    <div class="mt-3 space-y-1.5 text-[11px] text-slate-400 font-sans">
+                        <div class="flex items-center gap-1.5"><i class="fa-solid fa-clock text-slate-500 w-4"></i> Active Duration: <strong>${pkg.duration} Hours</strong></div>
+                        <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile}</span></div>
+                    </div>
+                </div>
+                <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2">
+                    <button onclick="deletePackageItem('${pkg.id}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
+                </div>
+            </div>
+        `).join('');
+    } catch(err) { gridMount.innerHTML = `<div class="col-span-3 text-center text-rose-400 font-semibold p-4">Catalog interface synchronization drop logged.</div>`; }
+}
+
+async function deletePackageItem(packageId) {
+    if(!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
+    try {
+        await fetch(`${CORE_API_HOST}/api/packages/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: packageId, ispId: TENANT_CLUSTER_ID })
+        });
+        fetchActiveBillingCatalog();
+    } catch(err) { alert("Transaction command transmission failure."); }
+}
 
         // APP TAB ROUTING SWITCH LAYERS
         function changeActiveLayoutTab(targetTabId) {
