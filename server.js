@@ -305,5 +305,49 @@ app.post('/api/isp/withdraw', async (req, res) => {
     }
 });
 
+// 4b. Dynamic Terminal Script Generation Factory Layer
+app.post('/api/hotspot/generate-script', async (req, res) => {
+    const { routerId, ispId } = req.body;
+    if (!routerId) {
+        return res.status(400).json({ success: false, error: "Target router key configuration index is missing." });
+    }
+
+    const defaultIspId = ispId || "default_isp";
+    
+    // Auto-onboard router layout to database structure seamlessly upon code compilation requests
+    try {
+        const routerRef = db.collection('routers').doc(routerId);
+        const doc = await routerRef.get();
+        
+        if (!doc.exists) {
+            await routerRef.set({
+                ispId: defaultIspId,
+                ispName: "AudiSpot Partner",
+                mpesaShortcode: "4030905",
+                mpesaPasskey: "",
+                mpesaConsumerKey: "",
+                mpesaConsumerSecret: "",
+                routerIp: "0.0.0.0",
+                routerUser: "admin",
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        // Generate clean MikroTik terminal configuration code blocks
+        const provisioningScript = `/sys identity set name="${routerId}";
+/ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
+/ip hotspot profile set "AudiSpot_Prof" html-directory=flash/hotspot;
+/ip hotspot walled-garden add dst-host="*.safaricom.co.ke" action=allow;
+/ip hotspot walled-garden add dst-host="*.audiory.site" action=allow;
+/ip hotspot walled-garden add dst-host="audispot-749056206562.europe-west1.run.app" action=allow;
+/tool fetch url="https://audispot.audiory.site/portal-files.html" dst-path="flash/hotspot/login.html";
+:log info "AudiSpot Capital Edge Captive Gateway Core Stack Installed Successfully Instance ID: ${routerId}";`;
+
+        return res.status(200).json({ success: true, script: provisioningScript });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
