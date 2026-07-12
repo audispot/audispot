@@ -13,7 +13,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.19.0",
-    "mikrotik-node": "^1.0.0"
+    "mikrotik-node": "^1.0.0",
+    "routeros-client": "^1.1.1"
   },
   "engines": {
     "node": ">=18.0.0"
