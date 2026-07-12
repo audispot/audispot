@@ -722,13 +722,14 @@ async function handlePackageSubmission(e) {
 
 async function fetchActiveBillingCatalog() {
     const gridMount = document.getElementById("billing-packages-grid-mount");
+    if (!gridMount) return;
     let contentRendered = false;
 
     // 1. Establish an absolute 3-second recovery backup safety timer
     const fallbackTimeout = setTimeout(() => {
         if (!contentRendered) {
             gridMount.innerHTML = `
-                <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans animate-fade-in">
+                <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans">
                     <i class="fa-solid fa-boxes block text-3xl mb-3 text-slate-600"></i>
                     <p class="text-sm font-bold text-slate-400">No active billing packages found.</p>
                     <p class="text-xs text-slate-500 mt-1">Create your first access profile above to monetize your captive hotspot gateway.</p>
@@ -738,13 +739,13 @@ async function fetchActiveBillingCatalog() {
 
     try {
         const res = await fetch(`${CORE_API_HOST}/api/packages?ispId=${TENANT_CLUSTER_ID}`);
-        if (!res.ok) throw new Error("Catalog fetch error channel status mismatch.");
-        
-        const packages = await res.json();
         
         // Prevent fallback timer collision
         contentRendered = true; 
         clearTimeout(fallbackTimeout);
+
+        if (!res.ok) throw new Error("Catalog fetch error channel status mismatch.");
+        const packages = await res.json();
 
         if (!packages || packages.length === 0) {
             gridMount.innerHTML = `
@@ -776,7 +777,6 @@ async function fetchActiveBillingCatalog() {
 
     } catch (err) {
         console.error("Catalog retrieval drop:", err.message);
-        // If the API drops completely and fallback hasn't triggered yet, render explicit clean empty boundary
         if (!contentRendered) {
             clearTimeout(fallbackTimeout);
             gridMount.innerHTML = `
@@ -785,6 +785,72 @@ async function fetchActiveBillingCatalog() {
                     <p class="text-sm font-bold text-slate-400">No active billing packages found.</p>
                     <p class="text-xs text-slate-500 mt-1">Create your first access profile above to monetize your captive hotspot gateway.</p>
                 </div>`;
+        }
+    }
+}
+
+async function syncDashboardFleetTable() {
+    const tbody = document.getElementById("fleet-table-body");
+    if (!tbody) return;
+    let contentRendered = false;
+
+    // 1. Establish absolute 3-second defensive timeout to stop infinite loaders
+    const fallbackTimeout = setTimeout(() => {
+        if (!contentRendered) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="p-6 text-center text-slate-500 font-sans">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500/80 mb-1 block text-sm"></i>
+                        No active edge gateway nodes connected to cluster array.
+                    </td>
+                </tr>`;
+        }
+    }, 3000);
+
+    try {
+        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        
+        contentRendered = true;
+        clearTimeout(fallbackTimeout);
+
+        if (!response.ok) throw new Error();
+        const routers = await response.json();
+
+        if (!routers || routers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="p-6 text-center text-slate-500 font-sans">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500/80 mb-1 block text-sm"></i>
+                        No active edge gateway nodes connected to cluster array.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        // Render the array into the row body smoothly
+        tbody.innerHTML = routers.map(router => `
+            <tr class="hover:bg-slate-900/30 transition border-b border-slate-100 dark:border-vunaborder">
+                <td class="p-3 font-bold text-indigo-400 font-mono">${router.id}</td>
+                <td class="p-3 text-slate-300 font-mono">${router.routerIp}</td>
+                <td class="p-3 text-slate-400 font-sans"><span class="bg-slate-800 px-2 py-0.5 rounded text-[10px] font-mono">${router.routerUser}</span></td>
+                <td class="p-3 text-right">
+                    <span class="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-sans font-bold">
+                        <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span> Listening
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (err) {
+        if (!contentRendered) {
+            clearTimeout(fallbackTimeout);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="p-6 text-center text-slate-500 font-sans">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500/80 mb-1 block text-sm"></i>
+                        No active edge gateway nodes connected to cluster array.
+                    </td>
+                </tr>`;
         }
     }
 }
