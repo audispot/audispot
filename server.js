@@ -349,5 +349,75 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
     }
 });
 
+// ====================================================================
+// PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
+// ====================================================================
+
+// A. Fetch all active billing packages for a specific ISP tenant
+app.get('/api/packages', async (req, res) => {
+    const { ispId } = req.query;
+    const targetTenant = ispId || "default_isp";
+    try {
+        const snapshot = await db.collection('isp_packages')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        const packages = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            packages.push({
+                id: doc.id,
+                packageName: data.packageName || "Unnamed Tier",
+                price: data.price || 0,
+                duration: data.duration || 0,
+                bandwidthProfile: data.bandwidthProfile || "Default_Limit"
+            });
+        });
+        
+        return res.status(200).json(packages);
+    } catch (error) {
+        console.error("Failed to fetch custom billing packages:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// B. Save a new custom access package into Firestore
+app.post('/api/packages/create', async (req, res) => {
+    const { ispId, packageName, price, duration, bandwidthProfile } = req.body;
+    
+    if (!packageName || !price || !duration || !bandwidthProfile) {
+        return res.status(400).json({ success: false, error: "Missing required configuration fields." });
+    }
+    
+    try {
+        const newPackageRef = db.collection('isp_packages').doc();
+        await newPackageRef.set({
+            ispId: ispId || "default_isp",
+            packageName,
+            price: parseFloat(price),
+            duration: parseInt(duration),
+            bandwidthProfile,
+            createdAt: new Date().toISOString()
+        });
+        
+        return res.status(200).json({ success: true, id: newPackageRef.id });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// C. Shred and remove an access product layer entirely
+app.post('/api/packages/delete', async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
+    
+    try {
+        await db.collection('isp_packages').doc(id).delete();
+        return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
