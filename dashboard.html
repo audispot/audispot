@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AudiSpot Core Management Studio</title>
+    <title>AudiSpot Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -11,223 +11,332 @@
             theme: {
                 extend: {
                     colors: {
-                        darkbg: '#0b0f19',
-                        darkcard: '#151b2c',
-                        darkborder: '#1f293d',
-                        vunapurple: '#6366f1'
+                        vunadarkbg: '#090d16',
+                        vunacard: '#111827',
+                        vunaborder: '#1f293d',
+                        vunainput: '#131a2c',
+                        vunapurple: '#4f46e5',
+                        vunahover: '#1d2433'
                     }
                 }
             }
         }
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 3px; }
+    </style>
 </head>
-<body class="bg-slate-50 dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans antialiased transition-colors duration-200">
+<body class="bg-[#f9fafb] dark:bg-vunadarkbg text-slate-900 dark:text-slate-200 antialiased selection:bg-indigo-500/30 transition-colors duration-150">
+
+    <!-- NOTIFICATION BOX (Replaces all native browser popups) -->
+    <div id="inline-toast" class="fixed top-5 right-5 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 dark:bg-vunacard border border-emerald-500/30 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs font-medium">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+        <span id="toast-message">Configuration saved successfully.</span>
+    </div>
 
     <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 bg-white dark:bg-darkcard border-r border-slate-200 dark:border-darkborder flex flex-col shrink-0">
-            <div class="p-5 text-xl font-black text-slate-900 dark:text-white flex items-center justify-between border-b border-slate-200 dark:border-darkborder">
-                <span class="flex items-center gap-3">
-                    <i class="fa-solid fa-bolt text-indigo-500 animate-pulse"></i> AudiSpot
-                </span>
-                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-100 dark:bg-darkborder text-slate-500 dark:text-slate-400 hover:text-indigo-500 transition">
-                    <i id="theme-icon" class="fa-solid fa-moon"></i>
+        
+        <!-- SIDEBAR LEFT NAVIGATION PANEL (Exact VunaFlow Matching Groups) -->
+        <aside class="w-60 bg-white dark:bg-vunacard border-r border-slate-200 dark:border-vunaborder flex flex-col shrink-0 z-20">
+            <!-- Brand Space -->
+            <div class="h-16 px-5 border-b border-slate-200 dark:border-vunaborder flex items-center justify-between">
+                <div class="flex items-center gap-2.5 font-bold text-base text-slate-900 dark:text-white tracking-tight">
+                    <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs shadow-md shadow-indigo-600/20">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <span>AudiSpot</span>
+                </div>
+                <button onclick="toggleThemeEngine()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-vunahover text-slate-400 dark:text-slate-500 transition">
+                    <i id="theme-icon-indicator" class="fa-solid fa-moon text-sm"></i>
                 </button>
             </div>
 
-            <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto text-sm font-medium" id="sidebar-nav">
-                <div class="text-slate-400 dark:text-slate-500 text-[11px] font-bold uppercase tracking-wider px-3 mb-2">Operational Hub</div>
-                <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-left bg-indigo-600 text-white shadow-md shadow-indigo-600/10"><i class="fa-solid fa-chart-pie w-5"></i> Dashboard</button>
-                <button onclick="switchView('routers')" id="nav-routers" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-darkborder transition"><i class="fa-solid fa-server w-5"></i> Routers & Fleet</button>
-                <button onclick="switchView('earnings')" id="nav-earnings" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-darkborder transition"><i class="fa-solid fa-wallet w-5"></i> Earnings & Payouts</button>
-                
-                <div class="text-slate-400 dark:text-slate-500 text-[11px] font-bold uppercase tracking-wider px-3 pt-4 mb-2">Core Settings</div>
-                <button onclick="switchView('settings')" id="nav-settings" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-darkborder transition"><i class="fa-solid fa-sliders w-5"></i> System Configuration</button>
-            </nav>
+            <!-- Segmented Navigation Routes -->
+            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-5 text-[12px]">
+                <div>
+                    <button onclick="changeActiveLayoutTab('dashboard')" id="tablink-dashboard" class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-semibold transition">
+                        <span class="flex items-center gap-2.5"><i class="fa-solid fa-chart-pie text-sm"></i> Dashboard</span>
+                    </button>
+                </div>
 
-            <div class="p-4 border-t border-slate-200 dark:border-darkborder bg-slate-50 dark:bg-slate-900/40 text-xs">
-                <span class="text-slate-400 dark:text-slate-500 block font-semibold uppercase tracking-wider text-[10px]">Active Node Operator</span>
-                <span class="text-slate-900 dark:text-white font-bold block text-sm mt-0.5" id="profile-display-name">Official Bigi</span>
-                <span class="text-slate-400 dark:text-slate-500 text-[11px]" id="profile-display-email">komboismail56@gmail.com</span>
+                <!-- CATEGORY: CUSTOMERS -->
+                <div class="space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">Customers</div>
+                    <button onclick="changeActiveLayoutTab('sessions')" id="tablink-sessions" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-users text-sm w-4"></i> Sessions</button>
+                    <button onclick="changeActiveLayoutTab('pppoe')" id="tablink-pppoe" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-network-wired text-sm w-4"></i> PPPoE</button>
+                    <button onclick="changeActiveLayoutTab('static-ip')" id="tablink-static-ip" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-microchip text-sm w-4"></i> Static IP</button>
+                </div>
+
+                <!-- CATEGORY: NETWORK Infrastructure -->
+                <div class="space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">Network</div>
+                    <button onclick="changeActiveLayoutTab('routers')" id="tablink-routers" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-server text-sm w-4"></i> Routers</button>
+                </div>
+
+                <!-- CATEGORY: SALES & MONEY -->
+                <div class="space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">Sales & Money</div>
+                    <button onclick="changeActiveLayoutTab('packages')" id="tablink-packages" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-cubes text-sm w-4"></i> Packages</button>
+                    <button onclick="changeActiveLayoutTab('earnings')" id="tablink-earnings" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-wallet text-sm w-4"></i> Payments & Earnings</button>
+                </div>
+
+                <!-- CATEGORY: SYSTEM CONFIG -->
+                <div class="space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">System</div>
+                    <button onclick="changeActiveLayoutTab('settings')" id="tablink-settings" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-gear text-sm w-4"></i> Settings</button>
+                </div>
+            </div>
+
+            <!-- Account Metadata Identity Node Footer -->
+            <div class="p-3 border-t border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/40 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">OB</div>
+                <div class="overflow-hidden min-w-0">
+                    <div class="font-bold text-slate-900 dark:text-white truncate text-xs" id="lbl-side-username">Official Bigi</div>
+                    <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" id="lbl-side-email">komboismail56@gmail.com</div>
+                </div>
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col overflow-hidden">
-            <header class="bg-white dark:bg-darkcard border-b border-slate-200 dark:border-darkborder h-16 flex items-center justify-between px-8 shrink-0">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-lg font-bold text-slate-900 dark:text-white" id="view-title">Welcome, Official Bigi</h1>
+        <!-- WORKSPACE ENVIRONMENT VIEWPORT -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <!-- Global Frame Bar Header -->
+            <header class="h-16 border-b border-slate-200 dark:border-vunaborder bg-white dark:bg-vunacard px-6 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight" id="lbl-header-title">Welcome, Official Bigi</h2>
                 </div>
-                <div class="flex items-center gap-4 text-sm">
-                    <div class="flex items-center gap-2 bg-amber-500/10 text-amber-500 px-3 py-1.5 rounded-xl font-semibold border border-amber-500/20 text-xs">
-                        <i class="fa-solid fa-clock-rotate-left"></i> System Active
+                <div class="flex items-center gap-4 text-xs">
+                    <div class="flex items-center gap-1.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md font-semibold border border-indigo-500/20">
+                        <i class="fa-solid fa-sms"></i> <span>SMS Balance: 10 Free</span>
                     </div>
                 </div>
             </header>
 
-            <div class="flex-1 overflow-y-auto p-8 space-y-8">
+            <!-- Dynamic Workspace Content Injector -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
 
-                <div id="view-dashboard" class="space-y-8 app-view">
-                    <div class="bg-gradient-to-r from-indigo-900 to-slate-900 border border-indigo-500/20 p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                        <div>
-                            <h3 class="text-white font-bold text-lg">Set up your account node</h3>
-                            <p class="text-slate-400 text-sm mt-1">Configure your incoming multi-tenant infrastructure context to receive active subscriber data packets.</p>
-                        </div>
-                        <button onclick="switchView('routers')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">Next: Connect your MikroTik router &rarr;</button>
+                <!-- VIEW 1: PREMIUM VUNAFLOW DASHBOARD -->
+                <div id="viewframe-dashboard" class="space-y-6 block viewframe">
+                    <!-- Dynamic Alert Banner Strip -->
+                    <div class="bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between text-xs font-medium">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> Your AudiSpot subscription setup window expires in 3 days.</span>
+                        <button class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg transition font-bold">Renew now</button>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm flex flex-col justify-between">
-                            <div>
-                                <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Gross Active Pipeline Revenue</span>
-                                <h2 class="text-3xl font-black text-slate-900 dark:text-white mt-2">KSh <span id="wallet-balance">0.00</span></h2>
-                            </div>
-                            <button onclick="switchView('earnings')" class="mt-4 bg-slate-100 dark:bg-darkborder hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-paper-plane"></i> Shift Liquidity / Payout Records
-                            </button>
+                    <!-- Task List Workflow Context Map -->
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-4 text-xs">
+                        <div class="flex items-center justify-between font-bold text-slate-900 dark:text-white mb-2">
+                            <span>Set up your account <span class="text-indigo-500">0 of 6 done</span></span>
+                            <button onclick="changeActiveLayoutTab('routers')" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-500 font-bold">Next: Connect your MikroTik router &rarr;</button>
                         </div>
-                        <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm flex items-center justify-between">
-                            <div>
-                                <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Infrastructure Grid Nodes</span>
-                                <h2 class="text-3xl font-black text-slate-900 dark:text-white mt-2" id="router-count">0</h2>
-                                <span class="text-xs text-slate-400 font-medium mt-1 block">Configured Fleet Adapters</span>
-                            </div>
-                            <div class="p-4 bg-indigo-500/10 text-indigo-500 rounded-xl text-lg"><i class="fa-solid fa-server"></i></div>
+                        <div class="w-full bg-slate-100 dark:bg-vunaborder h-1 rounded-full"><div class="bg-indigo-600 h-1 rounded-full w-12"></div></div>
+                    </div>
+
+                    <!-- Dense Micro Metric Summary Display Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
+                            <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Routers</div>
+                            <div class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5"><span id="lbl-count-routers">0</span><span class="text-[11px] font-medium text-emerald-500">0 online</span></div>
                         </div>
-                        <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm flex items-center justify-between">
-                            <div>
-                                <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Subscriber Hotspot Leases</span>
-                                <h2 class="text-3xl font-black text-slate-900 dark:text-white mt-2" id="active-users-count">0</h2>
-                                <span class="text-xs text-emerald-500 font-bold mt-1 block"><i class="fa-solid fa-chart-line"></i> Synchronized Engine Ready</span>
-                            </div>
-                            <div class="p-4 bg-emerald-500/10 text-emerald-500 rounded-xl text-lg"><i class="fa-solid fa-users"></i></div>
+                        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
+                            <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hotspot Users Online</div>
+                            <div class="text-2xl font-black text-slate-900 dark:text-white">0</div>
+                        </div>
+                        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
+                            <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hotspot Vouchers</div>
+                            <div class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5">0<span class="text-[11px] font-normal text-slate-400">/ 0 created today</span></div>
                         </div>
                     </div>
 
-                    <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder rounded-2xl shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-slate-200 dark:border-darkborder flex items-center justify-between">
-                            <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider">Real-Time Inbound Transaction Processing</h3>
-                            <button onclick="syncCoreEngineMetrics()" class="text-slate-400 hover:text-indigo-500 transition"><i class="fa-solid fa-arrows-rotate animate-spin-slow"></i></button>
+                    <!-- Operational Activity Table Frame Matrix -->
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-200 dark:border-vunaborder flex items-center justify-between text-xs">
+                            <h4 class="font-bold text-slate-900 dark:text-white">Paid today</h4>
+                            <span class="text-slate-400">0 payments • KSh 0 today</span>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-slate-50 dark:bg-slate-900/60 text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-darkborder">
-                                        <th class="p-4">Receipt Token</th>
-                                        <th class="p-4">Customer Phone Handle</th>
-                                        <th class="p-4">Infrastructure Core ID</th>
-                                        <th class="p-4">Settlement Total</th>
-                                        <th class="p-4">Gateway Status</th>
-                                    </tr>
+                        <div class="p-6 text-center text-xs text-slate-400 dark:text-slate-500" id="payment-logs-placeholder-block">
+                            No payments yet today — they'll show here as customers pay.
+                        </div>
+                        <div class="overflow-x-auto hidden" id="payment-logs-table-wrapper">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px] tracking-wider">
+                                    <tr><th class="p-3">Receipt</th><th class="p-3">Phone</th><th class="p-3">Router Node</th><th class="p-3">Amount</th><th class="p-3">Status</th></tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100 dark:divide-darkborder font-mono" id="payment-logs-table">
-                                    <tr>
-                                        <td colspan="5" class="p-8 text-center text-slate-400 font-sans">Connecting transaction pipelines...</td>
-                                    </tr>
-                                </tbody>
+                                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="payment-logs-table-body"></tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- Revenue Graph Panel -->
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-4">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="font-bold text-slate-900 dark:text-white">Revenue</div>
+                            <div class="flex items-center gap-4 text-[11px]">
+                                <span class="text-emerald-500 font-medium">KSh 0 • 0 sales</span>
+                                <div class="flex bg-slate-100 dark:bg-vunaborder p-0.5 rounded-md font-semibold">
+                                    <button class="px-2 py-1 text-slate-400">7D</button>
+                                    <button class="px-2 py-1 bg-white dark:bg-vunainput text-slate-900 dark:text-white rounded shadow-sm">30D</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="h-28 border-b border-dashed border-vunaborder flex items-end justify-between px-4 text-[10px] text-slate-600">
+                            <span>0.0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
                         </div>
                     </div>
                 </div>
 
-                <div id="view-routers" class="space-y-8 app-view hidden">
-                    <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm">
-                        <h3 class="text-base font-bold text-slate-900 dark:text-white mb-4"><i class="fa-solid fa-circle-plus text-indigo-500 mr-2"></i> Register New MikroTik System Link</h3>
-                        <form id="router-link-form" class="grid grid-cols-1 md:grid-cols-4 gap-4" onsubmit="handleRouterProvision(event)">
-                            <input type="text" id="form-router-id" placeholder="Router ID (e.g., MSA_02)" class="p-3 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-xs focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white" required>
-                            <input type="text" id="form-router-ip" placeholder="Public IP / DDNS Target" class="p-3 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-xs focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white" required>
-                            <input type="text" id="form-router-user" placeholder="API Profile User" class="p-3 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-xs focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white" required>
-                            <input type="password" id="form-router-pass" placeholder="API Password Context" class="p-3 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-xs focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white" required>
-                            <button type="submit" id="provision-btn" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-xs transition">Provision & Map Access Configuration</button>
+                <!-- VIEW 2: ROUTERS NETWORKING INFRASTRUCTURE -->
+                <div id="viewframe-routers" class="space-y-6 hidden viewframe">
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
+                        <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Connect Your MikroTik Hardware Instance</h3>
+                        <form id="router-link-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="provisionRouterHardwareNode(event)">
+                            <div class="space-y-1"><label class="text-slate-400">Router Node ID</label><input type="text" id="form-router-id" placeholder="e.g., MSA_02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+                            <div class="space-y-1"><label class="text-slate-400">Public IP Address / DDNS</label><input type="text" id="form-router-ip" placeholder="e.g., 198.51.100.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+                            <div class="space-y-1"><label class="text-slate-400">API Username</label><input type="text" id="form-router-user" placeholder="admin" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+                            <div class="space-y-1"><label class="text-slate-400">API Password</label><input type="password" id="form-router-pass" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
+                            <button type="submit" id="provision-btn" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Provision & Link Router Mapping</button>
                         </form>
                     </div>
 
-                    <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder rounded-2xl shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-slate-200 dark:border-darkborder"><h3 class="font-bold text-xs uppercase tracking-wider text-slate-400">Linked Router Network Nodes</h3></div>
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white">Active Operational Gateways</div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-slate-50 dark:bg-slate-900/60 text-slate-400 dark:text-slate-500 font-bold border-b border-slate-200 dark:border-darkborder uppercase tracking-wider">
-                                        <th class="p-4">Hardware ID</th>
-                                        <th class="p-4">Target IP Interface Address</th>
-                                        <th class="p-4">User Level Authority</th>
-                                        <th class="p-4">Network Status Check</th>
-                                    </tr>
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                                    <tr><th class="p-3">Node ID</th><th class="p-3">Destination IP Block</th><th class="p-3">User Clearance</th><th class="p-3">Status</th></tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100 dark:divide-darkborder font-mono" id="fleet-table-body">
-                                    <tr><td colspan="4" class="p-6 text-center text-slate-400 font-sans">No target hardware components bound to profile context.</td></tr>
+                                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="fleet-table-body">
+                                    <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical routers configured yet.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-                <div id="view-earnings" class="space-y-6 app-view hidden">
-                    <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-8 rounded-2xl max-w-2xl mx-auto space-y-6">
-                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-wallet"></i></div>
+                <!-- VIEW 3: PAYMENTS & SETTLED FIXED MONTHLY POOLS -->
+                <div id="viewframe-earnings" class="space-y-6 hidden viewframe">
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs">
+                        <div class="w-10 h-10 bg-indigo-600/10 text-indigo-500 rounded-lg flex items-center justify-center text-lg"><i class="fa-solid fa-building-columns"></i></div>
                         <div>
-                            <h3 class="text-base font-bold text-slate-900 dark:text-white">Safaricom Business-to-Customer (B2C) Disbursal</h3>
-                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Platform earnings automatically group and clear into isolated balance aggregates. Settlement rules permit withdrawals precisely on a fixed **Monthly Interval Billing Execution Cycle**.</p>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-sm">Safaricom Business-to-Customer (B2C) Disbursal</h3>
+                            <p class="text-slate-400 mt-1 leading-relaxed">Network financial pipelines utilize multi-tenant accounting isolation layers. Withdrawals clear directly into your target recipient line through execution pools precisely on a **Fixed Monthly Interval Settlement Window**.</p>
                         </div>
-                        <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-darkborder flex justify-between items-center">
+                        <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder flex items-center justify-between">
                             <div>
-                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Accrued Settled Funds Pool</span>
-                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">KSh <span id="earnings-withdrawable-display">0.00</span></div>
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Settled Funds Balance</span>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-0.5">KSh <span id="lbl-earnings-withdrawable">0.00</span></div>
                             </div>
-                            <button onclick="executeB2CDisbursementShift()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition">Trigger Scheduled Monthly Liquidity Disbursal</button>
+                            <button onclick="triggerMonthlySettlementDisbursal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition">Request Monthly Settlement</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="view-settings" class="space-y-8 app-view hidden">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div class="space-y-8">
-                            <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm space-y-4">
-                                <h3 class="font-bold text-sm uppercase tracking-wider text-slate-400"><i class="fa-solid fa-id-card text-indigo-500 mr-2"></i> Account Details</h3>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                                    <div><label class="block text-slate-400 mb-1">Operator Profile Name</label><input type="text" id="sett-acc-name" value="Official Bigi" oninput="syncProfileContext()" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white font-bold"></div>
-                                    <div><label class="block text-slate-400 mb-1">Administrative Email Address</label><input type="email" id="sett-acc-email" value="komboismail56@gmail.com" oninput="syncProfileContext()" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white font-bold"></div>
-                                    <div class="md:col-span-2"><label class="block text-slate-400 mb-1">Enterprise Corporation Identity</label><input type="text" value="AudiSpot Premium Network Partner" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white"></div>
-                                </div>
-                            </div>
+                <!-- NEW COMPONENT EMPTY PLACEHOLDERS FOR ROUTE COHESION -->
+                <div id="viewframe-sessions" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Active hotspot device authentication tracking profiles pipeline.</div>
+                <div id="viewframe-pppoe" class="hidden viewframe text-xs text-slate-400 p-6 text-center">PPPoE pipeline context engine.</div>
+                <div id="viewframe-static-ip" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Static lease customer bindings mapping table.</div>
+                <div id="viewframe-packages" class="hidden viewframe text-xs text-slate-400 p-6 text-center">Data package allocation tiers block config.</div>
 
-                            <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm space-y-4">
-                                <h3 class="font-bold text-sm uppercase tracking-wider text-slate-400"><i class="fa-solid fa-users-gear text-indigo-500 mr-2"></i> Technicians Management Area</h3>
-                                <p class="text-xs text-slate-400 leading-relaxed">Create isolated administrative sub-logins for your deployment engineering team. Technicians manage system routing configurations, PPPoE accounts, and fixed static assignments, but carry zero authority to access balance records or transactional ledger structures.</p>
-                                <div class="border border-dashed border-slate-200 dark:border-darkborder p-6 rounded-xl text-center text-xs text-slate-400">
-                                    <i class="fa-solid fa-user-shield text-xl mb-2 text-slate-500"></i>
-                                    <div>No Active Auxiliary Technicians Provisioned</div>
-                                </div>
-                                <button onclick="alert('Technician sub-login authorization module initialized.')" class="w-full bg-slate-900 dark:bg-darkborder hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition">Add New Technical Team Member</button>
-                            </div>
-                        </div>
-
-                        <div class="space-y-8">
-                            <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm space-y-4">
-                                <h3 class="font-bold text-sm uppercase tracking-wider text-slate-400"><i class="fa-solid fa-money-bill-transfer text-indigo-500 mr-2"></i> M-Pesa Receiving Core</h3>
-                                <div class="flex gap-4 border-b border-slate-200 dark:border-darkborder pb-4">
-                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white"><input type="radio" name="m-type" checked class="accent-indigo-600"> Buy Goods Till Number</label>
-                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-400"><input type="radio" name="m-type" disabled class="accent-indigo-600"> Paybill Gateway</label>
-                                </div>
-                                <div class="space-y-3 text-xs">
-                                    <div><label class="block text-slate-400 mb-1">Target Active Business Shortcode</label><input type="text" value="4030905" readonly class="w-full p-2.5 bg-slate-100 dark:bg-slate-900 text-slate-500 font-mono rounded-xl border border-slate-200 dark:border-darkborder"></div>
-                                    <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500 flex items-start gap-3">
-                                        <i class="fa-solid fa-circle-check mt-0.5"></i>
-                                        <div><span class="font-bold block text-xs">Direct API Integration Verification Complete</span><span class="text-[11px] block mt-0.5 opacity-90">Customer payments process natively via configured production Daraja architecture, depositing funds transparently to your target commercial shortcode ledger structure.</span></div>
+                <!-- VIEW 4: SYSTEM & HARDWARE CONFIGURATION AREA (Exact VunaFlow Spec) -->
+                <div id="viewframe-settings" class="space-y-6 hidden viewframe">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                        
+                        <!-- Left Block Column -->
+                        <div class="space-y-6">
+                            <!-- Section: Account Details -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-address-card text-indigo-500 mr-1.5"></i> Account Details</h3>
+                                <div class="space-y-3">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="space-y-1"><label class="text-slate-400">Name</label><input type="text" id="inp-sett-name" value="Official Bigi" oninput="syncRealtimeMetadata()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold"></div>
+                                        <div class="space-y-1"><label class="text-slate-400">Email</label><input type="email" id="inp-sett-email" value="komboismail56@gmail.com" oninput="syncRealtimeMetadata()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold"></div>
                                     </div>
-                                    <div><label class="block text-slate-400 mb-1">Production Webhook Callback URL</label><input type="text" readonly value="https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-darkborder p-2.5 rounded-xl font-mono text-slate-400 select-all"></div>
+                                    <div class="space-y-1"><label class="text-slate-400">Company</label><input type="text" value="AudiSpot Networks" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white"></div>
+                                    <div class="space-y-1"><label class="text-slate-400">Password</label><input type="password" value="••••••••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-400"></div>
                                 </div>
                             </div>
 
-                            <div class="bg-white dark:bg-darkcard border border-slate-200 dark:border-darkborder p-6 rounded-2xl shadow-sm space-y-4">
-                                <h3 class="font-bold text-sm uppercase tracking-wider text-slate-400"><i class="fa-solid fa-network-wired text-indigo-500 mr-2"></i> Network Parameters & Captive Branding</h3>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                                    <div><label class="block text-slate-400 mb-1">Dashboard Host Gateway IP</label><input type="text" value="10.5.5.1" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white font-mono"></div>
-                                    <div><label class="block text-slate-400 mb-1">Client Care Contact Link</label><input type="text" value="+254700000000" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white"></div>
-                                    <div class="md:col-span-2"><label class="block text-slate-400 mb-1">Captive Portal Redirection Destination</label><input type="url" value="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-darkbg border border-slate-200 dark:border-darkborder rounded-xl text-slate-900 dark:text-white font-mono"></div>
+                            <!-- Section: Technicians Sub-logins -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-user-gear text-indigo-500 mr-1.5"></i> Technicians</h3>
+                                    <span class="text-slate-500 font-semibold text-[11px]">Technicians (0)</span>
                                 </div>
-                                <button onclick="alert('Network layer updates stored successfully.')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition">Persist Network & Branding Schema Updates</button>
+                                <p class="text-slate-400 leading-relaxed">Create sub-logins for your team. Technicians can manage routers, PPPoE and Static IP customers but cannot access billing or payments.</p>
+                                <div class="border border-dashed border-slate-200 dark:border-vunaborder p-6 rounded-lg text-center text-slate-500">
+                                    <i class="fa-solid fa-user-shield text-lg mb-1 block text-slate-600"></i>
+                                    <span>No Technicians Yet</span>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Add a technician to give them access to routers, PPPoE and Static IP customers without billing access.</p>
+                                </div>
+                                <button onclick="triggerToastDisplay('Auxiliary engineering sub-token provisioning layout initialized.')" class="w-full bg-slate-100 dark:bg-vunaborder hover:bg-slate-200 text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition">Add Technician</button>
+                                <div class="pt-2 border-t border-vunaborder"><label class="flex items-center gap-2 text-slate-400 font-medium"><input type="checkbox" checked class="accent-indigo-600"> Email me about technician changes</label></div>
+                            </div>
+
+                            <!-- Section: SMS Notifications Configuration -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
+                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-message text-indigo-500 mr-1.5"></i> SMS Notifications</h3>
+                                <p class="text-slate-400 leading-relaxed">Send vouchers, welcome, and reminder SMS to your customers. Activate to get 10 free SMS; top up anytime from your top bar.</p>
+                                <div class="p-3 bg-slate-100 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg flex items-center justify-between text-[11px]">
+                                    <span class="text-slate-400 font-semibold"><i class="fa-solid fa-circle-minus text-amber-500 mr-1"></i> SMS is currently off.</span>
+                                    <button onclick="triggerToastDisplay('SMS service layers active. 10 Complimentary test frames allocated.')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-md transition">Activate</button>
+                                </div>
                             </div>
                         </div>
+
+                        <!-- Right Block Column -->
+                        <div class="space-y-6">
+                            <!-- Section: M-PESA Configuration Gateway -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Payment Receiving</h3>
+                                <div class="flex gap-4 border-b border-vunaborder pb-3 font-semibold text-slate-400">
+                                    <label class="flex items-center gap-1.5 text-slate-900 dark:text-white"><input type="radio" checked class="accent-indigo-600"> Till / Buy Goods</label>
+                                    <label class="flex items-center gap-1.5 opacity-40"><input type="radio" disabled class="accent-indigo-600"> Paybill</label>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-slate-400">Your Till Number</label>
+                                    <input type="text" value="4030905" readonly class="w-full p-2.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-vunaborder font-mono text-slate-500 rounded-lg">
+                                    <span class="text-[11px] text-emerald-500 block font-medium"><i class="fa-solid fa-circle-check"></i> Ready to receive payments</span>
+                                    <p class="text-[11px] text-slate-400 leading-normal">Payments settle directly to your till. No extra setup, and you never share any M-Pesa credentials.</p>
+                                </div>
+                                <div class="space-y-3 pt-3 border-t border-vunaborder">
+                                    <label class="block font-bold text-slate-400 uppercase text-[10px] tracking-wider">Payment gateway choose</label>
+                                    <!-- Gateway Tier Blocks -->
+                                    <div class="space-y-2">
+                                        <div class="p-3 border-2 border-indigo-600 bg-indigo-600/5 rounded-xl flex items-center justify-between">
+                                            <div class="flex items-start gap-3"><div class="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center font-bold text-xs shrink-0">M·P</div><div><span class="font-bold block text-slate-900 dark:text-white">Platform M-Pesa</span><span class="text-[10px] text-slate-400 block mt-0.5">Settles to AudiSpot, paid out to you. Zero setup.</span></div></div>
+                                            <span class="bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-md tracking-wider">ACTIVE</span>
+                                        </div>
+                                        <div class="p-3 border border-vunaborder bg-slate-50 dark:bg-vunainput/40 rounded-xl flex items-center justify-between opacity-50 select-none">
+                                            <div class="flex items-start gap-3"><div class="w-7 h-7 bg-slate-800 rounded text-slate-400 flex items-center justify-center font-bold text-xs shrink-0">M·P</div><div><span class="font-bold block text-slate-400">My own M-Pesa (Daraja)</span><span class="text-[10px] text-slate-500 block mt-0.5">Direct link via independent Daraja production key environments.</span></div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section: PPPoE Defaults -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
+                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-shield-halved text-indigo-500 mr-1.5"></i> PPPoE Defaults</h3>
+                                <p class="text-slate-400 leading-relaxed">A default password pre-filled when you add a PPPoE customer (you set each customer's username; the password defaults to this and stays editable per customer).</p>
+                                <div class="space-y-1"><label class="text-slate-400">Default PPPoE Password</label><input type="text" value="vunaflow123" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
+                            </div>
+
+                            <!-- Section: Network & Branding Options Matrix -->
+                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-sliders text-indigo-500 mr-1.5"></i> Network & Branding</h3>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1"><label class="text-slate-400">Dashboard Server IP</label><input type="text" value="10.5.5.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
+                                    <div class="space-y-1"><label class="text-slate-400">Support Phone</label><input type="text" value="+254700000000" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
+                                </div>
+                                <div class="space-y-1"><label class="text-slate-400">Business Name</label><input type="text" value="AudiSpot High-Speed Premium Network" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
+                                <div class="space-y-1"><label class="text-slate-400">Captive Portal Redirect URL</label><input type="text" value="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
+                                <button onclick="triggerToastDisplay('Global matrix systems successfully committed to Cloud Firestore layer.')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -235,182 +344,187 @@
         </main>
     </div>
 
+    <!-- CONTROL RUNTIME PROCESSING MATRIX -->
     <script>
-        // Set configuration pointers matching active Cloud Run architecture parameters
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
         const CURRENT_ISP_ID = "default_isp";
 
-        // APP VIEW SHIFT ROUTING CONTROLLER
-        function switchView(viewName) {
-            document.querySelectorAll('.app-view').forEach(view => view.classList.add('hidden'));
-            document.getElementById(`view-${viewName}`).classList.remove('hidden');
-            
-            document.querySelectorAll('#sidebar-nav button').forEach(btn => {
-                btn.className = "w-full flex items-center gap-3 p-2.5 rounded-xl text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-darkborder transition";
+        // APP TAB ROUTING SWITCH LAYERS
+        function changeActiveLayoutTab(targetTabId) {
+            document.querySelectorAll('.viewframe').forEach(frame => frame.classList.add('hidden'));
+            document.getElementById(`viewframe-${targetTabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('#sidebar-nav button').forEach(button => {
+                button.className = "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left";
             });
-            
-            const activeBtn = document.getElementById(`nav-${viewName}`);
-            activeBtn.className = "w-full flex items-center gap-3 p-2.5 rounded-xl text-left bg-indigo-600 text-white shadow-md shadow-indigo-600/10";
 
-            const titles = { 
-                'dashboard': 'Welcome, ' + document.getElementById('sett-acc-name').value, 
-                'routers': 'Core Fleet Topology Infrastructure', 
-                'earnings': 'Financial Reconciliation & Ledger Sets', 
-                'settings': 'Global System Control Configurations Matrix' 
+            const linkElement = document.getElementById(`tablink-${targetTabId}`);
+            linkElement.className = "w-full flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-semibold transition";
+
+            const customHeaderTitles = {
+                'dashboard': 'Welcome, ' + document.getElementById('inp-sett-name').value,
+                'sessions': 'Active Authentication Sessions Pipeline',
+                'pppoe': 'PPPoE Client Infrastructure Nodes',
+                'static-ip': 'Fixed Static IP Lease Allocations',
+                'routers': 'Core Fleet Access Control Points',
+                'packages': 'Data Plan Bandwidth Accounting Tiers',
+                'earnings': 'Financial Management Operations',
+                'settings': 'Global System Settings Core'
             };
-            document.getElementById('view-title').innerText = titles[viewName];
+            document.getElementById('lbl-header-title').innerText = customHeaderTitles[targetTabId] || "AudiSpot Operator Panel";
 
-            if (viewName === 'dashboard' || viewName === 'routers') {
+            if (targetTabId === 'dashboard' || targetTabId === 'routers') {
                 syncCoreEngineMetrics();
             }
         }
 
-        // ACCESSIBILITY INTERFACE THEME SWITCHER (DARK / LIGHT LAYER MATRIX)
-        function toggleTheme() {
-            const htmlEl = document.documentElement;
-            const iconEl = document.getElementById('theme-icon');
-            if (htmlEl.classList.contains('dark')) {
-                htmlEl.classList.remove('dark');
-                iconEl.className = "fa-solid fa-sun text-amber-500";
+        // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
+        function triggerToastDisplay(textMessage, isWarningMessage = false) {
+            const toastFrame = document.getElementById('inline-toast');
+            const iconFrame = document.getElementById('toast-icon');
+            document.getElementById('toast-message').innerText = textMessage;
+
+            if (isWarningMessage) {
+                toastFrame.classList.replace('border-emerald-500/30', 'border-rose-500/30');
+                iconFrame.className = "fa-solid fa-triangle-exclamation text-rose-400 text-sm";
+            } else {
+                toastFrame.classList.replace('border-rose-500/30', 'border-emerald-500/30');
+                iconFrame.className = "fa-solid fa-circle-check text-emerald-400 text-sm";
+            }
+
+            toastFrame.classList.remove('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toastFrame.classList.add('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
+            }, 4000);
+        }
+
+        function toggleThemeEngine() {
+            const documentElementClassList = document.documentElement.classList;
+            const toggleIconNode = document.getElementById('theme-icon-indicator');
+            if (documentElementClassList.contains('dark')) {
+                documentElementClassList.remove('dark');
+                toggleIconNode.className = "fa-solid fa-sun text-sm text-amber-500";
                 localStorage.setItem('theme', 'light');
             } else {
-                htmlEl.classList.add('dark');
-                iconEl.className = "fa-solid fa-moon text-indigo-400";
+                documentElementClassList.add('dark');
+                toggleIconNode.className = "fa-solid fa-moon text-sm text-indigo-400";
                 localStorage.setItem('theme', 'dark');
             }
         }
 
-        function syncProfileContext() {
-            const nameVal = document.getElementById('sett-acc-name').value;
-            const emailVal = document.getElementById('sett-acc-email').value;
-            document.getElementById('profile-display-name').innerText = nameVal;
-            document.getElementById('profile-display-email').innerText = emailVal;
+        function syncRealtimeMetadata() {
+            const currentNameValue = document.getElementById('inp-sett-name').value;
+            const currentEmailValue = document.getElementById('inp-sett-email').value;
+            document.getElementById('lbl-side-username').innerText = currentNameValue;
+            document.getElementById('lbl-side-email').innerText = currentEmailValue;
         }
 
-        // RECONCILE METRIC DATA DIRECTLY WITH PRODUCTION CONTAINER CORE ENGINE
+        // DATABASE RECONCILIATION LAYER SYNCHRONIZATION
         async function syncCoreEngineMetrics() {
             try {
-                const [logsRes, routersRes] = await Promise.all([
+                const [networkResponseLogs, networkResponseRouters] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/hotspot/logs?ispId=${CURRENT_ISP_ID}`).catch(() => null),
                     fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`).catch(() => null)
                 ]);
 
-                let calculationPoolBalance = 0;
-                let trackingFleetCounter = 0;
-                let logAggregationRowsHtml = '';
-                let hardwareFleetRowsHtml = '';
+                let totalCalculatedBalance = 0;
+                let linkedRoutersCount = 0;
+                let finalPaymentRowMarkup = '';
+                let finalRouterRowMarkup = '';
 
-                // Process Firestore Financial Logs Data
-                if (logsRes && logsRes.ok) {
-                    const logs = await logsRes.json();
-                    if (logs.length > 0) {
-                        logAggregationRowsHtml = logs.map(log => {
-                            calculationPoolBalance += parseFloat(log.grossAmount || 0);
+                if (networkResponseLogs && networkResponseLogs.ok) {
+                    const logsDataList = await networkResponseLogs.json();
+                    if (logsDataList.length > 0) {
+                        document.getElementById('payment-logs-placeholder-block').classList.add('hidden');
+                        document.getElementById('payment-logs-table-wrapper').classList.remove('hidden');
+                        
+                        finalPaymentRowMarkup = logsDataList.map(log => {
+                            totalCalculatedBalance += parseFloat(log.grossAmount || 0);
                             return `
-                                <tr class="hover:bg-slate-100/40 dark:hover:bg-darkborder/40 transition">
-                                    <td class="p-4 font-bold text-slate-950 dark:text-white">${log.id}</td>
-                                    <td class="p-4 text-slate-600 dark:text-slate-400">${log.customerPhone}</td>
-                                    <td class="p-4"><span class="bg-slate-200 dark:bg-darkborder text-slate-800 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-300 dark:border-slate-700">${log.routerId}</span></td>
-                                    <td class="p-4 font-black text-slate-900 dark:text-white">KSh ${parseFloat(log.grossAmount).toFixed(2)}</td>
-                                    <td class="p-4"><span class="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold">Processed</span></td>
+                                <tr class="hover:bg-slate-100/30 dark:hover:bg-vunahover/40 transition">
+                                    <td class="p-3 text-slate-100 font-bold">${log.id}</td>
+                                    <td class="p-3 text-slate-400">${log.customerPhone}</td>
+                                    <td class="p-3"><span class="bg-vunaborder text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">${log.routerId}</span></td>
+                                    <td class="p-3 font-bold text-white">KSh ${parseFloat(log.grossAmount).toFixed(2)}</td>
+                                    <td class="p-3"><span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded font-bold">Processed</span></td>
                                 </tr>`;
                         }).join('');
-                    } else {
-                        logAggregationRowsHtml = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-sans">No completed payment transactions registered yet.</td></tr>`;
+                        document.getElementById('payment-logs-table-body').innerHTML = finalPaymentRowMarkup;
                     }
-                } else {
-                    logAggregationRowsHtml = `<tr><td colspan="5" class="p-8 text-center text-rose-400 font-sans font-semibold"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Sync delay connecting to service endpoint. Verify server routing execution files.</td></tr>`;
                 }
 
-                // Process Firestore Hardware Components Mapping Context
-                if (routersRes && routersRes.ok) {
-                    const routers = await routersRes.json();
-                    trackingFleetCounter = routers.length;
-                    if (routers.length > 0) {
-                        hardwareFleetRowsHtml = routers.map(r => `
-                            <tr class="hover:bg-slate-100/40 dark:hover:bg-darkborder/40 transition">
-                                <td class="p-4 font-bold text-slate-950 dark:text-white">${r.id}</td>
-                                <td class="p-4 text-slate-600 dark:text-slate-400">${r.routerIp}</td>
-                                <td class="p-4 text-slate-500">${r.routerUser}</td>
-                                <td class="p-4"><span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold">Listening Node</span></td>
+                if (networkResponseRouters && networkResponseRouters.ok) {
+                    const routerDataList = await networkResponseRouters.json();
+                    linkedRoutersCount = routerDataList.length;
+                    if (routerDataList.length > 0) {
+                        finalRouterRowMarkup = routerDataList.map(router => `
+                            <tr class="hover:bg-slate-100/30 dark:hover:bg-vunahover/40 transition">
+                                <td class="p-3 text-white font-bold">${router.id}</td>
+                                <td class="p-3 text-slate-400">${router.routerIp}</td>
+                                <td class="p-3 text-slate-500">${router.routerUser}</td>
+                                <td class="p-3"><span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] px-2 py-0.5 rounded font-bold">Listening</span></td>
                             </tr>`).join('');
-                    } else {
-                        hardwareFleetRowsHtml = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-sans">No routers linked to this account context.</td></tr>`;
+                        document.getElementById('fleet-table-body').innerHTML = finalRouterRowMarkup;
                     }
-                } else {
-                    hardwareFleetRowsHtml = `<tr><td colspan="4" class="p-6 text-center text-rose-400 font-sans font-semibold"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Failed linking to active router mapping table.</td></tr>`;
                 }
 
-                // Update physical document nodes securely
-                document.getElementById('wallet-balance').innerText = calculationPoolBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 });
-                document.getElementById('earnings-withdrawable-display').innerText = calculationPoolBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 });
-                document.getElementById('router-count').innerText = trackingFleetCounter;
-                document.getElementById('active-users-count').innerText = logsRes && logsRes.ok ? Math.floor(trackingFleetCounter * 11 + 4) : 0;
-                document.getElementById('payment-logs-table').innerHTML = logAggregationRowsHtml;
-                document.getElementById('fleet-table-body').innerHTML = hardwareFleetRowsHtml;
+                document.getElementById('lbl-earnings-withdrawable').innerText = totalCalculatedBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 });
+                document.getElementById('lbl-count-routers').innerText = linkedRoutersCount;
 
-            } catch (err) {
-                console.error("Critical core synchronization exception:", err);
+            } catch (error) {
+                console.error("Pipeline Sync Exception: ", error);
             }
         }
 
-        // SAVE ROUTER HARDWARE TOPOLOGY DIRECTLY VIA POST INTERFACE
-        async function handleRouterProvision(e) {
-            e.preventDefault();
-            const btn = document.getElementById('provision-btn');
-            
-            const payload = {
+        async function provisionRouterHardwareNode(event) {
+            event.preventDefault();
+            const actionButton = document.getElementById('provision-btn');
+            const dataPayload = {
                 routerId: document.getElementById('form-router-id').value.trim(),
                 routerIp: document.getElementById('form-router-ip').value.trim(),
                 routerUser: document.getElementById('form-router-user').value.trim(),
                 routerPassword: document.getElementById('form-router-pass').value.trim(),
-                ispId: CURRENT_ISP_ID,
-                ispName: "AudiSpot Enterprise Partner"
+                ispId: CURRENT_ISP_ID
             };
 
             try {
-                btn.disabled = true;
-                btn.innerText = "Transmitting Mapping Records via REST Link...";
+                actionButton.disabled = true;
+                actionButton.innerText = "Transmitting hardware link parameters...";
 
-                const res = await fetch(`${API_BASE_URL}/api/hotspot/register-router`, {
+                const serverResponse = await fetch(`${API_BASE_URL}/api/hotspot/register-router`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(dataPayload)
                 });
 
-                if (res.ok) {
-                    alert(`Infrastructure Mapping Verified! Node [${payload.routerId}] successfully stored inside firestore matrix layout.`);
+                if (serverResponse.ok) {
+                    triggerToastDisplay(`Hardware link confirmed: [${dataPayload.routerId}] successfully registered.`);
                     document.getElementById('router-link-form').reset();
                     syncCoreEngineMetrics();
                 } else {
-                    const errPayload = await res.json();
-                    alert(`Hardware Registration Rejected: ${errPayload.error || 'Unknown Server Condition'}`);
+                    triggerToastDisplay("Server rejected router properties link.", true);
                 }
             } catch (err) {
-                alert("Network boundary error. Ensure container is responding on target port strings.");
+                triggerToastDisplay("Network boundary timeout connecting to execution container.", true);
             } finally {
-                btn.disabled = false;
-                btn.innerText = "Provision & Map Access Configuration";
+                actionButton.disabled = false;
+                actionButton.innerText = "Provision & Link Router Mapping";
             }
         }
 
-        function executeB2CDisbursementShift() {
-            const amtStr = document.getElementById('earnings-withdrawable-display').innerText;
-            if(amtStr === "0.00") {
-                alert("Action Refused: Accumulation register contains zero clear liquid statements for execution.");
+        function triggerMonthlySettlementDisbursal() {
+            const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
+            if (currentAmountValue === "0.00") {
+                triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
                 return;
             }
-            if(confirm(`Are you confident you intend to release KSh ${amtStr} to your registered M-Pesa business disbursal shortcode? This can only be executed monthly.`)) {
-                alert("B2C Liquidity Shift transaction package signed and dispatched to Safaricom Daraja infrastructure ledger.");
-            }
+            triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
         }
 
-        // Runtime bootstrap sequence
         window.onload = () => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            if (savedTheme === 'light') toggleTheme();
+            if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
             syncCoreEngineMetrics();
-            setInterval(syncCoreEngineMetrics, 30000); // 30-second hot polling intervals
+            setInterval(syncCoreEngineMetrics, 30000);
         };
     </script>
 </body>
