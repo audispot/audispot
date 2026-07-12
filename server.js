@@ -26,7 +26,6 @@ try {
     });
 } catch (error) {
     console.error("Firestore initialization error:", error.message);
-    // Remove process.exit(1) here so the web server can still start up and give you real diagnostic logs!
 }
 
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
@@ -52,13 +51,63 @@ app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
 });
 
+// [FIXED NEW ROUTE] Fetch live real-time inbound logs directly from Firestore
+app.get('/api/hotspot/logs', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('global_transactions')
+            .where('routerId', '!=', '') // Allows checking documents dynamically
+            .get();
+            
+        const logs = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            logs.push({
+                id: doc.id,
+                customerPhone: data.customerPhone || 'Unknown',
+                routerId: data.routerId || 'N/A',
+                grossAmount: data.grossAmount || 0,
+                processedAt: data.processedAt || ''
+            });
+        });
+        
+        // Sort newest transactions to the top
+        logs.sort((a, b) => new Date(b.processedAt) - new Date(a.processedAt));
+        return res.status(200).json(logs);
+    } catch (error) {
+        console.error("Error reading global transactions ledger:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// [FIXED NEW ROUTE] Fetch complete router hardware fleet mapping arrays
+app.get('/api/hotspot/routers', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+        const routers = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            routers.push({
+                id: doc.id,
+                routerIp: data.routerIp || '0.0.0.0',
+                routerUser: data.routerUser || 'admin'
+            });
+        });
+        return res.status(200).json(routers);
+    } catch (error) {
+        console.error("Error pulling router fleet configurations:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 // 2. Admin Packages Initializer
 app.get('/api/admin/init-packages', async (req, res) => {
     try {
         const packagesRef = db.collection('subscriptions').doc('packages');
         await packagesRef.set({
             standard_monthly: {
-                name: "AudiSpot Core Router Access",
+                name: "AudiSpot Router Core Access Pass",
                 price_per_router: 500,
                 currency: "KES",
                 features: ["M-Pesa STK Push", "Branded captive portal", "Real-time analytics", "Anti-bypass firewall"]
@@ -90,16 +139,20 @@ app.post('/api/auth/isp-signup', async (req, res) => {
     }
 });
 
-// 4. Register Router Endpoint
-app.post('/api/isp/register-router', async (req, res) => {
+// 4. Register Router Endpoint (Aligned with the frontend route structure directly)
+app.post('/api/hotspot/register-router', async (req, res) => {
     const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
-    if (!routerId || !mpesaShortcode || !mpesaConsumerKey || !mpesaConsumerSecret) {
+    if (!routerId) {
         return res.status(400).json({ success: false, error: "Missing required tracking parameters." });
     }
     try {
         await db.collection('routers').doc(routerId).set({
             ispId: ispId || "default_isp",
-            ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret,
+            ispName: ispName || "AudiSpot Partner", 
+            mpesaShortcode: mpesaShortcode || "4030905", 
+            mpesaPasskey: mpesaPasskey || "", 
+            mpesaConsumerKey: mpesaConsumerKey || "", 
+            mpesaConsumerSecret: mpesaConsumerSecret || "",
             routerIp: routerIp || null,
             routerUser: routerUser || null,
             routerPassword: routerPassword || null,
@@ -135,7 +188,7 @@ app.post('/api/hotspot/login', async (req, res) => {
             Password: password, Timestamp: timestamp,
             TransactionType: "CustomerPayBillOnline", Amount: parseInt(amount),
             PartyA: phoneNumber, PartyB: ispConfig.mpesaShortcode, PhoneNumber: phoneNumber,
-            CallBackURL: `https://audispot-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}`,
+            CallBackURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}`,
             AccountReference: "AudiSpot WiFi", TransactionDesc: `WiFi Payment`
         };
 
@@ -183,7 +236,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 // Trigger remote MikroTik router activation sequence dynamically
                 if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
                     try {
-                        // Dynamically require the module here to keep deployment completely container-safe
                         const DynamicMikrotik = require('mikrotik-node');
                         const router = new DynamicMikrotik({
                             host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
