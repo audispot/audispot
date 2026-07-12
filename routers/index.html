@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudiSpot Control Center - Routers & Fleet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .sidebar { background-color: #111827; border-right: 1px solid #1f2937; }
+        .card { background-color: #111827; border: 1px solid #1f2937; }
+        .modal { background-color: rgba(3, 7, 18, 0.85); backdrop-filter: blur(8px); }
+    </style>
+</head>
+<body>
+
+    <div class="flex h-screen overflow-hidden">
+        <div class="w-64 sidebar flex flex-col justify-between p-4 h-full">
+            <div>
+                <div class="flex items-center gap-3 px-2 py-4">
+                    <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                        <i class="fa-solid fa-wifi text-xl"></i>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight">AudiSpot</span>
+                </div>
+                <nav class="mt-6 space-y-1">
+                    <a href="/dashboard/" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-gray-800 rounded-lg transition"><i class="fa-solid fa-chart-pie w-5"></i> Dashboard</a>
+                    <a href="/routers/" class="flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium shadow-lg shadow-indigo-600/20"><i class="fa-solid fa-server w-5"></i> Routers & Fleet</a>
+                </nav>
+            </div>
+            <div class="border-t border-gray-800 pt-4 px-2">
+                <p class="text-xs text-gray-500">Logged in as:</p>
+                <p class="text-sm font-semibold text-gray-300" id="session-username">Official Bigi</p>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col overflow-y-auto p-8">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Core Fleet Access Control</h1>
+                    <p class="text-sm text-gray-400">Map hardware endpoints, build walled gardens, and deploy provisioning profiles.</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="openScriptSection()" class="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-terminal"></i> Generate Script
+                    </button>
+                    <button onclick="toggleModal(true)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired"></i> Connect by IP (Advanced)
+                    </button>
+                </div>
+            </div>
+
+            <div id="script-provisioning-card" class="card rounded-xl p-6 mb-8 hidden">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-square-terminal text-indigo-400"></i> Automated WinBox Terminal Provisioning</h3>
+                        <p class="text-xs text-gray-400 mt-1">Paste this script block inside your MikroTik New Terminal workspace to configure the payment captive portal engine instantly.</p>
+                    </div>
+                    <button onclick="closeScriptSection()" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Router System Identifier Name</label>
+                        <input id="script-router-id" type="text" placeholder="e.g., MSA-02" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="generateProvisioningScript()" class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition">Generate Automated Command Blocks</button>
+                    </div>
+                </div>
+                <div id="script-output-container" class="hidden">
+                    <div class="relative bg-gray-950 rounded-lg p-4 border border-gray-800">
+                        <pre class="text-xs font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap" id="raw-script-payload">Fetching data stream payload allocations...</pre>
+                        <button onclick="copyScriptPayload()" class="absolute top-3 right-3 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs font-medium rounded-md text-white transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-copy"></i> <span id="copy-text-btn">Copy Script</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card rounded-xl overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50">
+                    <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Active Fleet Core Network Mappings</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-800 text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-900/20">
+                                <th class="px-6 py-4">Node / Router Identifier</th>
+                                <th class="px-6 py-4">Destination Target IP Address</th>
+                                <th class="px-6 py-4">API Port</th>
+                                <th class="px-6 py-4">Identity Clearance</th>
+                                <th class="px-6 py-4 text-right">Operational Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="router-fleet-rows" class="divide-y divide-gray-800/60 text-sm">
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500"><i class="fa-solid fa-circle-notch animate-spin mr-2"></i>Loading hardware mapping configuration matrices...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ip-connect-modal" class="modal fixed inset-0 z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl max-w-lg w-full overflow-hidden shadow-2xl">
+            <div class="px-6 py-4 border-b border-gray-800 bg-gray-950/40 flex justify-between items-center">
+                <div>
+                    <h3 class="text-md font-bold text-white">Connect by IP (Advanced Deployment)</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Automates system VPN channels, captive portal paths, and walled gardens.</p>
+                </div>
+                <button onclick="toggleModal(false)" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="router-provisioning-form" onsubmit="handleAdvancedProvisioning(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Router Name *</label>
+                        <input name="routerId" type="text" required placeholder="e.g., Stevie's Hotspot" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Location Identifier</label>
+                        <input name="location" type="text" placeholder="e.g., Mombasa CBD" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Router IP Address *</label>
+                        <input name="routerIp" type="text" required placeholder="e.g., 102.210.x.x (Public / DDNS)" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">API Port</label>
+                        <input name="routerPort" type="number" value="8728" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Username</label>
+                        <input name="routerUser" type="text" value="admin" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Password</label>
+                        <input name="routerPassword" type="password" placeholder="••••••••" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-gray-800 flex justify-end gap-3 bg-gray-950/20 -mx-6 -mb-6 p-4">
+                    <button type="button" onclick="toggleModal(false)" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg text-white transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-lg text-white transition shadow-lg shadow-indigo-600/30">Start Provisioning Sequence</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_HOST = "https://audispoty-749056206562.europe-west1.run.app";
+        const ISP_ID = "default_isp"; 
+
+        document.addEventListener("DOMContentLoaded", fetchRouterFleetData);
+
+        async function fetchRouterFleetData() {
+            try {
+                const response = await fetch(`${API_HOST}/api/hotspot/routers?ispId=${ISP_ID}`);
+                if (!response.ok) throw new Error("Could not pull network layout specifications matrices.");
+                const fleet = await response.getJson ? await response.json() : await response.json();
+                
+                const tbody = document.getElementById("router-fleet-rows");
+                if(fleet.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-gray-500 font-medium"><i class="fa-solid fa-server block text-2xl mb-2 text-gray-600"></i>No active hardware nodes configured for this tenant cluster.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = fleet.map(router => `
+                    <tr class="hover:bg-gray-900/30 transition">
+                        <td class="px-6 py-4 font-mono font-bold text-indigo-400">${router.id}</td>
+                        <td class="px-6 py-4 text-gray-300">${router.routerIp}</td>
+                        <td class="px-6 py-4 text-gray-400 font-mono">${router.routerPort || '8728'}</td>
+                        <td class="px-6 py-4 text-gray-400"><span class="bg-gray-800 px-2 py-1 rounded text-xs font-mono">${router.routerUser}</span></td>
+                        <td class="px-6 py-4 text-right"><span class="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Listening</span></td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                document.getElementById("router-fleet-rows").innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-rose-400 font-medium"><i class="fa-solid fa-triangle-exclamation mr-2"></i>${err.message}</td></tr>`;
+            }
+        }
+
+        function toggleModal(show) {
+            document.getElementById("ip-connect-modal").classList.toggle("hidden", !show);
+        }
+
+        function openScriptSection() {
+            document.getElementById("script-provisioning-card").classList.remove("hidden");
+        }
+
+        function closeScriptSection() {
+            document.getElementById("script-provisioning-card").classList.add("hidden");
+            document.getElementById("script-output-container").classList.add("hidden");
+        }
+
+        async function handleAdvancedProvisioning(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const payload = Object.fromEntries(formData.entries());
+            payload.ispId = ISP_ID;
+
+            try {
+                const res = await fetch(`${API_HOST}/api/hotspot/register-router`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    toggleModal(false);
+                    e.target.reset();
+                    fetchRouterFleetData();
+                } else {
+                    alert("Provisioning failed: " + data.error);
+                }
+            } catch (error) {
+                alert("Network communication error during infrastructure onboarding sequence.");
+            }
+        }
+
+        async function generateProvisioningScript() {
+            const routerId = document.getElementById("script-router-id").value.trim();
+            if(!routerId) return alert("Please clarify a target hardware identity code string first.");
+
+            try {
+                const res = await fetch(`${API_HOST}/api/hotspot/generate-script`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ routerId, ispId: ISP_ID })
+                });
+                const data = await res.json();
+                
+                document.getElementById("raw-script-payload").textContent = data.script;
+                document.getElementById("script-output-container").classList.remove("hidden");
+            } catch (err) {
+                alert("Failed to compute target dynamic shell execution code commands.");
+            }
+        }
+
+        function copyScriptPayload() {
+            const codeText = document.getElementById("raw-script-payload").textContent;
+            navigator.clipboard.writeText(codeText);
+            const btn = document.getElementById("copy-text-btn");
+            btn.textContent = "Copied!";
+            setTimeout(() => btn.textContent = "Copy Script", 2000);
+        }
+    </script>
+</body>
+</html>
