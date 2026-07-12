@@ -189,34 +189,46 @@
                     </div>
                 </div>
 
-                <!-- VIEW 2: ROUTERS NETWORKING INFRASTRUCTURE -->
                 <div id="viewframe-routers" class="space-y-6 hidden viewframe">
-                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
-                        <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Connect Your MikroTik Hardware Instance</h3>
-                        <form id="router-link-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="provisionRouterHardwareNode(event)">
-                            <div class="space-y-1"><label class="text-slate-400">Router Node ID</label><input type="text" id="form-router-id" placeholder="e.g., MSA_02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-                            <div class="space-y-1"><label class="text-slate-400">Public IP Address / DDNS</label><input type="text" id="form-router-ip" placeholder="e.g., 198.51.100.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-                            <div class="space-y-1"><label class="text-slate-400">API Username</label><input type="text" id="form-router-user" placeholder="admin" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-                            <div class="space-y-1"><label class="text-slate-400">API Password</label><input type="password" id="form-router-pass" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-                            <button type="submit" id="provision-btn" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Provision & Link Router Mapping</button>
-                        </form>
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-server text-indigo-500"></i> Core Hardware Infrastructure
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">Provision new MikroTik edge nodes, manage dynamic WinBox script payloads, and verify tunnel alignments.</p>
+                        </div>
+                        <a href="routers.html" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition shadow-lg shadow-indigo-600/20 flex items-center gap-2 whitespace-nowrap">
+                            <i class="fa-solid fa-plus"></i> Connect & Manage Routers
+                        </a>
                     </div>
 
                     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
-                        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white">Active Operational Gateways</div>
+                        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                            <span>Active Operational Gateways</span>
+                            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-sans">Live Fleet Status</span>
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs font-mono">
                                 <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
-                                    <tr><th class="p-3">Node ID</th><th class="p-3">Destination IP Block</th><th class="p-3">User Clearance</th><th class="p-3">Status</th></tr>
+                                    <tr>
+                                        <th class="p-3">Node ID</th>
+                                        <th class="p-3">Destination IP Block</th>
+                                        <th class="p-3">User Clearance</th>
+                                        <th class="p-3 text-right">Status</th>
+                                    </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="fleet-table-body">
-                                    <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical routers configured yet.</td></tr>
+                                    <tr>
+                                        <td colspan="4" class="p-8 text-center text-slate-500 font-sans">
+                                            <i class="fa-solid fa-circle-notch animate-spin text-indigo-500 text-lg mb-2 block"></i>
+                                            Syncing active network nodes cluster data...
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
-
                 <!-- VIEW 3: PAYMENTS & SETTLED FIXED MONTHLY POOLS -->
                 <div id="viewframe-earnings" class="space-y-6 hidden viewframe">
                     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs">
