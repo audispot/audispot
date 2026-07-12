@@ -419,5 +419,209 @@ app.post('/api/packages/delete', async (req, res) => {
     }
 });
 
+// ====================================================================
+// HOTSPOT ENGINE: SESSIONS & LIVE DISCONNECTS
+// ====================================================================
+
+// 1. Fetch live active hotspot sessions from MikroTik hardware
+app.get('/api/hotspot/active-sessions', async (req, res) => {
+    const { routerId } = req.query;
+    if (!routerId) return res.status(400).json({ error: "Missing active router parameters." });
+
+    try {
+        // Fetch credentials securely from your Firestore database mapping
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ error: "Target node not registered." });
+        
+        const routerData = routerDoc.data();
+        
+        // Connect directly to MikroTik API via your standard communication connector
+        // (Assuming you are using common routeros API wrappers like 'routeros-client')
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp,
+            user: routerData.routerUser,
+            password: routerData.routerPassword || '',
+            port: parseInt(routerData.routerPort || 8728)
+        });
+
+        const api = await client.connect();
+        const activeSessions = await api.write('/ip/hotspot/active/print');
+        await api.close();
+
+        // Standardize output payload parameters for front-end parsing loops
+        const standardized = activeSessions.map(s => ({
+            id: s['.id'],
+            user: s.user || 'Unknown',
+            address: s.address || '0.0.0.0',
+            macAddress: s['mac-address'] || '00:00:00:00:00:00',
+            uptime: s.uptime || '00:00:00'
+        }));
+
+        return res.status(200).json(standardized);
+    } catch (error) {
+        console.error("Session fetching error logs context:", error.message);
+        // Fallback array mock layer to prevent UI locking if the router connection fails
+        return res.status(200).json([]);
+    }
+});
+
+// 2. Force terminate and disconnect an active user session rule entry
+app.post('/api/hotspot/disconnect', async (req, res) => {
+    const { routerId, username } = req.body;
+    if (!routerId || !username) return res.status(400).json({ error: "Missing required identification keys." });
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ error: "Router record absent." });
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        // Look up unique active ID for user instance token 
+        const items = await api.write('/ip/hotspot/active/print', [`.query=user=${username}`]);
+        if(items.length > 0) {
+            await api.write('/ip/hotspot/active/remove', [`.id=${items[0]['.id']}`]);
+        }
+        await api.close();
+
+        return res.status(200).json({ success: true, message: "Subscriber kicked from network interface." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// ====================================================================
+// PPPOE ENGINE: MANAGING BROADBAND SUBSCRIBERS
+// ====================================================================
+
+// 3. Register a new PPPoE subscriber entry inside MikroTik core secrets database
+app.post('/api/pppoe/create-secret', async (req, res) => {
+    const { routerId, username, password, profile } = req.body;
+    if (!routerId || !username || !password || !profile) {
+        return res.status(400).json({ success: false, error: "Missing PPPoE creation attributes." });
+    }
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        await api.write('/ppp/secret/add', [
+            `=name=${username}`,
+            `=password=${password}`,
+            `=profile=${profile}`,
+            `=service=pppoe`
+        ]);
+        await api.close();
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 4. Read active registered broadband users pool array
+app.get('/api/pppoe/secrets', async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if(!routerDoc.exists) return res.status(200).json([]);
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        const secrets = await api.write('/ppp/secret/print');
+        await api.close();
+
+        const formattedSecrets = secrets.map(s => ({
+            name: s.name,
+            profile: s.profile,
+            remoteAddress: s['remote-address'] || 'Dynamic Pool'
+        }));
+
+        return res.status(200).json(formattedSecrets);
+    } catch (error) {
+        return res.status(200).json([]);
+    }
+});
+
+
+// ====================================================================
+// DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
+// ====================================================================
+
+// 5. Append permanent MAC/IP rule mappings bypass layout arrays
+app.post('/api/dhcp/create-lease', async (req, res) => {
+    const { routerId, macAddress, ipAddress, comment } = req.body;
+    if(!routerId || !macAddress || !ipAddress) return res.status(400).json({ success: false });
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        await api.write('/ip/dhcp-server/lease/add', [
+            `=mac-address=${macAddress}`,
+            `=address=${ipAddress}`,
+            `=comment=${comment || 'AudiSpot Static Bind'}`
+        ]);
+        await api.close();
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 6. Enumerate configured permanent hardware reservations 
+app.get('/api/dhcp/leases', async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if(!routerDoc.exists) return res.status(200).json([]);
+        const routerData = routerDoc.data();
+
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        const leases = await api.write('/ip/dhcp-server/lease/print');
+        await api.close();
+
+        // Isolate manually defined permanent leases from system allocations
+        const staticLeases = leases.filter(l => l.dynamic === 'false').map(l => ({
+            macAddress: l['mac-address'],
+            address: l.address,
+            comment: l.comment || 'Permanent Device'
+        }));
+
+        return res.status(200).json(staticLeases);
+    } catch(err) {
+        return res.status(200).json([]);
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
