@@ -1,16 +1,20 @@
-FROM node:18-alpine
+# Use the official stable Node 22 slim image
+FROM node:22-slim
 
-WORKDIR /app
+# Create application directory
+WORKDIR /usr/src/app
 
-# Copy dependency configuration files
+# Copy dependency manifests
 COPY package*.json ./
 
-# Cloud Build will read package.json and install routeros-client automatically here
-RUN npm install --only=production
+# Install dependencies cleanly (it will automatically use npm install if lockfile is missing)
+RUN npm install --omit=dev
 
-# Copy server code
+# Copy all application files
 COPY . .
 
+# Expose the Cloud Run dynamic PORT env variable
 EXPOSE 8080
 
-CMD ["node", "server.js"]
+# Run the backend application
+CMD [ "npm", "start" ]
