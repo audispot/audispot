@@ -624,10 +624,10 @@ app.get('/api/dhcp/leases', async (req, res) => {
 });
 
 // ====================================================================
-// VOUCHERS MANAGEMENT ENGINE
+// SYSTEM COMPONENT: SECURE SYSTEM ACCESS VOUCHERS API
 // ====================================================================
 
-// A. Fetch vouchers for a specific ISP tenant using app.get
+// A. Fetch vouchers for a specific ISP tenant via Firestore query strings
 app.get('/api/vouchers', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -638,32 +638,32 @@ app.get('/api/vouchers', async (req, res) => {
         snapshot.forEach(doc => {
             vouchers.push({ id: doc.id, ...doc.data() });
         });
+        // Sort newest vouchers first
+        vouchers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return res.status(200).json(vouchers);
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
 });
 
-// B. Batch Generate Vouchers using app.post
+// B. Batch Generate Vouchers tied to actual user packages inside Firestore
 app.post('/api/vouchers/generate', async (req, res) => {
     const { ispId, packageId, count, codeLength } = req.body;
     try {
-        // Look up the name and details of the package selected to save with the voucher
+        // Fetch the package configured by the user dynamically from the DB collection
         const pkgDoc = await db.collection('isp_packages').doc(packageId).get();
-        let packageName = "Custom Package";
-        let price = 0;
-        let duration = 0;
-
-        if (pkgDoc.exists) {
-            const pkgData = pkgDoc.data();
-            packageName = pkgData.packageName || "Unnamed Tier";
-            price = pkgData.price || 0;
-            duration = pkgData.duration || 0;
+        if (!pkgDoc.exists) {
+            return res.status(400).json({ success: false, error: "The selected custom package configuration rules do not exist." });
         }
+        
+        const pkgData = pkgDoc.data();
+        const packageName = pkgData.packageName || "Custom Tier";
+        const price = pkgData.price || 0;
+        const duration = pkgData.duration || 0;
 
         const batch = db.batch();
         const collectionRef = db.collection('isp_vouchers');
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Safe character set (no confusing O/0 or I/1)
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Clean validation dictionary strings
         
         const batchCount = Math.min(Math.max(count || 10, 1), 100);
         const len = codeLength || 8;
@@ -694,14 +694,24 @@ app.post('/api/vouchers/generate', async (req, res) => {
     }
 });
 
-// C. Shred and remove a voucher entirely using app.post (matches frontend invoke sequence)
-app.post('/api/vouchers/delete', async (req, res) => {
-    const { id } = req.body;
-    if (!id) return res.status(400).json({ success: false, error: "Missing unique identity." });
+// C. Bulk Delete Selected Vouchers Array Mapping Subsystems
+app.post('/api/vouchers/bulk-delete', async (req, res) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+        return res.status(400).json({ success: false, error: "Invalid identity array sequence profiles parameters." });
+    }
     
     try {
-        await db.collection('isp_vouchers').doc(id).delete();
-        return res.status(200).json({ success: true, message: "Voucher deleted successfully." });
+        const batch = db.batch();
+        const collectionRef = db.collection('isp_vouchers');
+        
+        ids.forEach(id => {
+            const docRef = collectionRef.doc(id);
+            batch.delete(docRef);
+        });
+        
+        await batch.commit();
+        return res.status(200).json({ success: true, message: "Bulk records purged successfully." });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
