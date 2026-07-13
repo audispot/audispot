@@ -1128,6 +1128,184 @@ async function deletePackageItem(packageId) {
             triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
         }
 
+        // ==========================================
+// VOUCHERS MANAGEMENT ENGINE
+// ==========================================
+
+// Track mock system data locally if needed
+let systemVouchers = [];
+
+function toggleVoucherModal(show) {
+    const modal = document.getElementById('voucher-generation-modal');
+    if (!modal) return;
+    
+    if (show) {
+        modal.classList.remove('hidden');
+        populateVoucherPackageOptions();
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+// Dynamically populate available plans into the modal dropdown selection
+function populateVoucherPackageOptions() {
+    const selectEl = document.getElementById('voucher-package-select');
+    if (!selectEl) return;
+    
+    // Look up package state array, fallback to default configurations if empty
+    const activePackages = (typeof systemPackages !== 'undefined' && systemPackages.length > 0) 
+        ? systemPackages 
+        : [
+            { id: 'p1', name: '1 Hour Bronze', price: 20 },
+            { id: 'p2', name: '24 Hour Silver', price: 50 },
+            { id: 'p3', name: '7 Days Gold', price: 250 }
+          ];
+          
+    selectEl.innerHTML = activePackages.map(pkg => 
+        `<option value="${pkg.id}">${pkg.name} — KSh ${pkg.price}</option>`
+    ).join('');
+}
+
+// Fetch registry data from backend API
+async function fetchSystemVoucherRegistry() {
+    const tableBody = document.getElementById('vouchers-table-body');
+    if (!tableBody) return;
+
+    try {
+        // Swap out URL string matching your architecture endpoint configuration
+        const response = await fetch('/api/vouchers');
+        if (!response.ok) throw new Error('Network registry dropped.');
+        
+        systemVouchers = await response.json();
+        renderVouchersTable(systemVouchers);
+    } catch (err) {
+        console.warn("API Endpoint not ready, building client mock fallback layers...", err);
+        // Fallback UI rendering if mock backend server isn't hit yet
+        if (systemVouchers.length === 0) {
+            systemVouchers = [
+                { id: 'v-9921', code: 'AUDI-8742', packageName: '24 Hour Silver', price: 50, duration: '1 Day', status: 'Active' },
+                { id: 'v-9922', code: 'SPOT-1092', packageName: '7 Days Gold', price: 250, duration: '7 Days', status: 'Used' }
+            ];
+        }
+        renderVouchersTable(systemVouchers);
+    }
+}
+
+// Render the collected registry items array systematically into HTML nodes
+function renderVouchersTable(vouchersList) {
+    const tableBody = document.getElementById('vouchers-table-body');
+    if (!tableBody) return;
+
+    if (vouchersList.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-medium">
+                    <i class="fa-solid fa-folder-open text-xl mb-2 block text-slate-600"></i>
+                    No active tokens generated inside index register directory layout views yet.
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tableBody.innerHTML = vouchersList.map(voucher => {
+        const badgeColor = voucher.status === 'Active' 
+            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+            : 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+
+        return `
+            <tr class="border-b border-slate-200 dark:border-vunaborder/60 hover:bg-slate-50 dark:hover:bg-vunahover/40 transition">
+                <td class="p-3.5 font-mono font-bold text-indigo-400 select-all">${voucher.code}</td>
+                <td class="p-3.5 font-medium">${voucher.packageName}</td>
+                <td class="p-3.5 font-semibold text-slate-900 dark:text-white">KSh ${voucher.price}</td>
+                <td class="p-3.5 text-slate-400">${voucher.duration || 'Unlimited'}</td>
+                <td class="p-3.5"><span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeColor}">${voucher.status}</span></td>
+                <td class="p-3.5 text-right">
+                    <button onclick="deleteSystemVoucherToken('${voucher.id}')" class="text-rose-400 hover:text-rose-500 p-1.5 rounded transition" title="Revoke Token">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Handle Form Submission payload payloads
+async function handleVoucherBatchGeneration(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    
+    const payload = {
+        packageId: formData.get('packageId'),
+        count: parseInt(formData.get('count')),
+        codeLength: parseInt(formData.get('codeLength'))
+    };
+
+    try {
+        const response = await fetch('/api/vouchers/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('API failure handling token stack.');
+        
+        // Show runtime feedback notice to users using your template toast
+        showInlineToastNotice("Access token batch engine generated securely!");
+        toggleVoucherModal(false);
+        fetchSystemVoucherRegistry();
+    } catch (err) {
+        // Fallback local operations context layer simulation
+        console.error("Backend unreachable. Adding mock simulation records locally.", err);
+        
+        // Emulating local injection array framework logic
+        for (let i = 0; i < payload.count; i++) {
+            const randomCode = Math.random().toString(36).substring(2, 2 + payload.codeLength).toUpperCase();
+            systemVouchers.unshift({
+                id: 'v-' + Math.floor(Math.random() * 100000),
+                code: `SPOT-${randomCode}`,
+                packageName: 'Simulated Dynamic Package',
+                price: 0,
+                duration: 'Custom Frame Time',
+                status: 'Active'
+            });
+        }
+        
+        showInlineToastNotice(`Generated ${payload.count} mock tokens directly down inside browser client runtime memory cache.`);
+        toggleVoucherModal(false);
+        renderVouchersTable(systemVouchers);
+    }
+}
+
+// Revoke voucher function framework
+async function deleteSystemVoucherToken(voucherId) {
+    if(!confirm("Are you sure you want to revoke this internet access voucher?")) return;
+
+    try {
+        await fetch(`/api/vouchers/${voucherId}`, { method: 'DELETE' });
+        showInlineToastNotice("Voucher instance dropped successfully.");
+        fetchSystemVoucherRegistry();
+    } catch (err) {
+        systemVouchers = systemVouchers.filter(v => v.id !== voucherId);
+        showInlineToastNotice("Token dropped dynamically inside state engine cache memory stack.");
+        renderVouchersTable(systemVouchers);
+    }
+}
+
+// Central Toast Indicator Hook Trigger
+function showInlineToastNotice(msg) {
+    const toast = document.getElementById('inline-toast');
+    const toastMessage = document.getElementById('toast-message');
+    if (!toast || !toastMessage) return;
+    
+    toastMessage.innerText = msg;
+    toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+    
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+    }, 4000);
+}
+
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
             syncCoreEngineMetrics();
