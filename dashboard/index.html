@@ -1251,7 +1251,7 @@ async function handleVoucherBatchGeneration(e) {
         if (!response.ok) throw new Error('API failure handling token stack.');
         
         // Show runtime feedback notice to users using your template toast
-        showInlineToastNotice("Access token batch engine generated securely!");
+        showInlineToastNotice("Access token batch generated securely!");
         toggleVoucherModal(false);
         fetchSystemVoucherRegistry();
     } catch (err) {
