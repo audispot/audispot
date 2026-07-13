@@ -1396,18 +1396,6 @@ function changeActiveLayoutTab(targetTab) {
             'analytics': 'Financial Performance Engine'
         };
         headerTitle.innerText = titleMap[targetTab] || "AudiSpot Network Control Center";
-
-        if (targetTabId === 'dashboard' || targetTabId === 'routers') {
-            syncCoreEngineMetrics();
-        }
-
-        if (tabName === 'vouchers') {
-            fetchSystemVoucherRegistry();
-        }
-
-        if (tabName === 'portal-designer') {
-            fetchCurrentPortalDesign();
-        }
     }
 }
 
