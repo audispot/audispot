@@ -248,6 +248,83 @@
                     </div>
                 </div>
 
+                <div id="viewframe-vouchers" class="hidden space-y-6 viewframe">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-vunaborder rounded-xl">
+        <div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-indigo-500"></i> Captive Portal Access Vouchers
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Provision, batch-generate, and audit secure runtime tokens for manual over-the-counter hotspot sales.</p>
+        </div>
+        <button onclick="toggleVoucherModal(true)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> Generate Voucher Batch
+        </button>
+    </div>
+
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/30">
+            <h3 class="text-xs font-extrabold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Active Token Register</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse font-sans text-xs">
+                <thead>
+                    <tr class="border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/50 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                        <th class="p-3.5">Voucher Code</th>
+                        <th class="p-3.5">Package/Tier</th>
+                        <th class="p-3.5">Price</th>
+                        <th class="p-3.5">Duration</th>
+                        <th class="p-3.5">Status</th>
+                        <th class="p-3.5 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vouchers-table-body" class="divide-y divide-slate-200 dark:divide-vunaborder/60 text-slate-700 dark:text-slate-300">
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-500">
+                            <i class="fa-solid fa-circle-notch animate-spin text-indigo-500 text-sm mb-2 block"></i>
+                            Syncing runtime access tokens list registry...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="voucher-generation-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-scale-up">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/40 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-indigo-400"></i> Generate Hotspot Tokens
+            </h3>
+            <button onclick="toggleVoucherModal(false)" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="voucher-generation-form" onsubmit="handleVoucherBatchGeneration(event)" class="p-5 space-y-4">
+            <div>
+                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Target Billing Plan</label>
+                <select name="packageId" id="voucher-package-select" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Batch Quantity</label>
+                    <input type="number" name="count" min="1" max="100" value="10" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Code Length</label>
+                    <select name="codeLength" class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                        <option value="6">6 Characters</option>
+                        <option value="8" selected>8 Characters</option>
+                    </select>
+                </div>
+            </div>
+            <div class="pt-2 flex gap-3">
+                <button type="button" onclick="toggleVoucherModal(false)" class="w-1/2 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs transition">Cancel</button>
+                <button type="submit" class="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition shadow-md">Generate Batch</button>
+            </div>
+        </form>
+    </div>
+</div>
+
                 <div id="viewframe-sessions" class="space-y-6 hidden viewframe">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
@@ -894,12 +971,17 @@ async function deletePackageItem(packageId) {
                 'routers': 'Core Fleet Access Control Points',
                 'packages': 'Data Plan Bandwidth Accounting Tiers',
                 'earnings': 'Financial Management Operations',
-                'settings': 'Global System Settings Core'
+                'settings': 'Global System Settings Core',
+                'vouchers': 'Generated voucher codes'
             };
             document.getElementById('lbl-header-title').innerText = customHeaderTitles[targetTabId] || "AudiSpot Operator Panel";
 
             if (targetTabId === 'dashboard' || targetTabId === 'routers') {
                 syncCoreEngineMetrics();
+            }
+
+            if (tabName === 'vouchers') {
+                fetchSystemVoucherRegistry();
             }
         }
 
