@@ -721,7 +721,7 @@ app.post('/api/vouchers/bulk-delete', async (req, res) => {
 // TENANT CONFIGURATION: CAPTIVE PORTAL CUSTOMIZER ENDPOINTS
 // ====================================================================
 
-// A. Pull Active Portal Configuration profile maps matching tenant criteria
+// A. Pull Active Portal Configuration Profile Maps Matching Tenant Criteria
 app.get('/api/portal/design', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -731,10 +731,17 @@ app.get('/api/portal/design', async (req, res) => {
         if (!doc.exists) {
             // Supply standardized clean defaults fallback rule maps if not configured yet
             return res.status(200).json({
-                brandName: "AudiSpot Wireless Gateway",
-                welcomeGreeting: "Enter verification parameters to connect to high-speed internet pipeline nodes.",
+                brandName: "AudiSpot Wireless",
+                welcomeGreeting: "Enter verification parameters to connect.",
                 supportContact: "0700000000",
-                accentColor: "#4f46e5"
+                accentColor: "#4f46e5",
+                earnPoints: 10,
+                redeemPoints: 100,
+                reconnectMsg: "Click button below to search active sessions.",
+                tvSetup: "1. Locate MAC address of TV\n2. Submit register address\n3. TV is authorized automatically.",
+                successTitle: "Welcome Online!",
+                successSub: "Your account connection rules are fully operational.",
+                successBtn: "Proceed to Browsing"
             });
         }
         return res.status(200).json(doc.data());
@@ -743,13 +750,13 @@ app.get('/api/portal/design', async (req, res) => {
     }
 });
 
-// B. Save / Overwrite branding configurations inside Firestore database cluster sheets
+// B. Save / Overwrite branding configurations inside Firestore database
 app.post('/api/portal/design/save', async (req, res) => {
-    const { ispId, brandName, welcomeGreeting, supportContact, accentColor } = req.body;
-    
-    if(!brandName || !welcomeGreeting || !supportContact || !accentColor) {
-        return res.status(400).json({ success: false, error: "Missing required customization inputs values." });
-    }
+    const { 
+        ispId, brandName, welcomeGreeting, supportContact, accentColor,
+        earnPoints, redeemPoints, reconnectMsg, tvSetup,
+        successTitle, successSub, successBtn
+    } = req.body;
 
     try {
         const targetTenant = ispId || 'default_isp';
@@ -758,6 +765,13 @@ app.post('/api/portal/design/save', async (req, res) => {
             welcomeGreeting,
             supportContact,
             accentColor,
+            earnPoints: parseInt(earnPoints) || 10,
+            redeemPoints: parseInt(redeemPoints) || 100,
+            reconnectMsg,
+            tvSetup,
+            successTitle,
+            successSub,
+            successBtn,
             lastModified: new Date().toISOString()
         }, { merge: true });
 
