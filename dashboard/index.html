@@ -353,6 +353,7 @@
 <div id="viewframe-portal-designer" class="hidden space-y-6 viewframe">
     <div class="flex flex-col lg:flex-row gap-6">
         
+        <!-- Left Column: Customizer Controls Panel -->
         <div class="flex-1 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-5 shadow-sm">
             <div>
                 <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -362,6 +363,7 @@
             </div>
             
             <form id="portal-designer-form" onsubmit="savePortalDesignSettings(event)" class="space-y-5">
+                <!-- Section 1: Login Screen Brand Style -->
                 <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
                     <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">1. Login Screen Brand Style</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -387,6 +389,7 @@
                     </div>
                 </div>
 
+                <!-- Section 2: Features & Loyalty -->
                 <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
                     <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">2. Features & Loyalty</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -405,6 +408,7 @@
                     </div>
                 </div>
 
+                <!-- Section 3: TV / Alternative Device Setup -->
                 <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
                     <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">3. TV / Alternative Device Setup</h3>
                     <div>
@@ -413,6 +417,7 @@
                     </div>
                 </div>
 
+                <!-- Section 4: Success Screen Customization -->
                 <div class="pb-4">
                     <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">4. Success Screen Customization</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -437,134 +442,147 @@
                     </button>
                 </div>
             </form>
+        </div>
 
+        <!-- Right Column: Interactive Real-Time VunaFlow Smartphone Simulator -->
         <div class="w-full lg:w-[360px] flex flex-col items-center shrink-0">
-    <div class="flex flex-wrap bg-slate-200 dark:bg-slate-900/60 p-1 rounded-xl w-full mb-3 border border-slate-200 dark:border-vunaborder gap-1">
-        <button onclick="switchSimulatorScreen('login')" id="sim-btn-login" class="flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm">
-            Login
-        </button>
-        <button onclick="switchSimulatorScreen('loyalty')" id="sim-btn-loyalty" class="flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition text-slate-400 hover:text-slate-200">
-            Loyalty
-        </button>
-        <button onclick="switchSimulatorScreen('tv')" id="sim-btn-tv" class="flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition text-slate-400 hover:text-slate-200">
-            TV Setup
-        </button>
-        <button onclick="switchSimulatorScreen('success')" id="sim-btn-success" class="flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition text-slate-400 hover:text-slate-200">
-            Success
-        </button>
-    </div>
-
-    <div class="w-[320px] h-[580px] bg-slate-950 rounded-[40px] p-3 shadow-2xl border-4 border-slate-800 relative ring-1 ring-slate-900/50 overflow-hidden flex flex-col">
-        <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-4 bg-slate-950 rounded-b-xl z-30 flex justify-center items-center">
-            <div class="w-12 h-1 bg-slate-800 rounded-full mb-1"></div>
-        </div>
-
-        <div id="phone-screen-canvas" class="w-full h-full bg-[#f8fafc] rounded-[28px] overflow-y-auto relative flex flex-col px-4 pt-8 pb-4 text-slate-800">
             
-            <div id="sim-view-login" class="space-y-4 flex-1 flex flex-col justify-between py-2">
-                <div class="space-y-3 text-center">
-                    <div id="sim-preview-logo-box" class="w-11 h-11 mx-auto bg-indigo-600 rounded-xl flex items-center justify-center text-white text-base shadow-lg shadow-indigo-600/20">
-                        <i class="fa-solid fa-wifi"></i>
-                    </div>
-                    <div>
-                        <h3 id="sim-text-brand" class="text-xs font-black tracking-tight text-slate-900">My Hotspot</h3>
-                        <p id="sim-text-welcome" class="text-[10px] text-slate-500 mt-0.5 leading-snug">Enter connection credentials.</p>
-                    </div>
+            <!-- Simulator Screen Preview Toggler -->
+            <div class="flex bg-slate-200 dark:bg-slate-900/60 p-1 rounded-xl w-full mb-3 border border-slate-200 dark:border-vunaborder gap-1">
+                <button type="button" onclick="toggleSimulatorSuccessState(false)" id="sim-toggle-main" class="flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm">
+                    Main Portal Screen
+                </button>
+                <button type="button" onclick="toggleSimulatorSuccessState(true)" id="sim-toggle-success" class="flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200">
+                    Success Screen
+                </button>
+            </div>
+
+            <!-- Smartphone Body Mockup -->
+            <div class="w-[320px] h-[580px] bg-slate-950 rounded-[40px] p-3 shadow-2xl border-4 border-slate-800 relative ring-1 ring-slate-900/50 overflow-hidden flex flex-col">
+                <!-- Phone Notch -->
+                <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-4 bg-slate-950 rounded-b-xl z-30 flex justify-center items-center">
+                    <div class="w-12 h-1 bg-slate-800 rounded-full mb-1"></div>
                 </div>
 
-                <div class="space-y-2">
-                    <div class="bg-white border border-slate-200 p-2 rounded-lg shadow-sm space-y-0.5">
-                        <label class="block text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">M-Pesa Number</label>
-                        <input type="text" disabled placeholder="0712345678" class="w-full bg-transparent text-[11px] outline-none text-slate-400">
-                    </div>
+                <!-- Phone Screen Panel Canvas (Unified Single Page Scroll Flow) -->
+                <div id="phone-screen-canvas" class="w-full h-full bg-[#f8fafc] rounded-[28px] overflow-y-auto relative flex flex-col px-4 pt-8 pb-4 text-slate-800 space-y-4">
                     
-                    <button disabled class="w-full text-white font-bold text-[11px] py-2 rounded-lg text-center shadow-md cursor-not-allowed" id="sim-preview-accent-btn">
-                        Connect Now
-                    </button>
+                    <!-- STATE A: UNIFIED MAIN SCROLL FLOW -->
+                    <div id="sim-scrollable-flow" class="space-y-4 flex-1">
+                        
+                        <!-- 1. Branding Header -->
+                        <div class="text-center space-y-2 pt-2">
+                            <div id="sim-preview-logo-box" class="w-11 h-11 mx-auto bg-indigo-600 rounded-xl flex items-center justify-center text-white text-base shadow-lg shadow-indigo-600/20">
+                                <i class="fa-solid fa-wifi"></i>
+                            </div>
+                            <div>
+                                <h3 id="sim-text-brand" class="text-xs font-black tracking-tight text-slate-900">My Hotspot</h3>
+                                <p id="sim-text-welcome" class="text-[10px] text-slate-500 leading-snug">Choose a package to get started.</p>
+                            </div>
+                        </div>
 
-                    <div class="bg-slate-100/80 border border-slate-200/60 p-2 rounded-lg text-center">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Already Paid?</p>
-                        <p id="sim-text-reconnect" class="text-[10px] text-slate-600 leading-normal">Checking matching active session links...</p>
-                        <button disabled class="mt-1 text-[9px] font-bold text-indigo-600 cursor-not-allowed">Click here to Reconnect</button>
+                        <!-- 2. Dynamic Billing Packages Wrapper -->
+                        <div class="space-y-1.5">
+                            <span class="block text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Select Internet Package</span>
+                            <div id="sim-packages-container" class="space-y-1.5">
+                                <!-- Loaded dynamically via user profile packages -->
+                                <div class="p-2.5 bg-white border border-slate-200 rounded-lg flex justify-between items-center cursor-pointer">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-900">Loading your plans...</p>
+                                        <p class="text-[8px] text-slate-400">Fetching configuration rates</p>
+                                    </div>
+                                    <span class="text-[10px] font-black text-slate-400">KSh --</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. M-Pesa & Payment Submission -->
+                        <div class="space-y-1.5 pt-1">
+                            <div class="bg-white border border-slate-200 p-2 rounded-lg shadow-sm space-y-0.5">
+                                <label class="block text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">M-Pesa Mobile Number</label>
+                                <input type="text" disabled placeholder="0712345678" class="w-full bg-transparent text-[11px] outline-none text-slate-400">
+                            </div>
+                            
+                            <button disabled class="w-full text-white font-bold text-[11px] py-2 rounded-lg text-center shadow-md cursor-not-allowed" id="sim-preview-accent-btn">
+                                Purchase Internet Pass
+                            </button>
+                        </div>
+
+                        <!-- 4. Reconnect Session Widget -->
+                        <div class="bg-slate-100/80 border border-slate-200/60 p-2.5 rounded-lg text-center space-y-1">
+                            <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Already Paid?</p>
+                            <p id="sim-text-reconnect" class="text-[9px] text-slate-500 leading-normal">Checking matching active session links...</p>
+                            <button disabled class="text-[9px] font-extrabold text-indigo-600 cursor-not-allowed underline">Reconnect Device</button>
+                        </div>
+
+                        <!-- 5. Loyalty Program Rewards Widget -->
+                        <div class="bg-white border border-slate-200 p-2.5 rounded-lg space-y-2 shadow-sm">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-star text-amber-500 text-xs"></i>
+                                <span class="text-[9px] font-bold text-slate-800">Hotspot Loyalty Rewards</span>
+                            </div>
+                            <p class="text-[9px] text-slate-500 leading-normal">
+                                Earn +<span id="sim-text-earn" class="font-bold text-indigo-600">10</span> points on every checkout! Reach <span id="sim-text-redeem" class="font-bold text-indigo-600">100</span> points to redeem an instant free daily pass.
+                            </p>
+                            <div class="flex gap-1.5 pt-1">
+                                <button disabled class="flex-1 bg-slate-100 border border-slate-200 text-slate-400 font-bold text-[8px] py-1 rounded cursor-not-allowed">
+                                    Check Points
+                                </button>
+                                <button disabled class="flex-1 bg-slate-100 border border-slate-200 text-slate-400 font-bold text-[8px] py-1 rounded cursor-not-allowed">
+                                    Redeem Pass
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6. Smart TV / Console Setup Widget -->
+                        <div class="bg-white border border-slate-200 p-2.5 rounded-lg space-y-1.5 shadow-sm">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-tv text-indigo-500 text-xs"></i>
+                                <span class="text-[9px] font-bold text-slate-800">Smart TV / Game Console Setup</span>
+                            </div>
+                            <p id="sim-text-tv-instructions" class="text-[9px] text-slate-500 leading-relaxed whitespace-pre-line bg-slate-50 p-2 rounded border border-slate-100"></p>
+                            <div class="bg-slate-50 border border-slate-200 p-1.5 rounded space-y-0.5">
+                                <label class="block text-[7px] font-bold text-slate-400 uppercase">Device MAC Address</label>
+                                <input type="text" disabled placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-transparent text-[9px] outline-none text-slate-400 font-mono">
+                            </div>
+                            <button disabled class="w-full bg-slate-100 border border-slate-200 text-slate-400 font-bold text-[9px] py-1 rounded cursor-not-allowed">
+                                Register Appliance MAC
+                            </button>
+                        </div>
+
+                        <!-- 7. Helpline Footer Support -->
+                        <div class="text-[8px] text-center text-slate-400 py-2 border-t border-slate-200/40">
+                            Need Help? Dial support helpline:<br>
+                            <span id="sim-text-support" class="font-mono font-bold text-slate-600">0700000000</span>
+                        </div>
                     </div>
-                </div>
 
-                <div class="text-[9px] text-center text-slate-400 leading-normal">
-                    Support Phone: <br>
-                    <span id="sim-text-support" class="font-mono font-bold text-slate-600">0700000000</span>
-                </div>
-            </div>
-
-            <div id="sim-view-loyalty" class="hidden space-y-4 py-2 flex-1 flex flex-col justify-between">
-                <div class="text-center space-y-1">
-                    <i class="fa-solid fa-star text-amber-500 text-lg"></i>
-                    <h4 class="text-xs font-black text-slate-900">Loyalty Rewards Hub</h4>
-                    <p class="text-[9px] text-slate-500">Earn points automatically when buying hotspot internet.</p>
-                </div>
-
-                <div class="bg-white border border-slate-150 p-3 rounded-lg text-center space-y-2 shadow-sm">
-                    <div class="text-[10px] text-slate-500">Your Current Balance:</div>
-                    <div class="text-xl font-black text-slate-800"><span id="sim-text-curr-pts">0</span> Points</div>
-                    <div class="text-[8px] text-emerald-500 bg-emerald-500/10 py-1 px-2 rounded-full inline-block font-bold">
-                        Earn +<span id="sim-text-earn">10</span> pts every transaction!
+                    <!-- STATE B: SUCCESS VIEW PREVIEW SCREEN -->
+                    <div id="sim-view-success" class="hidden space-y-4 text-center flex-1 flex flex-col justify-center py-2">
+                        <div class="w-10 h-10 mx-auto bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full flex items-center justify-center text-base shadow-sm">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <h3 id="sim-text-success-title" class="text-xs font-black tracking-tight text-slate-900">Welcome Online!</h3>
+                            <p id="sim-text-success-sub" class="text-[10px] text-slate-500 leading-normal">Your account connection rules are fully operational.</p>
+                        </div>
+                        <div class="bg-slate-100 border border-slate-200/60 p-2.5 rounded-lg font-mono text-[9px] text-left space-y-1">
+                            <div class="flex justify-between"><span class="text-slate-400">Status:</span><span class="text-emerald-600 font-bold">Connected</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Device IP:</span><span class="text-slate-600">10.5.5.142</span></div>
+                        </div>
+                        <div id="sim-success-btn-node" class="bg-slate-900 text-white font-bold text-[10px] py-2 rounded-lg text-center cursor-not-allowed">
+                            Proceed to Browsing
+                        </div>
                     </div>
-                </div>
 
-                <div class="space-y-1.5">
-                    <button disabled class="w-full bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-[10px] py-1.5 rounded-lg cursor-not-allowed">
-                        Redeem Free Pass (<span id="sim-text-redeem">100</span> pts required)
-                    </button>
-                    <button disabled class="w-full bg-indigo-600 text-white font-bold text-[10px] py-1.5 rounded-lg cursor-not-allowed">
-                        Check My Points
-                    </button>
                 </div>
             </div>
-
-            <div id="sim-view-tv" class="hidden space-y-3 py-2 flex-1 flex flex-col justify-between">
-                <div class="text-center space-y-1">
-                    <i class="fa-solid fa-tv text-indigo-500 text-lg"></i>
-                    <h4 class="text-xs font-black text-slate-900">Console & TV Connector</h4>
-                    <p class="text-[9px] text-slate-500">Configure devices that lack normal browser screens.</p>
-                </div>
-
-                <div class="bg-white border border-slate-200 p-2.5 rounded-lg space-y-1 shadow-sm max-h-[140px] overflow-y-auto">
-                    <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Setup Steps:</p>
-                    <p id="sim-text-tv-instructions" class="text-[10px] text-slate-600 leading-relaxed whitespace-pre-line"></p>
-                </div>
-
-                <div class="space-y-1.5">
-                    <div class="bg-white border border-slate-200 p-2 rounded-lg space-y-0.5">
-                        <label class="block text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Device MAC Address</label>
-                        <input type="text" disabled placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-transparent text-[11px] outline-none text-slate-400">
-                    </div>
-                    <button disabled class="w-full bg-indigo-600 text-white font-bold text-[10px] py-1.5 rounded-lg cursor-not-allowed">
-                        Register Appliance MAC
-                    </button>
-                </div>
-            </div>
-
-            <div id="sim-view-success" class="hidden space-y-4 text-center flex-1 flex flex-col justify-center py-2">
-                <div class="w-10 h-10 mx-auto bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full flex items-center justify-center text-base shadow-sm">
-                    <i class="fa-solid fa-circle-check"></i>
-                </div>
-                <div class="space-y-1">
-                    <h3 id="sim-text-success-title" class="text-xs font-black tracking-tight text-slate-900">Welcome Online!</h3>
-                    <p id="sim-text-success-sub" class="text-[10px] text-slate-500 leading-normal">Your account connection rules are fully operational.</p>
-                </div>
-                <div class="bg-slate-100 border border-slate-200/60 p-2.5 rounded-lg font-mono text-[9px] text-left space-y-1">
-                    <div class="flex justify-between"><span class="text-slate-400">Status:</span><span class="text-emerald-600 font-bold">Connected</span></div>
-                    <div class="flex justify-between"><span class="text-slate-400">Device IP:</span><span class="text-slate-600">10.5.5.142</span></div>
-                </div>
-                <div id="sim-success-btn-node" class="bg-slate-900 text-white font-bold text-[10px] py-2 rounded-lg text-center cursor-not-allowed">
-                    Proceed to Browsing
-                </div>
-            </div>
-
         </div>
+
     </div>
 </div>
-
-                <div id="viewframe-sessions" class="space-y-6 hidden viewframe">
+                
+<div id="viewframe-sessions" class="space-y-6 hidden viewframe">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Online Now</p>
@@ -1222,6 +1240,10 @@ async function deletePackageItem(packageId) {
             if (tabName === 'vouchers') {
                 fetchSystemVoucherRegistry();
             }
+
+            if (tabName === 'portal-designer') {
+                fetchCurrentPortalDesign();
+            }
         }
 
         // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
@@ -1542,10 +1564,59 @@ async function handleVoucherBatchGeneration(e) {
 }
 
 // ==========================================
-// CAPTIVE PORTAL DESIGNER CONTROLS (ADVANCED VUNAFLOW DESIGN)
+// CAPTIVE PORTAL DESIGNER CONTROLS
 // ==========================================
 
 let activeSimScreen = 'login';
+
+// Renders user's actual custom billing options in the phone simulator frame
+async function loadPortalPreviewPackages() {
+    const container = document.getElementById('sim-packages-container');
+    if (!container) return;
+
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+        const response = await fetch(`/api/packages?ispId=${targetTenant}`);
+        if (!response.ok) throw new Error();
+        
+        const packages = await response.json();
+        
+        if (packages.length === 0) {
+            container.innerHTML = `
+                <div class="p-3 bg-white border border-dashed border-slate-200 rounded-lg text-center text-slate-400 text-[9px]">
+                    No billing packages defined yet. Add some in the Packages tab!
+                </div>`;
+            return;
+        }
+
+        const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+
+        // Display packages, showing the first one as checked/active
+        container.innerHTML = packages.map((pkg, idx) => {
+            const isSelected = idx === 0;
+            const borderStyle = isSelected ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #e2e8f0;';
+            const dotColor = isSelected ? `background-color: ${accentColor};` : 'background-color: transparent;';
+
+            return `
+                <div class="p-2 bg-white border rounded-lg flex justify-between items-center transition-all cursor-pointer" style="${borderStyle}">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full border border-slate-300 flex items-center justify-center">
+                            <div class="w-1.5 h-1.5 rounded-full" style="${dotColor}"></div>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-900">${pkg.packageName}</p>
+                            <p class="text-[8px] text-slate-400">${pkg.duration} Hour Access • ${pkg.bandwidthLimit || 'Unlimited'} Mbps</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-black" style="color: ${accentColor}">KSh ${pkg.price}</span>
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        container.innerHTML = `<div class="p-2 text-center text-[9px] text-rose-500">Error rendering package profiles.</div>`;
+    }
+}
 
 function updateLivePortalPreview() {
     const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
@@ -1553,18 +1624,18 @@ function updateLivePortalPreview() {
     const supportInput = document.getElementById('input-portal-support').value || '0700000000';
     const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
     
-    // Loyalty Elements
+    // Loyalty and instructions fields
     const earnPoints = document.getElementById('input-portal-earn-pts').value || '10';
     const redeemPoints = document.getElementById('input-portal-redeem-threshold').value || '100';
     const reconnectMsg = document.getElementById('input-portal-reconnect-msg').value || 'Checking matching active session links...';
-    
-    // TV setup & Success screen fields
     const tvSetupText = document.getElementById('input-portal-tv-setup').value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
+    
+    // Success fields
     const successTitle = document.getElementById('input-portal-success-title').value || 'Welcome Online!';
     const successSub = document.getElementById('input-portal-success-sub').value || 'Your account connection rules are fully operational.';
     const successBtn = document.getElementById('input-portal-success-btn').value || 'Proceed to Browsing';
 
-    // Apply Live Preview Bindings
+    // Text bindings
     document.getElementById('sim-text-brand').innerText = brandInput;
     document.getElementById('sim-text-welcome').innerText = welcomeInput;
     document.getElementById('sim-text-support').innerText = supportInput;
@@ -1578,28 +1649,35 @@ function updateLivePortalPreview() {
     document.getElementById('sim-text-success-sub').innerText = successSub;
     document.getElementById('sim-success-btn-node').innerText = successBtn;
 
-    // Apply Colors dynamically to preview panels
+    // Apply colors to controls
     document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
     document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
+
+    // Reload package lists to ensure border outline matches current selected color
+    loadPortalPreviewPackages();
 }
 
-function switchSimulatorScreen(screenMode) {
-    activeSimScreen = screenMode;
-    const screens = ['login', 'loyalty', 'tv', 'success'];
+// Switches preview state between Scroll Flow and Success View
+function toggleSimulatorSuccessState(showSuccess) {
+    const mainView = document.getElementById('sim-scrollable-flow');
+    const successView = document.getElementById('sim-view-success');
     
-    screens.forEach(s => {
-        const viewEl = document.getElementById(`sim-view-${s}`);
-        const btnEl = document.getElementById(`sim-btn-${s}`);
+    const btnMain = document.getElementById('sim-toggle-main');
+    const btnSuccess = document.getElementById('sim-toggle-success');
+
+    if (showSuccess) {
+        mainView.classList.add('hidden');
+        successView.classList.remove('hidden');
         
-        if (viewEl) viewEl.classList.toggle('hidden', s !== screenMode);
-        if (btnEl) {
-            if (s === screenMode) {
-                btnEl.className = "flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
-            } else {
-                btnEl.className = "flex-1 py-1 px-2 text-center text-[10px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
-            }
-        }
-    });
+        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+    } else {
+        mainView.classList.remove('hidden');
+        successView.classList.add('hidden');
+        
+        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+    }
 }
 
 async function fetchCurrentPortalDesign() {
@@ -1665,7 +1743,6 @@ async function savePortalDesignSettings(e) {
         triggerToastDisplay("Failed persisting changes to Firebase.", true);
     }
 }
-
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
             syncCoreEngineMetrics();
