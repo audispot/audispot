@@ -84,6 +84,10 @@
                     <button onclick="changeActiveLayoutTab('packages')" id="tablink-packages" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-cubes text-sm w-4"></i> Packages</button>
                     <button onclick="changeActiveLayoutTab('earnings')" id="tablink-earnings" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-wallet text-sm w-4"></i> Payments & Earnings</button>
                     <button onclick="changeActiveLayoutTab('vouchers')" id="tablink-vouchers" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-ticket text-sm w-4"></i> Vouchers</button>
+    
+                    <!-- NEW ADDITIONS TO MATCH YOUR BRANDED ENVIRONMENT -->
+                    <button onclick="changeActiveLayoutTab('expenses')" id="tablink-expenses" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-receipt text-sm w-4"></i> Expenses</button>
+                    <button onclick="changeActiveLayoutTab('analytics')" id="tablink-analytics" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-chart-line text-sm w-4"></i> Performance Analytics</button>
                 </div>
 
                 <!-- CATEGORY: SYSTEM CONFIG -->
@@ -753,7 +757,7 @@
     </div>
 </div>
 
-<div id="view-expenses" class="hidden space-y-6">
+<div id="viewframe-expenses" class="hidden space-y-6 viewframe">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h1 class="text-2xl font-bold text-white tracking-tight">Operation Expenses</h1>
@@ -794,7 +798,7 @@
     </div>
 </div>
 
-<div id="view-analytics" class="hidden space-y-6">
+<div id="viewframe-analytics" class="hidden space-y-6 viewframe">
     <div>
         <h1 class="text-2xl font-bold text-white tracking-tight">Performance Analytics</h1>
         <p class="text-sm text-gray-400 mt-1">Deep analysis of system revenue vs. operations.</p>
@@ -1349,43 +1353,63 @@ async function deletePackageItem(packageId) {
     } catch(err) { alert("Transaction command transmission failure."); }
 }
 
-        // APP TAB ROUTING SWITCH LAYERS
-        function changeActiveLayoutTab(targetTabId) {
-            document.querySelectorAll('.viewframe').forEach(frame => frame.classList.add('hidden'));
-            document.getElementById(`viewframe-${targetTabId}`).classList.remove('hidden');
+function changeActiveLayoutTab(targetTab) {
+    // 1. Hide all view panels
+    const viewframes = document.querySelectorAll('.viewframe');
+    viewframes.forEach(frame => {
+        frame.classList.add('hidden');
+    });
 
-            document.querySelectorAll('#sidebar-nav button').forEach(button => {
-                button.className = "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left";
-            });
+    // 2. Show target view panel
+    const activeFrame = document.getElementById(`viewframe-${targetTab}`);
+    if (activeFrame) {
+        activeFrame.classList.remove('hidden');
+    }
 
-            const linkElement = document.getElementById(`tablink-${targetTabId}`);
-            linkElement.className = "w-full flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-semibold transition";
+    // 3. Reset all navigation links styling
+    const allTabLinks = document.querySelectorAll('[id^="tablink-"]');
+    allTabLinks.forEach(link => {
+        link.className = "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left";
+    });
 
-            const customHeaderTitles = {
-                'dashboard': 'Welcome, ' + document.getElementById('inp-sett-name').value,
-                'sessions': 'Active Authentication Sessions Pipeline',
-                'pppoe': 'PPPoE Client Infrastructure Nodes',
-                'static-ip': 'Fixed Static IP Lease Allocations',
-                'routers': 'Core Fleet Access Control Points',
-                'packages': 'Data Plan Bandwidth Accounting Tiers',
-                'earnings': 'Financial Management Operations',
-                'settings': 'Global System Settings Core',
-                'vouchers': 'Generated voucher codes'
-            };
-            document.getElementById('lbl-header-title').innerText = customHeaderTitles[targetTabId] || "AudiSpot Operator Panel";
+    // 4. Highlight the active tab button to match dashboard's active theme
+    const activeLink = document.getElementById(`tablink-${targetTab}`);
+    if (activeLink) {
+        activeLink.className = "w-full flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-semibold transition";
+    }
 
-            if (targetTabId === 'dashboard' || targetTabId === 'routers') {
-                syncCoreEngineMetrics();
-            }
+    // 5. Update header title context dynamically
+    const headerTitle = document.getElementById('lbl-header-title');
+    if (headerTitle) {
+        const titleMap = {
+            'dashboard': 'Welcome, Official Bigi',
+            'sessions': 'Subscriber Active Sessions',
+            'pppoe': 'PPPoE Broadband Core',
+            'static-ip': 'Static DHCP Configurations',
+            'routers': 'Core Network Nodes',
+            'packages': 'Internet Billing Profiles',
+            'earnings': 'Settlement Balance & Disbursals',
+            'vouchers': 'Hotspot Token Engine',
+            'portal-designer': 'Captive Portal Brand Designer',
+            'settings': 'System Settings Console',
+            'expenses': 'Operation Expense Tracking',
+            'analytics': 'Financial Performance Engine'
+        };
+        headerTitle.innerText = titleMap[targetTab] || "AudiSpot Network Control Center";
 
-            if (tabName === 'vouchers') {
-                fetchSystemVoucherRegistry();
-            }
-
-            if (tabName === 'portal-designer') {
-                fetchCurrentPortalDesign();
-            }
+        if (targetTabId === 'dashboard' || targetTabId === 'routers') {
+            syncCoreEngineMetrics();
         }
+
+        if (tabName === 'vouchers') {
+            fetchSystemVoucherRegistry();
+        }
+
+        if (tabName === 'portal-designer') {
+            fetchCurrentPortalDesign();
+        }
+    }
+}
 
         // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
         function triggerToastDisplay(textMessage, isWarningMessage = false) {
