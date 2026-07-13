@@ -249,32 +249,56 @@
                 </div>
 
                 <div id="viewframe-vouchers" class="hidden space-y-6 viewframe">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-vunaborder rounded-xl">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i class="fa-solid fa-ticket text-indigo-500"></i> Captive Portal Access Vouchers
-            </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Provision, batch-generate, and audit secure runtime tokens for manual over-the-counter hotspot sales.</p>
-        </div>
-        <button onclick="toggleVoucherModal(true)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center gap-2">
-            <i class="fa-solid fa-plus"></i> Generate Voucher Batch
-        </button>
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm">
+        <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+            <i class="fa-solid fa-ticket text-indigo-500"></i> Generate Hotspot Tokens
+        </h2>
+        <form id="voucher-generation-form" onsubmit="handleVoucherBatchGeneration(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Billing Plan</label>
+                <select name="packageId" id="voucher-package-select" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">Loading your plans...</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Batch Quantity</label>
+                <input type="number" name="count" min="1" max="100" value="10" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500 transition">
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Code Length</label>
+                <select name="codeLength" class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    <option value="6">6 Characters</option>
+                    <option value="8" selected>8 Characters</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition shadow-md flex items-center justify-center gap-2 h-[38px]">
+                    <i class="fa-solid fa-plus"></i> Generate Batch
+                </button>
+            </div>
+        </form>
     </div>
 
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
-        <div class="p-4 border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/30">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <h3 class="text-xs font-extrabold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Active Token Register</h3>
+            
+            <button id="btn-bulk-delete-vouchers" onclick="handleBulkVoucherDeletion()" disabled class="px-3 py-1 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded text-[11px] font-bold transition flex items-center gap-1.5 opacity-50 cursor-not-allowed">
+                <i class="fa-solid fa-trash-can"></i> Bulk Delete Selected (<span id="selected-voucher-count">0</span>)
+            </button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse font-sans text-xs">
                 <thead>
                     <tr class="border-b border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/50 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                        <th class="p-3.5 w-10 text-center">
+                            <input type="checkbox" id="th-select-all-vouchers" onclick="toggleSelectAllVouchers(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-transparent">
+                        </th>
                         <th class="p-3.5">Voucher Code</th>
                         <th class="p-3.5">Package/Tier</th>
                         <th class="p-3.5">Price</th>
                         <th class="p-3.5">Duration</th>
                         <th class="p-3.5">Status</th>
-                        <th class="p-3.5 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="vouchers-table-body" class="divide-y divide-slate-200 dark:divide-vunaborder/60 text-slate-700 dark:text-slate-300">
@@ -1129,79 +1153,70 @@ async function deletePackageItem(packageId) {
         }
 
         // ==========================================
-// VOUCHERS MANAGEMENT ENGINE
+// VOUCHERS MANAGEMENT ENGINE (INLINE & BULK)
 // ==========================================
 
-// Track mock system data locally if needed
 let systemVouchers = [];
 
-function toggleVoucherModal(show) {
-    const modal = document.getElementById('voucher-generation-modal');
-    if (!modal) return;
-    
-    if (show) {
-        modal.classList.remove('hidden');
-        populateVoucherPackageOptions();
-    } else {
-        modal.classList.add('hidden');
-    }
-}
-
-// Dynamically populate available plans into the modal dropdown selection
-function populateVoucherPackageOptions() {
+// Dynamically pull current packages from your database endpoint
+async function populateVoucherPackageOptions() {
     const selectEl = document.getElementById('voucher-package-select');
     if (!selectEl) return;
     
-    // Look up package state array, fallback to default configurations if empty
-    const activePackages = (typeof systemPackages !== 'undefined' && systemPackages.length > 0) 
-        ? systemPackages 
-        : [
-            { id: 'p1', name: '1 Hour Bronze', price: 20 },
-            { id: 'p2', name: '24 Hour Silver', price: 50 },
-            { id: 'p3', name: '7 Days Gold', price: 250 }
-          ];
-          
-    selectEl.innerHTML = activePackages.map(pkg => 
-        `<option value="${pkg.id}">${pkg.name} — KSh ${pkg.price}</option>`
-    ).join('');
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+        const response = await fetch(`/api/packages?ispId=${targetTenant}`);
+        if (!response.ok) throw new Error('Failed to pull packages');
+        
+        const packages = await response.json();
+        
+        if (packages.length === 0) {
+            selectEl.innerHTML = `<option value="">-- No Packages Added Yet --</option>`;
+            return;
+        }
+        
+        selectEl.innerHTML = packages.map(pkg => 
+            `<option value="${pkg.id}"> ${pkg.packageName} — KSh ${pkg.price} (${pkg.duration} Hrs)</option>`
+        ).join('');
+    } catch (err) {
+        selectEl.innerHTML = `<option value="">Error loading database profiles</option>`;
+    }
 }
 
-// Fetch registry data from backend API
+// Fetch generated dynamic database vouchers
 async function fetchSystemVoucherRegistry() {
+    // Make sure options update immediately when navigating to the section
+    populateVoucherPackageOptions();
+    
     const tableBody = document.getElementById('vouchers-table-body');
     if (!tableBody) return;
 
     try {
-        // Swap out URL string matching your architecture endpoint configuration
-        const response = await fetch('/api/vouchers');
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+        const response = await fetch(`/api/vouchers?ispId=${targetTenant}`);
         if (!response.ok) throw new Error('Network registry dropped.');
         
         systemVouchers = await response.json();
         renderVouchersTable(systemVouchers);
     } catch (err) {
-        console.warn("API Endpoint not ready, building client mock fallback layers...", err);
-        // Fallback UI rendering if mock backend server isn't hit yet
-        if (systemVouchers.length === 0) {
-            systemVouchers = [
-                { id: 'v-9921', code: 'AUDI-8742', packageName: '24 Hour Silver', price: 50, duration: '1 Day', status: 'Active' },
-                { id: 'v-9922', code: 'SPOT-1092', packageName: '7 Days Gold', price: 250, duration: '7 Days', status: 'Used' }
-            ];
-        }
-        renderVouchersTable(systemVouchers);
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Failed syncing data register layers.</td></tr>`;
     }
 }
 
-// Render the collected registry items array systematically into HTML nodes
 function renderVouchersTable(vouchersList) {
     const tableBody = document.getElementById('vouchers-table-body');
+    const selectAllBox = document.getElementById('th-select-all-vouchers');
     if (!tableBody) return;
+    
+    if(selectAllBox) selectAllBox.checked = false;
+    updateBulkDeleteButtonState();
 
     if (vouchersList.length === 0) {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-medium">
-                    <i class="fa-solid fa-folder-open text-xl mb-2 block text-slate-600"></i>
-                    No active tokens generated inside index register directory layout views yet.
+                    <i class="fa-solid fa-ticket text-xl mb-2 block text-slate-600"></i>
+                    No vouchers generated yet.
                 </td>
             </tr>`;
         return;
@@ -1214,28 +1229,81 @@ function renderVouchersTable(vouchersList) {
 
         return `
             <tr class="border-b border-slate-200 dark:border-vunaborder/60 hover:bg-slate-50 dark:hover:bg-vunahover/40 transition">
+                <td class="p-3.5 text-center">
+                    <input type="checkbox" value="${voucher.id}" onclick="updateBulkDeleteButtonState()" class="voucher-row-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-transparent">
+                </td>
                 <td class="p-3.5 font-mono font-bold text-indigo-400 select-all">${voucher.code}</td>
                 <td class="p-3.5 font-medium">${voucher.packageName}</td>
                 <td class="p-3.5 font-semibold text-slate-900 dark:text-white">KSh ${voucher.price}</td>
-                <td class="p-3.5 text-slate-400">${voucher.duration || 'Unlimited'}</td>
+                <td class="p-3.5 text-slate-400">${voucher.duration} Hours</td>
                 <td class="p-3.5"><span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeColor}">${voucher.status}</span></td>
-                <td class="p-3.5 text-right">
-                    <button onclick="deleteSystemVoucherToken('${voucher.id}')" class="text-rose-400 hover:text-rose-500 p-1.5 rounded transition" title="Revoke Token">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
-                </td>
             </tr>
         `;
     }).join('');
 }
 
-// Handle Form Submission payload payloads
+// Master Checkbox Toggle Selector
+function toggleSelectAllVouchers(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.voucher-row-checkbox');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    updateBulkDeleteButtonState();
+}
+
+// Dynamic bulk deletion state counter layout processor
+function updateBulkDeleteButtonState() {
+    const checkboxes = document.querySelectorAll('.voucher-row-checkbox:checked');
+    const bulkButton = document.getElementById('btn-bulk-delete-vouchers');
+    const indicatorCount = document.getElementById('selected-voucher-count');
+    
+    if(!bulkButton || !indicatorCount) return;
+    
+    const count = checkboxes.length;
+    indicatorCount.innerText = count;
+    
+    if(count > 0) {
+        bulkButton.removeAttribute('disabled');
+        bulkButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+        bulkButton.setAttribute('disabled', 'true');
+        bulkButton.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// Handle multi-select execution pipeline
+async function handleBulkVoucherDeletion() {
+    const checkboxes = document.querySelectorAll('.voucher-row-checkbox:checked');
+    const targetIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if(targetIds.length === 0) return;
+    if(!confirm(`Are you sure you want to delete the ${targetIds.length} selected voucher(s)?`)) return;
+
+    try {
+        const response = await fetch('/api/vouchers/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: targetIds })
+        });
+
+        if (response.ok) {
+            showInlineToastNotice(`Successfully deleted ${targetIds.length} vouchers.`);
+            fetchSystemVoucherRegistry();
+        } else {
+            showInlineToastNotice("Failed to execute bulk deletion.");
+        }
+    } catch (err) {
+        showInlineToastNotice("Communication failure handling execution block.");
+    }
+}
+
+// Handle Form Submission payload layout
 async function handleVoucherBatchGeneration(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
     
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const payload = {
+        ispId: targetTenant,
         packageId: formData.get('packageId'),
         count: parseInt(formData.get('count')),
         codeLength: parseInt(formData.get('codeLength'))
@@ -1248,62 +1316,14 @@ async function handleVoucherBatchGeneration(e) {
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error('API failure handling token stack.');
-        
-        // Show runtime feedback notice to users using your template toast
-        showInlineToastNotice("Access token batch generated securely!");
-        toggleVoucherModal(false);
-        fetchSystemVoucherRegistry();
-    } catch (err) {
-        // Fallback local operations context layer simulation
-        console.error("Backend unreachable. Adding mock simulation records locally.", err);
-        
-        // Emulating local injection array framework logic
-        for (let i = 0; i < payload.count; i++) {
-            const randomCode = Math.random().toString(36).substring(2, 2 + payload.codeLength).toUpperCase();
-            systemVouchers.unshift({
-                id: 'v-' + Math.floor(Math.random() * 100000),
-                code: `SPOT-${randomCode}`,
-                packageName: 'Simulated Dynamic Package',
-                price: 0,
-                duration: 'Custom Frame Time',
-                status: 'Active'
-            });
+        if (response.ok) {
+            showInlineToastNotice("Access tokens generated successfully.");
+            form.reset();
+            fetchSystemVoucherRegistry();
         }
-        
-        showInlineToastNotice(`Generated ${payload.count} mock tokens directly down inside browser client runtime memory cache.`);
-        toggleVoucherModal(false);
-        renderVouchersTable(systemVouchers);
-    }
-}
-
-// Revoke voucher function framework
-async function deleteSystemVoucherToken(voucherId) {
-    if(!confirm("Are you sure you want to revoke this internet access voucher?")) return;
-
-    try {
-        await fetch(`/api/vouchers/${voucherId}`, { method: 'DELETE' });
-        showInlineToastNotice("Voucher instance dropped successfully.");
-        fetchSystemVoucherRegistry();
     } catch (err) {
-        systemVouchers = systemVouchers.filter(v => v.id !== voucherId);
-        showInlineToastNotice("Token dropped dynamically inside state engine cache memory stack.");
-        renderVouchersTable(systemVouchers);
+        showInlineToastNotice("API failure building system batches.");
     }
-}
-
-// Central Toast Indicator Hook Trigger
-function showInlineToastNotice(msg) {
-    const toast = document.getElementById('inline-toast');
-    const toastMessage = document.getElementById('toast-message');
-    if (!toast || !toastMessage) return;
-    
-    toastMessage.innerText = msg;
-    toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
-    
-    setTimeout(() => {
-        toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
-    }, 4000);
 }
 
         window.onload = () => {
