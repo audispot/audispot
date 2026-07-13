@@ -709,10 +709,10 @@ async function handlePackageSubmission(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    payload.ispId = TENANT_CLUSTER_ID;
+    payload.ispId = CURRENT_ISP_ID; // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
 
     try {
-        const res = await fetch(`${CORE_API_HOST}/api/packages/create`, {
+        const res = await fetch(`${API_BASE_URL}/api/packages/create`, { // <--- Changed from CORE_API_HOST to API_BASE_URL
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -740,9 +740,9 @@ async function fetchActiveBillingCatalog() {
     }, 3000);
 
     try {
-        // Use the exact tenant identifier matching your core sessions
-        const targetTenant = typeof TENANT_CLUSTER_ID !== 'undefined' ? TENANT_CLUSTER_ID : 'default_isp';
-        const res = await fetch(`${CORE_API_HOST}/api/packages?ispId=${targetTenant}`);
+        // Use the exact tenant identifier matching your core variables
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp'; // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); // <--- Changed from CORE_API_HOST to API_BASE_URL
         
         // Mark as processed to handle fallback clearing
         contentRendered = true; 
@@ -864,10 +864,10 @@ async function syncDashboardFleetTable() {
 async function deletePackageItem(packageId) {
     if(!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
     try {
-        await fetch(`${CORE_API_HOST}/api/packages/delete`, {
+        await fetch(`${API_BASE_URL}/api/packages/delete`, { // <--- Changed from CORE_API_HOST to API_BASE_URL
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: packageId, ispId: TENANT_CLUSTER_ID })
+            body: JSON.stringify({ id: packageId, ispId: CURRENT_ISP_ID }) // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
         });
         fetchActiveBillingCatalog();
     } catch(err) { alert("Transaction command transmission failure."); }
