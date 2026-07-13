@@ -204,7 +204,7 @@ app.post('/api/hotspot/login', async (req, res) => {
 
 // 6. Multi-Tenant M-Pesa Callback & Hardware Provisioning Hook
 app.post('/api/mpesa/callback', async (req, res) => {
-    const { routerId } = req.query; 
+    const { routerId, macAddress } = req.query; 
     const callbackData = req.body.Body.stkCallback;
     
     if (callbackData.ResultCode === 0) {
@@ -219,11 +219,44 @@ app.post('/api/mpesa/callback', async (req, res) => {
 
                 // Create global transaction log
                 await db.collection('global_transactions').doc(mpesaReceipt).set({
-                    routerId, ispOwner: ispConfig.ispName, customerPhone: payingPhone, grossAmount: amountPaid, processedAt: new Date().toISOString()
+                    routerId, 
+                    ispOwner: ispConfig.ispName, 
+                    customerPhone: payingPhone, 
+                    macAddress: macAddress || 'N/A',
+                    grossAmount: amountPaid, 
+                    processedAt: new Date().toISOString()
                 });
 
-                // Update ISP Wallet Balance
+                // Retrieve custom dynamic rules configuration of the active tenant's portal design settings
                 const ispId = ispConfig.ispId || "default_isp";
+                let earnPointsAmount = 10; // default point logic
+                try {
+                    const designDoc = await db.collection('portal_designs').doc(ispId).get();
+                    if (designDoc.exists && designDoc.data().earnPoints) {
+                        earnPointsAmount = parseInt(designDoc.data().earnPoints) || 10;
+                    }
+                } catch (pe) {
+                    console.error("Portal config fetch error:", pe.message);
+                }
+
+                // Create/Update Subscriber record mapping Phone <-> MAC and adding Loyalty Points
+                if (macAddress && macAddress !== 'nomac') {
+                    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+                    const subRef = db.collection('subscribers').doc(cleanMac);
+                    await db.runTransaction(async (ts) => {
+                        const subDoc = await ts.get(subRef);
+                        const currentPoints = subDoc.exists ? (subDoc.data().loyaltyPoints || 0) : 0;
+                        ts.set(subRef, {
+                            phoneNumber: payingPhone,
+                            loyaltyPoints: currentPoints + earnPointsAmount,
+                            lastActivePackage: amountPaid,
+                            lastActiveTimestamp: new Date().toISOString(),
+                            routerId: routerId
+                        }, { merge: true });
+                    });
+                }
+
+                // Update ISP Wallet Balance
                 const ispRef = db.collection('isp_users').doc(ispId);
                 await db.runTransaction(async (ts) => {
                     const ispDoc = await ts.get(ispRef);
@@ -245,7 +278,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         router.connect().then(() => {
                             let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
                             return router.write('/ip/hotspot/user/add', [
-                                `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${mpesaReceipt}`
+                                `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
                             ]);
                         }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
                     } catch (modError) {
@@ -414,6 +447,198 @@ app.post('/api/packages/delete', async (req, res) => {
     try {
         await db.collection('isp_packages').doc(id).delete();
         return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ====================================================================
+// LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
+// ====================================================================
+
+// Check Loyalty Points Balance
+app.get('/api/hotspot/loyalty/balance', async (req, res) => {
+    const { macAddress } = req.query;
+    if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
+    
+    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+    try {
+        const subDoc = await db.collection('subscribers').doc(cleanMac).get();
+        if (!subDoc.exists) {
+            return res.status(200).json({ points: 0, phoneNumber: null });
+        }
+        return res.status(200).json({
+            points: subDoc.data().loyaltyPoints || 0,
+            phoneNumber: subDoc.data().phoneNumber || null
+        });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// Redeem Loyalty Points for Free Daily Hotspot Session
+app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
+    const { macAddress, routerId } = req.body;
+    if (!macAddress || !routerId) {
+        return res.status(400).json({ success: false, error: "Missing identity credentials." });
+    }
+
+    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+
+    try {
+        // Fetch active router configs & design profile thresholds
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router network not found." });
+        const routerData = routerDoc.data();
+
+        const ispId = routerData.ispId || "default_isp";
+        let pointsRequired = 100; // default backup threshold
+        try {
+            const designDoc = await db.collection('portal_designs').doc(ispId).get();
+            if (designDoc.exists && designDoc.data().redeemPoints) {
+                pointsRequired = parseInt(designDoc.data().redeemPoints) || 100;
+            }
+        } catch (pe) {
+            console.error("Design fetch fail during loyalty logic:", pe.message);
+        }
+
+        // Fetch subscriber balance
+        const subRef = db.collection('subscribers').doc(cleanMac);
+        const subDoc = await subRef.get();
+        if (!subDoc.exists) return res.status(400).json({ success: false, error: "Subscriber profile not found." });
+
+        const currentPoints = subDoc.data().loyaltyPoints || 0;
+        if (currentPoints < pointsRequired) {
+            return res.status(400).json({ success: false, error: `Insufficient points. You need ${pointsRequired} points.` });
+        }
+
+        // Deduct points from Firestore database balance
+        await db.runTransaction(async (ts) => {
+            ts.update(subRef, { 
+                loyaltyPoints: currentPoints - pointsRequired,
+                lastActiveTimestamp: new Date().toISOString()
+            });
+        });
+
+        // Trigger free internet access profile deployment on Mikrotik hardware
+        if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
+            const DynamicMikrotik = require('mikrotik-node');
+            const router = new DynamicMikrotik({
+                host: routerData.routerIp, port: parseInt(routerData.routerPort || '8728'),
+                user: routerData.routerUser, password: routerData.routerPassword, timeout: 10000 
+            });
+
+            const phoneUser = subDoc.data().phoneNumber || cleanMac;
+            await router.connect();
+            await router.write('/ip/hotspot/user/add', [
+                `=name=${phoneUser}`, `=password=${phoneUser}`, `=profile=24_Hour_Plan`, `=comment=LoyaltyRedeem_${cleanMac}`
+            ]);
+            await router.close();
+        }
+
+        return res.status(200).json({ success: true, message: "Free daily pass activated! enjoy browsing." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// ====================================================================
+// RECONNECT SESSION ENGINE (AUTO-LOGIN ALREADY PAID DEVICES)
+// ====================================================================
+
+app.get('/api/hotspot/reconnect', async (req, res) => {
+    const { macAddress, routerId } = req.query;
+    if (!macAddress || !routerId) return res.status(400).json({ error: "Missing verification criteria." });
+
+    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+
+    try {
+        const subDoc = await db.collection('subscribers').doc(cleanMac).get();
+        if (!subDoc.exists) return res.status(404).json({ error: "No recorded paid subscriptions mapped to this device." });
+
+        const subData = subDoc.data();
+        const lastActiveTime = new Date(subData.lastActiveTimestamp);
+        const diffInMinutes = (new Date() - lastActiveTime) / 60000;
+
+        // Calculate if previous subscription pass profile is still valid based on amount paid
+        const lastPaidAmount = subData.lastActivePackage || 0;
+        let validityDurationMinutes = 60; // 1 hour for KSh 10 (default)
+        if (lastPaidAmount >= 50) validityDurationMinutes = 1440; // 24 hours
+        else if (lastPaidAmount >= 20) validityDurationMinutes = 180; // 3 hours
+
+        if (diffInMinutes < validityDurationMinutes) {
+            // Re-assert connectivity credentials on MikroTik router if not present
+            const routerDoc = await db.collection('routers').doc(routerId).get();
+            if (routerDoc.exists) {
+                const rData = routerDoc.data();
+                if (rData.routerIp && rData.routerUser && rData.routerPassword) {
+                    try {
+                        const DynamicMikrotik = require('mikrotik-node');
+                        const router = new DynamicMikrotik({
+                            host: rData.routerIp, port: parseInt(rData.routerPort || '8728'),
+                            user: rData.routerUser, password: rData.routerPassword, timeout: 10000
+                        });
+                        await router.connect();
+                        
+                        let dynamicProfile = lastPaidAmount >= 20 ? (lastPaidAmount >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                        await router.write('/ip/hotspot/user/add', [
+                            `=name=${subData.phoneNumber}`, `=password=${subData.phoneNumber}`, `=profile=${dynamicProfile}`, `=comment=AutoReconnect_${cleanMac}`
+                        ]);
+                        await router.close();
+                    } catch (routerErr) {
+                        console.error("Autologin routing failure:", routerErr.message);
+                    }
+                }
+            }
+            return res.status(200).json({ 
+                success: true, 
+                phoneNumber: subData.phoneNumber, 
+                message: "Valid session verified. Connecting automatically." 
+            });
+        }
+
+        return res.status(401).json({ error: "Active package validity window has expired." });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
+// ====================================================================
+// SMART TV / GAME CONSOLE BRIDGING ENGINE
+// ====================================================================
+
+app.post('/api/hotspot/register-tv', async (req, res) => {
+    const { routerId, tvMacAddress, comment } = req.body;
+    if (!routerId || !tvMacAddress) {
+        return res.status(400).json({ success: false, error: "Missing required setup parameters." });
+    }
+
+    const cleanTvMac = tvMacAddress.toUpperCase().replace(/[^A-F0-9]/g, '').replace(/(.{2})(?=.)/g, '$1:');
+
+    try {
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router router node path not found." });
+        const routerData = routerDoc.data();
+
+        // 1. Program static lease assignment on MikroTik DHCP Subsystem
+        const RouterConnect = require('routeros-client').RouterOSClient;
+        const client = new RouterConnect({
+            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
+        });
+
+        const api = await client.connect();
+        
+        // 2. Program Hotspot IP-Binding bypass rule - this instantly unlocks web-less devices
+        await api.write('/ip/hotspot/ip-binding/add', [
+            `=mac-address=${cleanTvMac}`,
+            `=type=bypassed`,
+            `=comment=${comment || 'SmartTV Setup Bypass'}`
+        ]);
+        await api.close();
+
+        return res.status(200).json({ success: true, message: `TV Hardware (${cleanTvMac}) bypassed successfully!` });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
