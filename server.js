@@ -623,5 +623,89 @@ app.get('/api/dhcp/leases', async (req, res) => {
     }
 });
 
+// ====================================================================
+// VOUCHERS MANAGEMENT ENGINE
+// ====================================================================
+
+// A. Fetch vouchers for a specific ISP tenant using app.get
+app.get('/api/vouchers', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('isp_vouchers')
+            .where('ispId', '==', ispId)
+            .get();
+        const vouchers = [];
+        snapshot.forEach(doc => {
+            vouchers.push({ id: doc.id, ...doc.data() });
+        });
+        return res.status(200).json(vouchers);
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// B. Batch Generate Vouchers using app.post
+app.post('/api/vouchers/generate', async (req, res) => {
+    const { ispId, packageId, count, codeLength } = req.body;
+    try {
+        // Look up the name and details of the package selected to save with the voucher
+        const pkgDoc = await db.collection('isp_packages').doc(packageId).get();
+        let packageName = "Custom Package";
+        let price = 0;
+        let duration = 0;
+
+        if (pkgDoc.exists) {
+            const pkgData = pkgDoc.data();
+            packageName = pkgData.packageName || "Unnamed Tier";
+            price = pkgData.price || 0;
+            duration = pkgData.duration || 0;
+        }
+
+        const batch = db.batch();
+        const collectionRef = db.collection('isp_vouchers');
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Safe character set (no confusing O/0 or I/1)
+        
+        const batchCount = Math.min(Math.max(count || 10, 1), 100);
+        const len = codeLength || 8;
+
+        for (let i = 0; i < batchCount; i++) {
+            let generatedCode = '';
+            for (let j = 0; j < len; j++) {
+                generatedCode += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            const docRef = collectionRef.doc();
+            batch.set(docRef, {
+                ispId: ispId || 'default_isp',
+                packageId,
+                packageName,
+                price: parseFloat(price),
+                duration: parseInt(duration),
+                code: `AUDI-${generatedCode}`,
+                status: 'Active',
+                createdAt: new Date().toISOString()
+            });
+        }
+        
+        await batch.commit();
+        return res.status(200).json({ success: true, message: "Batch generation complete." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// C. Shred and remove a voucher entirely using app.post (matches frontend invoke sequence)
+app.post('/api/vouchers/delete', async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: "Missing unique identity." });
+    
+    try {
+        await db.collection('isp_vouchers').doc(id).delete();
+        return res.status(200).json({ success: true, message: "Voucher deleted successfully." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
