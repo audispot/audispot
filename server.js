@@ -1006,5 +1006,176 @@ app.post('/api/portal/design/save', async (req, res) => {
     }
 });
 
+// ====================================================================
+// EXPENSES SYSTEM: CREATE, READ, & DELETE EXPENSE RECORDS
+// ====================================================================
+
+// A. Fetch all active expenses for a specific ISP tenant
+app.get('/api/expenses', async (req, res) => {
+    const { ispId } = req.query;
+    const targetTenant = ispId || "default_isp";
+    try {
+        const snapshot = await db.collection('isp_expenses')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        const expenses = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            expenses.push({
+                id: doc.id,
+                description: data.description || "Uncategorized Expense",
+                amount: data.amount || 0,
+                category: data.category || "General",
+                date: data.date || new Date().toISOString()
+            });
+        });
+        
+        // Sort newest expenses to the top
+        expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return res.status(200).json(expenses);
+    } catch (error) {
+        console.error("Failed to fetch custom expenses:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// B. Save a new custom expense record into Firestore
+app.post('/api/expenses/create', async (req, res) => {
+    const { ispId, description, amount, category, date } = req.body;
+    
+    if (!description || !amount || !category) {
+        return res.status(400).json({ success: false, error: "Missing required configuration fields." });
+    }
+    
+    try {
+        const newExpenseRef = db.collection('isp_expenses').doc();
+        await newExpenseRef.set({
+            ispId: ispId || "default_isp",
+            description,
+            amount: parseFloat(amount),
+            category,
+            date: date || new Date().toISOString(),
+            createdAt: new Date().toISOString()
+        });
+        
+        return res.status(200).json({ success: true, id: newExpenseRef.id });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// C. Delete an expense record
+app.post('/api/expenses/delete', async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
+    
+    try {
+        await db.collection('isp_expenses').doc(id).delete();
+        return res.status(200).json({ success: true, message: "Expense record scrubbed." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// ====================================================================
+// ANALYTICS ENGINE: LIVE STATISTICAL COMPILING
+// ====================================================================
+
+// Fetch dynamic real-time performance analytics directly aggregated from live ledgers
+app.get('/api/isp/analytics/:ispId', async (req, res) => {
+    const { ispId } = req.params;
+    const targetTenant = ispId || "default_isp";
+    
+    try {
+        // 1. Fetch all routers owned by this ISP to filter transactions
+        const routersSnapshot = await db.collection('routers')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        const routerIds = [];
+        routersSnapshot.forEach(doc => routerIds.push(doc.id));
+        
+        let totalRevenue = 0;
+        let transactionCount = 0;
+        const revenueOverTime = {}; // Grouped by date: YYYY-MM-DD
+        
+        if (routerIds.length > 0) {
+            // Firestore 'in' queries are capped at 30 items per batch. 
+            // We split them if needed to fetch live corresponding transactions.
+            const chunks = [];
+            for (let i = 0; i < routerIds.length; i += 30) {
+                chunks.push(routerIds.slice(i, i + 30));
+            }
+            
+            for (const chunk of chunks) {
+                const txSnapshot = await db.collection('global_transactions')
+                    .where('routerId', 'in', chunk)
+                    .get();
+                    
+                txSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const amount = data.grossAmount || 0;
+                    totalRevenue += amount;
+                    transactionCount++;
+                    
+                    // Format date to simple day string
+                    const rawDate = data.processedAt || new Date().toISOString();
+                    const dayString = rawDate.split('T')[0];
+                    revenueOverTime[dayString] = (revenueOverTime[dayString] || 0) + amount;
+                });
+            }
+        }
+        
+        // 2. Fetch total active expenses
+        const expensesSnapshot = await db.collection('isp_expenses')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        let totalExpenses = 0;
+        const expensesByCategory = {};
+        
+        expensesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const amount = data.amount || 0;
+            totalExpenses += amount;
+            
+            const category = data.category || "General";
+            expensesByCategory[category] = (expensesByCategory[category] || 0) + amount;
+        });
+        
+        // 3. Get subscriber totals 
+        const subscribersSnapshot = await db.collection('subscribers')
+            .where('routerId', 'in', routerIds.length > 0 ? routerIds : ['__non_existent__'])
+            .get();
+            
+        const totalSubscribers = subscribersSnapshot.size;
+        const netEarnings = Math.max(0, totalRevenue - totalExpenses);
+
+        // Format timeline data for rendering in Chart.js
+        const chartTimeline = Object.keys(revenueOverTime)
+            .sort()
+            .map(date => ({ date, amount: revenueOverTime[date] }));
+
+        return res.status(200).json({
+            success: true,
+            summary: {
+                totalRevenue,
+                totalExpenses,
+                netEarnings,
+                totalSubscribers,
+                totalRouters: routerIds.length,
+                transactionCount
+            },
+            expensesByCategory,
+            chartTimeline
+        });
+    } catch (error) {
+        console.error("Analytics compile error:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
