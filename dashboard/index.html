@@ -350,6 +350,118 @@
     </div>
 </div>
 
+<div id="viewframe-portal-designer" class="hidden space-y-6 viewframe">
+    <div class="flex flex-col lg:flex-row gap-6">
+        
+        <div class="flex-1 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-5 shadow-sm">
+            <div>
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> Captive Portal Customizer
+                </h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Brand your customer login sequence window. Updates sync to the MikroTik client configurations instantly.</p>
+            </div>
+            
+            <form id="portal-designer-form" onsubmit="savePortalDesignSettings(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Business / Wi-Fi Name</label>
+                    <input type="text" id="input-portal-brand" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Accent Color</label>
+                        <div class="flex gap-2">
+                            <input type="color" id="input-portal-color" oninput="updateLivePortalPreview()" class="w-10 h-[34px] bg-transparent border border-slate-200 dark:border-vunaborder rounded cursor-pointer">
+                            <input type="text" id="input-portal-color-hex" readonly class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-2 text-xs font-mono text-slate-400">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Welcome Banner Greeting</label>
+                        <input type="text" id="input-portal-welcome" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Support Phone Line / Contact</label>
+                    <input type="text" id="input-portal-support" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Publish Live Brand Identity
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="w-full lg:w-[360px] flex flex-col items-center shrink-0">
+            <div class="flex bg-slate-200 dark:bg-slate-900/60 p-1 rounded-xl w-full mb-3 border border-slate-200 dark:border-vunaborder">
+                <button onclick="switchSimulatorScreen('login')" id="sim-btn-login" class="flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm">
+                    <i class="fa-solid fa-arrow-right-to-bracket mr-1"></i> Login Portal
+                </button>
+                <button onclick="switchSimulatorScreen('success')" id="sim-btn-success" class="flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-circle-check mr-1"></i> Success View
+                </button>
+            </div>
+
+            <div class="w-[320px] h-[580px] bg-slate-950 rounded-[40px] p-3.5 shadow-2xl border-4 border-slate-800 relative ring-1 ring-slate-900/50 overflow-hidden flex flex-col">
+                <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-4 bg-slate-950 rounded-b-xl z-30 flex justify-center items-center">
+                    <div class="w-12 h-1 bg-slate-800 rounded-full mb-1"></div>
+                </div>
+
+                <div id="phone-screen-canvas" class="w-full h-full bg-[#f8fafc] rounded-[28px] overflow-y-auto relative flex flex-col px-5 pt-8 pb-4 text-slate-800 selection:bg-indigo-500/10">
+                    
+                    <div id="sim-view-login" class="space-y-5 flex-1 flex flex-col justify-between py-4">
+                        <div class="space-y-4 text-center">
+                            <div id="sim-preview-logo-box" class="w-12 h-12 mx-auto bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-lg shadow-lg shadow-indigo-600/20 transition-all">
+                                <i class="fa-solid fa-wifi"></i>
+                            </div>
+                            <div>
+                                <h3 id="sim-text-brand" class="text-sm font-black tracking-tight text-slate-900">My Hotspot Network</h3>
+                                <p id="sim-text-welcome" class="text-[11px] text-slate-500 mt-0.5">Enter details to establish access link connection.</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            <div class="bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm space-y-1">
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">M-Pesa Mobile Number</label>
+                                <input type="text" disabled placeholder="0712345678" class="w-full bg-transparent text-xs outline-none text-slate-400 placeholder-slate-300">
+                            </div>
+                            <div class="bg-indigo-600 text-white font-bold text-xs p-2.5 rounded-xl text-center shadow-md transition-all shadow-indigo-600/10 cursor-not-allowed" id="sim-preview-accent-btn">
+                                Initiate Payment Connection
+                            </div>
+                        </div>
+
+                        <div class="text-[10px] text-center text-slate-400">
+                            Need help? Contact Customer Support: <br>
+                            <span id="sim-text-support" class="font-mono font-bold text-slate-600">0700000000</span>
+                        </div>
+                    </div>
+
+                    <div id="sim-view-success" class="hidden space-y-6 text-center flex-1 flex flex-col justify-center py-4">
+                        <div class="w-12 h-12 mx-auto bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full flex items-center justify-center text-xl shadow-sm">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <h3 class="text-sm font-black tracking-tight text-slate-900">Authenticated Successfully</h3>
+                            <p class="text-[10px] text-slate-500">Your internet connection link rule is now live active.</p>
+                        </div>
+                        <div class="bg-slate-100 border border-slate-200/60 p-3 rounded-xl font-mono text-[11px] text-left space-y-1">
+                            <div class="flex justify-between"><span class="text-slate-400">Status:</span><span class="text-emerald-600 font-bold">Connected</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Device IP:</span><span class="text-slate-600">10.5.5.142</span></div>
+                        </div>
+                        <div class="bg-slate-900 text-white font-bold text-xs p-2.5 rounded-xl text-center shadow-md">
+                            Browse Internet
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
                 <div id="viewframe-sessions" class="space-y-6 hidden viewframe">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
@@ -1324,6 +1436,103 @@ async function handleVoucherBatchGeneration(e) {
         }
     } catch (err) {
         showInlineToastNotice("API failure building system batches.");
+    }
+}
+
+// ==========================================
+// CAPTIVE PORTAL DESIGNER CONTROLS
+// ==========================================
+
+let activeSimScreen = 'login';
+
+// Real-time text bindings engine matching inputs changes
+function updateLivePortalPreview() {
+    const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
+    const welcomeInput = document.getElementById('input-portal-welcome').value || 'Enter details to establish access link connection.';
+    const supportInput = document.getElementById('input-portal-support').value || '0700000000';
+    const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+
+    // Update Text Elements inside Phone Simulator Frame Layout
+    document.getElementById('sim-text-brand').innerText = brandInput;
+    document.getElementById('sim-text-welcome').innerText = welcomeInput;
+    document.getElementById('sim-text-support').innerText = supportInput;
+    
+    // Update Hex code string readout container layout
+    document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
+
+    // Dynamically apply accent color configurations to internal node structures
+    document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
+    document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
+}
+
+// Interactive tab switching context rule for VunaFlow Simulator 
+function switchSimulatorScreen(screenMode) {
+    activeSimScreen = screenMode;
+    const loginView = document.getElementById('sim-view-login');
+    const successView = document.getElementById('sim-view-success');
+    const btnLogin = document.getElementById('sim-btn-login');
+    const btnSuccess = document.getElementById('sim-btn-success');
+
+    if (screenMode === 'login') {
+        loginView.classList.remove('hidden');
+        successView.classList.add('hidden');
+        
+        btnLogin.className = "flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnSuccess.className = "flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition text-slate-400 hover:text-slate-200";
+    } else {
+        loginView.classList.add('hidden');
+        successView.classList.remove('hidden');
+        
+        btnSuccess.className = "flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnLogin.className = "flex-1 py-1.5 text-center text-[11px] font-bold rounded-lg transition text-slate-400 hover:text-slate-200";
+    }
+}
+
+// Synchronize initial configuration layers from Firestore
+async function fetchCurrentPortalDesign() {
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    try {
+        const response = await fetch(`/api/portal/design?ispId=${targetTenant}`);
+        if(response.ok) {
+            const config = await response.json();
+            
+            document.getElementById('input-portal-brand').value = config.brandName || '';
+            document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
+            document.getElementById('input-portal-support').value = config.supportContact || '';
+            document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
+            
+            updateLivePortalPreview();
+        }
+    } catch(err) {
+        console.error("Failed to load live brand specifications parameters", err);
+    }
+}
+
+// Persist adjustments to Firestore
+async function savePortalDesignSettings(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    
+    const payload = {
+        ispId: targetTenant,
+        brandName: document.getElementById('input-portal-brand').value,
+        welcomeGreeting: document.getElementById('input-portal-welcome').value,
+        supportContact: document.getElementById('input-portal-support').value,
+        accentColor: document.getElementById('input-portal-color').value
+    };
+
+    try {
+        const response = await fetch('/api/portal/design/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showInlineToastNotice("Portal brand identity compiled and published live! 🎨");
+        }
+    } catch(err) {
+        showInlineToastNotice("Failed to sync design modifications layout profiles.");
     }
 }
 
