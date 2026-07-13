@@ -717,5 +717,55 @@ app.post('/api/vouchers/bulk-delete', async (req, res) => {
     }
 });
 
+// ====================================================================
+// TENANT CONFIGURATION: CAPTIVE PORTAL CUSTOMIZER ENDPOINTS
+// ====================================================================
+
+// A. Pull Active Portal Configuration profile maps matching tenant criteria
+app.get('/api/portal/design', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const docRef = db.collection('isp_portals').doc(ispId);
+        const doc = await docRef.get();
+        
+        if (!doc.exists) {
+            // Supply standardized clean defaults fallback rule maps if not configured yet
+            return res.status(200).json({
+                brandName: "AudiSpot Wireless Gateway",
+                welcomeGreeting: "Enter verification parameters to connect to high-speed internet pipeline nodes.",
+                supportContact: "0700000000",
+                accentColor: "#4f46e5"
+            });
+        }
+        return res.status(200).json(doc.data());
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// B. Save / Overwrite branding configurations inside Firestore database cluster sheets
+app.post('/api/portal/design/save', async (req, res) => {
+    const { ispId, brandName, welcomeGreeting, supportContact, accentColor } = req.body;
+    
+    if(!brandName || !welcomeGreeting || !supportContact || !accentColor) {
+        return res.status(400).json({ success: false, error: "Missing required customization inputs values." });
+    }
+
+    try {
+        const targetTenant = ispId || 'default_isp';
+        await db.collection('isp_portals').doc(targetTenant).set({
+            brandName,
+            welcomeGreeting,
+            supportContact,
+            accentColor,
+            lastModified: new Date().toISOString()
+        }, { merge: true });
+
+        return res.status(200).json({ success: true, message: "Captive Portal design synchronized successfully." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
