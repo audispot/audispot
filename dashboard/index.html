@@ -855,47 +855,51 @@
     </div>
 </div>
 
-<div id="modal-add-expense" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden">
-    <div class="bg-[#111827] border border-[#1f293d] w-full max-w-md rounded-xl shadow-2xl overflow-hidden transition-all transform">
-        <div class="px-6 py-4 border-b border-[#1f293d] flex justify-between items-center">
-            <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-receipt text-indigo-500"></i> New Expense Entry
-            </h3>
-            <button onclick="toggleModal('modal-add-expense', false)" class="text-gray-400 hover:text-white transition-colors">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
+</div> <div id="modal-add-expense" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden">
+                <div class="bg-[#111827] border border-[#1f293d] w-full max-w-md rounded-xl shadow-2xl overflow-hidden transition-all transform">
+                    <div class="px-6 py-4 border-b border-[#1f293d] flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-receipt text-indigo-500"></i> New Expense Entry
+                        </h3>
+                        <button onclick="toggleModal('modal-add-expense', false)" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+                    <form id="expense-add-form" onsubmit="handleExpenseCreateSubmit(event)" class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Description</label>
+                            <input type="text" id="expense-description" required placeholder="e.g. Fiber Line Link Lease, Router Upgrade" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Amount (KES)</label>
+                                <input type="number" id="expense-amount" required min="1" placeholder="Amount" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Category</label>
+                                <select id="expense-category" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                                    <option value="Bandwidth">Bandwidth</option>
+                                    <option value="Hardware">Hardware</option>
+                                    <option value="Electricity">Electricity</option>
+                                    <option value="Rent">Rent</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Transaction Date</label>
+                            <input type="date" id="expense-date" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div class="pt-4 flex justify-end gap-3">
+                            <button type="button" onclick="toggleModal('modal-add-expense', false)" class="bg-[#1d2433] text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm transition-colors">Cancel</button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">Log Expense</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
-        <form id="expense-add-form" onsubmit="handleExpenseCreateSubmit(event)" class="p-6 space-y-4">
-            <div>
-                <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Description</label>
-                <input type="text" id="expense-description" required placeholder="e.g. Fiber Line Link Lease, Router Upgrade" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Amount (KES)</label>
-                    <input type="number" id="expense-amount" required min="1" placeholder="Amount" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Category</label>
-                    <select id="expense-category" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
-                        <option value="Bandwidth">Bandwidth</option>
-                        <option value="Hardware">Hardware</option>
-                        <option value="Electricity">Electricity</option>
-                        <option value="Rent">Rent</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Transaction Date</label>
-                <input type="date" id="expense-date" class="w-full bg-[#131a2c] border border-[#1f293d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
-            </div>
-            <div class="pt-4 flex justify-end gap-3">
-                <button type="button" onclick="toggleModal('modal-add-expense', false)" class="bg-[#1d2433] text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm transition-colors">Cancel</button>
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">Log Expense</button>
-            </div>
-        </form>
-    </div>
+    </main>
 </div>
                 
                 <!-- VIEW 4: SYSTEM & HARDWARE CONFIGURATION AREA (Exact VunaFlow Spec) -->
@@ -1396,6 +1400,17 @@ function changeActiveLayoutTab(targetTab) {
             'analytics': 'Financial Performance Engine'
         };
         headerTitle.innerText = titleMap[targetTab] || "AudiSpot Network Control Center";
+    }
+
+    // ==================== LIVE DATA HOOK TRIGGERS ====================
+    if (targetTab === 'expenses') {
+        if (typeof fetchAndRenderExpenses === "function") {
+            fetchAndRenderExpenses();
+        }
+    } else if (targetTab === 'analytics') {
+        if (typeof fetchPerformanceAnalytics === "function") {
+            fetchPerformanceAnalytics();
+        }
     }
 }
 
@@ -1920,6 +1935,22 @@ function navigateToView(viewId) {
 // ====================================================================
 // EXPENSE PROCESSORS (FRONTEND INTEGRITY)
 // ====================================================================
+function toggleModal(modalId, shouldShow) {
+    const targetModal = document.getElementById(modalId);
+    if (!targetModal) return;
+            
+    if (shouldShow) {
+        targetModal.classList.remove('hidden');
+        // Auto-fill today's date if showing the expense modal
+        if (modalId === 'modal-add-expense') {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('expense-date');
+            if (dateInput) dateInput.value = today;
+        }
+    } else {
+                targetModal.classList.add('hidden');
+    }
+}
 
 async function fetchAndRenderExpenses() {
     const ispId = localStorage.getItem('ispId') || "default_isp";
@@ -2130,6 +2161,7 @@ async function fetchAndRenderAnalytics() {
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
             syncCoreEngineMetrics();
+            fetchAndRenderExpenses();
             setInterval(syncCoreEngineMetrics, 30000);
         };
     </script>
