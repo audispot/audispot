@@ -1952,14 +1952,36 @@ function toggleModal(modalId, shouldShow) {
     }
 }
 
+// ====================================================================
+// EXPENSE PROCESSORS (FRONTEND INTEGRITY - SAFE PARSING VERSION)
+// ====================================================================
+
 async function fetchAndRenderExpenses() {
     const ispId = localStorage.getItem('ispId') || "default_isp";
+    const tbody = document.getElementById('tbl-expenses-body');
+    const ratiosContainer = document.getElementById('expense-category-ratios');
+    
     try {
         const response = await fetch(`https://audispoty-749056206562.europe-west1.run.app/api/expenses?ispId=${ispId}`);
-        const expenses = await response.json();
         
-        const tbody = document.getElementById('tbl-expenses-body');
-        const ratiosContainer = document.getElementById('expense-category-ratios');
+        // 1. Check if the server responded with an error code (like 404 or 500)
+        if (!response.ok) {
+            console.warn(`Server returned status ${response.status} for expenses fetch.`);
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-rose-400 font-semibold bg-rose-500/5 border border-rose-500/10 rounded-lg">
+                    Expense service is currently offline (Status ${response.status}).
+                </td></tr>`;
+            }
+            return;
+        }
+
+        // 2. Check if the response is actually JSON
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new TypeError("Expected JSON response from server but received HTML/Text. Check API routes.");
+        }
+
+        const expenses = await response.json();
         
         if (tbody) tbody.innerHTML = '';
         if (ratiosContainer) ratiosContainer.innerHTML = '';
@@ -1982,7 +2004,6 @@ async function fetchAndRenderExpenses() {
 
         expenses.forEach(exp => {
             grandTotal += exp.amount;
-            // Map any incoming variations to standard keys safely
             const normalizedCategory = categorySums.hasOwnProperty(exp.category) ? exp.category : "Other";
             categorySums[normalizedCategory] += exp.amount;
 
@@ -2007,13 +2028,11 @@ async function fetchAndRenderExpenses() {
             }
         });
 
-        // Update ratio visualizers in panel dynamically
         if (ratiosContainer && grandTotal > 0) {
             Object.keys(categorySums).forEach(cat => {
                 const sum = categorySums[cat];
                 const pct = ((sum / grandTotal) * 100).toFixed(0);
                 
-                // Only render category bars that have expenses assigned to keep the UI clean
                 if (sum > 0) {
                     ratiosContainer.innerHTML += `
                         <div>
@@ -2028,14 +2047,15 @@ async function fetchAndRenderExpenses() {
                     `;
                 }
             });
-            
-            if (ratiosContainer.innerHTML === '') {
-                ratiosContainer.innerHTML = `<p class="text-xs text-gray-400">No breakdowns to display yet.</p>`;
-            }
         }
 
     } catch (err) {
         console.error("Failed loading active system expenses:", err);
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-amber-400 font-medium">
+                Unable to load operational ledger: ${err.message}
+            </td></tr>`;
+        }
     }
 }
 
@@ -2043,14 +2063,9 @@ async function handleExpenseCreateSubmit(event) {
     event.preventDefault();
     const ispId = localStorage.getItem('ispId') || "default_isp";
     
-    // Safely assign fallback date matching HTML format without using timezone-shifting ISOStrings
     let rawDate = document.getElementById('expense-date').value;
     if (!rawDate) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        rawDate = `${yyyy}-${mm}-${dd}`;
+        rawDate = new Date().toISOString().split('T')[0];
     }
 
     const payload = {
@@ -2074,10 +2089,12 @@ async function handleExpenseCreateSubmit(event) {
             toggleModal('modal-add-expense', false);
             fetchAndRenderExpenses();
         } else {
-            triggerToastDisplay("Failed to register expense entry.", true);
+            console.error(`Create endpoint returned error status ${response.status}`);
+            triggerToastDisplay(`Failed to register expense entry (Server Error: ${response.status}).`, true);
         }
     } catch (err) {
-        triggerToastDisplay("Error connecting to server.", true);
+        console.error("Error posting expense:", err);
+        triggerToastDisplay("Error connecting to server. Please try again later.", true);
     }
 }
 
@@ -2095,13 +2112,14 @@ async function deleteExpenseEntry(id) {
             triggerToastDisplay("Expense deleted successfully.");
             fetchAndRenderExpenses();
         } else {
-            triggerToastDisplay("Failed to delete record.", true);
+            triggerToastDisplay(`Failed to delete record (Server Error: ${response.status}).`, true);
         }
     } catch (err) {
+        console.error("Error deleting expense:", err);
         triggerToastDisplay("Server error during execution.", true);
     }
 }
-
+        
 // ====================================================================
 // REAL-TIME ANALYTICS RENDER ENGINE
 // ====================================================================
