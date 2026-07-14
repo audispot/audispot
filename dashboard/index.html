@@ -2161,7 +2161,6 @@ async function fetchAndRenderAnalytics() {
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
             syncCoreEngineMetrics();
-            fetchAndRenderExpenses();
             setInterval(syncCoreEngineMetrics, 30000);
         };
     </script>
