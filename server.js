@@ -43,6 +43,11 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
 async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
     const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
     
+    // Dynamically set Safaricom base URL depending on your Cloud Run Env variables
+    const MPESA_HOST = process.env.MPESA_ENV === 'production' 
+        ? 'https://api.safaricom.co.ke' 
+        : 'https://sandbox.safaricom.co.ke';
+
     try {
         const tokenResponse = await axios.get(
             `${MPESA_HOST}/oauth/v1/generate?grant_type=client_credentials`, 
@@ -54,7 +59,7 @@ async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
         const payload = {
             InitiatorName: process.env.MPESA_B2C_INITIATOR, 
             SecurityCredential: process.env.MPESA_B2C_SECURITY_CREDENTIAL, 
-            CommandID: "BusinessPayment", // BusinessPayment (or SalaryPayment)
+            CommandID: "BusinessPayment", // Will execute live on Production
             Amount: parseInt(amount),
             PartyA: process.env.MPESA_B2C_SHORTCODE, 
             PartyB: phoneNumber, 
@@ -70,7 +75,8 @@ async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
 
         return response.data;
     } catch (error) {
-        console.error("B2C Dispatch Failed:", error.response ? error.response.data : error.message);
+        // Log the exact Safaricom error in Cloud Run Console so we can debug easily!
+        console.error("Safaricom API Error:", error.response ? error.response.data : error.message);
         throw new Error("Failed to dispatch B2C payment through Safaricom");
     }
 }
