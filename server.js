@@ -39,6 +39,42 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
     }
 }
 
+// Helper Function: Trigger Safaricom B2C Payout to ISP Phone Number
+async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
+    const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
+    
+    try {
+        const tokenResponse = await axios.get(
+            `${MPESA_HOST}/oauth/v1/generate?grant_type=client_credentials`, 
+            { headers: { Authorization: `Basic ${auth}` } }
+        );
+        const accessToken = tokenResponse.data.access_token;
+
+        const b2cUrl = `${MPESA_HOST}/mpesa/b2c/v1/paymentrequest`;
+        const payload = {
+            InitiatorName: process.env.MPESA_B2C_INITIATOR, 
+            SecurityCredential: process.env.MPESA_B2C_SECURITY_CREDENTIAL, 
+            CommandID: "BusinessPayment", // BusinessPayment (or SalaryPayment)
+            Amount: parseInt(amount),
+            PartyA: process.env.MPESA_B2C_SHORTCODE, 
+            PartyB: phoneNumber, 
+            Remarks: "AudiSpot Wallet Payout",
+            QueueTimeOutURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-timeout`,
+            ResultURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-callback?payoutId=${payoutId}`,
+            Occasion: "Withdrawal"
+        };
+
+        const response = await axios.post(b2cUrl, payload, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error("B2C Dispatch Failed:", error.response ? error.response.data : error.message);
+        throw new Error("Failed to dispatch B2C payment through Safaricom");
+    }
+}
+
 // Helper Function: Get RouterOS API Client instance
 function getRouterClient(routerData) {
     return new RouterOSClient({
