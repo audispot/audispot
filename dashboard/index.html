@@ -1953,8 +1953,33 @@ function toggleModal(modalId, shouldShow) {
 }
 
 // ====================================================================
-// EXPENSE PROCESSORS (FRONTEND INTEGRITY - SAFE PARSING VERSION)
+// EXPENSE PROCESSORS (FRONTEND INTEGRITY)
 // ====================================================================
+
+function getLocalExpenses() {
+    const data = localStorage.getItem('local_expenses');
+    return data ? JSON.parse(data) : [];
+}
+
+function saveLocalExpenses(expensesArray) {
+    localStorage.setItem('local_expenses', JSON.stringify(expensesArray));
+}
+
+function toggleModal(modalId, shouldShow) {
+    const targetModal = document.getElementById(modalId);
+    if (!targetModal) return;
+            
+    if (shouldShow) {
+        targetModal.classList.remove('hidden');
+        if (modalId === 'modal-add-expense') {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('expense-date');
+            if (dateInput) dateInput.value = today;
+        }
+    } else {
+        targetModal.classList.add('hidden');
+    }
+}
 
 async function fetchAndRenderExpenses() {
     const ispId = localStorage.getItem('ispId') || "default_isp";
@@ -1964,98 +1989,106 @@ async function fetchAndRenderExpenses() {
     try {
         const response = await fetch(`https://audispoty-749056206562.europe-west1.run.app/api/expenses?ispId=${ispId}`);
         
-        // 1. Check if the server responded with an error code (like 404 or 500)
-        if (!response.ok) {
-            console.warn(`Server returned status ${response.status} for expenses fetch.`);
-            if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-rose-400 font-semibold bg-rose-500/5 border border-rose-500/10 rounded-lg">
-                    Expense service is currently offline (Status ${response.status}).
-                </td></tr>`;
-            }
+        // Fallback to local storage if API returns 404 (Endpoint not deployed yet)
+        if (response.status === 404) {
+            console.warn("Backend returned 404. Falling back to local Storage mode.");
+            renderLocalExpenses(ispId);
             return;
         }
 
-        // 2. Check if the response is actually JSON
+        if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+        }
+
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
-            throw new TypeError("Expected JSON response from server but received HTML/Text. Check API routes.");
+            throw new TypeError("Expected JSON response but received non-JSON payload.");
         }
 
         const expenses = await response.json();
-        
-        if (tbody) tbody.innerHTML = '';
-        if (ratiosContainer) ratiosContainer.innerHTML = '';
-        
-        if (!expenses || expenses.length === 0) {
-            if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">No registered expenses tracked inside this deployment yet.</td></tr>`;
-            }
-            return;
+        renderExpenseList(expenses);
+
+    } catch (err) {
+        console.error("Failed loading active system expenses from server, falling back to local memory:", err);
+        renderLocalExpenses(ispId);
+    }
+}
+
+// Local Render Engine when Backend is Offline/404ing
+function renderLocalExpenses(ispId) {
+    const allExpenses = getLocalExpenses();
+    const filtered = allExpenses.filter(exp => exp.ispId === ispId);
+    renderExpenseList(filtered);
+}
+
+function renderExpenseList(expenses) {
+    const tbody = document.getElementById('tbl-expenses-body');
+    const ratiosContainer = document.getElementById('expense-category-ratios');
+
+    if (tbody) tbody.innerHTML = '';
+    if (ratiosContainer) ratiosContainer.innerHTML = '';
+
+    if (!expenses || expenses.length === 0) {
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">No registered expenses tracked inside this deployment yet.</td></tr>`;
         }
+        return;
+    }
 
-        let categorySums = {
-            "Bandwidth": 0,
-            "Hardware": 0,
-            "Electricity": 0,
-            "Rent": 0,
-            "Other": 0
-        };
-        let grandTotal = 0;
+    let categorySums = {
+        "Bandwidth": 0,
+        "Hardware": 0,
+        "Electricity": 0,
+        "Rent": 0,
+        "Other": 0
+    };
+    let grandTotal = 0;
 
-        expenses.forEach(exp => {
-            grandTotal += exp.amount;
-            const normalizedCategory = categorySums.hasOwnProperty(exp.category) ? exp.category : "Other";
-            categorySums[normalizedCategory] += exp.amount;
+    expenses.forEach(exp => {
+        grandTotal += exp.amount;
+        const normalizedCategory = categorySums.hasOwnProperty(exp.category) ? exp.category : "Other";
+        categorySums[normalizedCategory] += exp.amount;
 
-            const dateFormatted = new Date(exp.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+        const dateFormatted = new Date(exp.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+        
+        if (tbody) {
+            tbody.innerHTML += `
+                <tr class="hover:bg-[#1d2433] transition-colors">
+                    <td class="px-6 py-4 font-medium text-white">${dateFormatted}</td>
+                    <td class="px-6 py-4 text-gray-300">${exp.description}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-md bg-indigo-500/10 text-indigo-400 font-semibold border border-indigo-500/20">${exp.category}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right font-bold text-rose-400">-${exp.amount.toLocaleString()}</td>
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="deleteExpenseEntry('${exp.id}')" class="text-rose-400 hover:text-rose-600 p-1 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+
+    if (ratiosContainer && grandTotal > 0) {
+        Object.keys(categorySums).forEach(cat => {
+            const sum = categorySums[cat];
+            const pct = ((sum / grandTotal) * 100).toFixed(0);
             
-            if (tbody) {
-                tbody.innerHTML += `
-                    <tr class="hover:bg-[#1d2433] transition-colors">
-                        <td class="px-6 py-4 font-medium text-white">${dateFormatted}</td>
-                        <td class="px-6 py-4 text-gray-300">${exp.description}</td>
-                        <td class="px-6 py-4">
-                            <span class="px-2 py-1 text-xs rounded-md bg-indigo-500/10 text-indigo-400 font-semibold border border-indigo-500/20">${exp.category}</span>
-                        </td>
-                        <td class="px-6 py-4 text-right font-bold text-rose-400">-${exp.amount.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-center">
-                            <button onclick="deleteExpenseEntry('${exp.id}')" class="text-rose-400 hover:text-rose-600 p-1 transition-colors">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </td>
-                    </tr>
+            if (sum > 0) {
+                ratiosContainer.innerHTML += `
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-gray-300">${cat}</span>
+                            <span class="text-gray-400">KES ${sum.toLocaleString()} (${pct}%)</span>
+                        </div>
+                        <div class="w-full bg-gray-800 rounded-full h-1.5">
+                            <div class="bg-indigo-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
                 `;
             }
         });
-
-        if (ratiosContainer && grandTotal > 0) {
-            Object.keys(categorySums).forEach(cat => {
-                const sum = categorySums[cat];
-                const pct = ((sum / grandTotal) * 100).toFixed(0);
-                
-                if (sum > 0) {
-                    ratiosContainer.innerHTML += `
-                        <div>
-                            <div class="flex justify-between text-xs font-semibold mb-1">
-                                <span class="text-gray-300">${cat}</span>
-                                <span class="text-gray-400">KES ${sum.toLocaleString()} (${pct}%)</span>
-                            </div>
-                            <div class="w-full bg-gray-800 rounded-full h-1.5">
-                                <div class="bg-indigo-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
-        }
-
-    } catch (err) {
-        console.error("Failed loading active system expenses:", err);
-        if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-amber-400 font-medium">
-                Unable to load operational ledger: ${err.message}
-            </td></tr>`;
-        }
     }
 }
 
@@ -2088,18 +2121,41 @@ async function handleExpenseCreateSubmit(event) {
             document.getElementById('expense-add-form').reset();
             toggleModal('modal-add-expense', false);
             fetchAndRenderExpenses();
+        } else if (response.status === 404) {
+            // Local fallback save
+            saveLocalExpenseItem(payload);
         } else {
-            console.error(`Create endpoint returned error status ${response.status}`);
-            triggerToastDisplay(`Failed to register expense entry (Server Error: ${response.status}).`, true);
+            triggerToastDisplay(`Failed to register expense (Status: ${response.status}).`, true);
         }
     } catch (err) {
-        console.error("Error posting expense:", err);
-        triggerToastDisplay("Error connecting to server. Please try again later.", true);
+        console.warn("Backend unreachable. Logging expense locally...");
+        saveLocalExpenseItem(payload);
     }
+}
+
+function saveLocalExpenseItem(payload) {
+    const allExpenses = getLocalExpenses();
+    const newEntry = { ...payload, id: "local_" + Date.now().toString() };
+    allExpenses.push(newEntry);
+    saveLocalExpenses(allExpenses);
+
+    triggerToastDisplay("Logged successfully (Saved to Local Storage Mode)");
+    document.getElementById('expense-add-form').reset();
+    toggleModal('modal-add-expense', false);
+    fetchAndRenderExpenses();
 }
 
 async function deleteExpenseEntry(id) {
     if (!confirm("Are you sure you want to remove this expense record?")) return;
+
+    if (id.startsWith("local_")) {
+        let allExpenses = getLocalExpenses();
+        allExpenses = allExpenses.filter(exp => exp.id !== id);
+        saveLocalExpenses(allExpenses);
+        triggerToastDisplay("Local expense deleted successfully.");
+        fetchAndRenderExpenses();
+        return;
+    }
 
     try {
         const response = await fetch(`https://audispoty-749056206562.europe-west1.run.app/api/expenses/delete`, {
@@ -2112,7 +2168,7 @@ async function deleteExpenseEntry(id) {
             triggerToastDisplay("Expense deleted successfully.");
             fetchAndRenderExpenses();
         } else {
-            triggerToastDisplay(`Failed to delete record (Server Error: ${response.status}).`, true);
+            triggerToastDisplay(`Failed to delete record: ${response.status}`, true);
         }
     } catch (err) {
         console.error("Error deleting expense:", err);
