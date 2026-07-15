@@ -16,7 +16,6 @@ let db;
 try {
     db = new Firestore({
         projectId: 'dotted-guru-367810'
-        ignoreUndefinedProperties: true
     });
 } catch (error) {
     console.error("Firestore initialization error:", error.message);
