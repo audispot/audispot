@@ -1181,5 +1181,39 @@ app.post('/api/payouts/request', async (req, res) => {
     }
 });
 
+app.post('/api/mpesa/b2c-callback', async (req, res) => {
+    const { payoutId } = req.query;
+    const { Result } = req.body;
+
+    const payoutRef = db.collection('payouts').doc(payoutId);
+    const payoutDoc = await payoutRef.get();
+
+    if (!payoutDoc.exists) {
+        return res.json({ ResultCode: 1, ResultDesc: "Payout record not found" });
+    }
+
+    const { ispId, amount } = payoutDoc.data();
+
+    if (Result.ResultCode === 0) {
+        // SUCCESS: Payout finalized!
+        await payoutRef.update({
+            status: 'completed',
+            mpesaReceipt: Result.ResultParameters.ResultParameter.find(p => p.Key === "TransactionReceipt").Value,
+            completedAt: new Date().toISOString()
+        });
+    } else {
+        // FAILED: Refund the balance back to the ISP's wallet
+        const ispRef = db.collection('isps').doc(ispId);
+        await db.runTransaction(async (transaction) => {
+            const ispDoc = await transaction.get(ispRef);
+            const currentBalance = ispDoc.data().walletBalance || 0;
+            transaction.update(ispRef, { walletBalance: currentBalance + amount });
+            transaction.update(payoutRef, { status: 'failed', errorCode: Result.ResultCode, errorDesc: Result.ResultDesc });
+        });
+    }
+
+    return res.json({ ResultCode: 0, ResultDesc: "Callback received and processed" });
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
