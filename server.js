@@ -1011,6 +1011,7 @@ app.post('/api/portal/design/save', async (req, res) => {
 // ====================================================================
 
 // A. Fetch all active expenses for a specific ISP tenant
+// Note: If this is inside an 'api' router file, change the path to '/expenses'
 app.get('/api/expenses', async (req, res) => {
     const { ispId } = req.query;
     const targetTenant = ispId || "default_isp";
@@ -1041,10 +1042,11 @@ app.get('/api/expenses', async (req, res) => {
 });
 
 // B. Save a new custom expense record into Firestore
+// Note: If this is inside an 'api' router file, change the path to '/expenses/create'
 app.post('/api/expenses/create', async (req, res) => {
     const { ispId, description, amount, category, date } = req.body;
     
-    if (!description || !amount || !category) {
+    if (!description || amount === undefined || isNaN(parseFloat(amount)) || !category) {
         return res.status(400).json({ success: false, error: "Missing required configuration fields." });
     }
     
@@ -1055,17 +1057,19 @@ app.post('/api/expenses/create', async (req, res) => {
             description,
             amount: parseFloat(amount),
             category,
-            date: date || new Date().toISOString(),
+            date: date || new Date().toISOString().split('T')[0],
             createdAt: new Date().toISOString()
         });
         
         return res.status(200).json({ success: true, id: newExpenseRef.id });
     } catch (error) {
+        console.error("Failed to create expense:", error.message);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // C. Delete an expense record
+// Note: If this is inside an 'api' router file, change the path to '/expenses/delete'
 app.post('/api/expenses/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
@@ -1074,10 +1078,10 @@ app.post('/api/expenses/delete', async (req, res) => {
         await db.collection('isp_expenses').doc(id).delete();
         return res.status(200).json({ success: true, message: "Expense record scrubbed." });
     } catch (error) {
+        console.error("Failed to delete expense:", error.message);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
-
 
 // ====================================================================
 // ANALYTICS ENGINE: LIVE STATISTICAL COMPILING
