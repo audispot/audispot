@@ -348,29 +348,74 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
     }
 });
 
-// 8. Instant Balance Withdrawal Hook
+// 8a. Request Balance Withdrawal via Safaricom B2C
 app.post('/api/isp/withdraw', async (req, res) => {
     const { ispId, amount } = req.body;
+
+    if (!ispId || !amount) {
+        return res.status(400).json({ success: false, error: "Missing withdrawal parameters." });
+    }
+
     try {
         const ispRef = db.collection('isp_users').doc(ispId);
-        const doc = await ispRef.get();
-        if (!doc.exists) return res.status(404).json({ error: "Account missing" });
-
-        const currentBalance = doc.data().walletBalance || 0;
         const wAmount = parseFloat(amount);
-        if (wAmount > currentBalance || wAmount <= 0) return res.status(400).json({ error: "Invalid amount" });
 
-        await db.runTransaction(async (ts) => {
-            ts.update(ispRef, { walletBalance: currentBalance - wAmount });
+        if (isNaN(wAmount) || wAmount <= 0) {
+            return res.status(400).json({ success: false, error: "Invalid amount." });
+        }
+        
+        // Execute a Firestore Transaction to prevent double-spending requests
+        const transactionResult = await db.runTransaction(async (transaction) => {
+            const ispDoc = await transaction.get(ispRef);
+            if (!ispDoc.exists) {
+                throw new Error("Account missing.");
+            }
+
+            const currentBalance = ispDoc.data().walletBalance || 0;
+            const phoneNumber = ispDoc.data().phoneNumber;
+
+            if (wAmount > currentBalance) {
+                throw new Error("Insufficient wallet balance.");
+            }
+
+            // Deduct the requested payout amount from their current balance immediately
+            transaction.update(ispRef, { walletBalance: currentBalance - wAmount });
+
+            // Create a pending payout record
+            const payoutRef = db.collection('withdrawals').doc();
+            transaction.set(payoutRef, {
+                ispId,
+                amount: wAmount,
+                phoneTarget: phoneNumber,
+                status: "Pending_Safaricom",
+                timestamp: new Date().toISOString(),
+                payoutId: payoutRef.id
+            });
+
+            return { phoneNumber, payoutId: payoutRef.id };
         });
 
-        await db.collection('withdrawals').add({
-            ispId, amount: wAmount, phoneTarget: doc.data().phoneNumber, status: "Success", timestamp: new Date().toISOString()
-        });
+        // Trigger the actual B2C dispatch
+        const b2cResponse = await sendMpesaB2CPayout(transactionResult.phoneNumber, wAmount, transactionResult.payoutId);
 
-        return res.status(200).json({ success: true, message: "Withdrawal completed instantly!" });
+        if (b2cResponse.ResponseCode === "0") {
+            return res.status(200).json({ 
+                success: true, 
+                message: "Withdrawal request submitted to M-Pesa. Processing...", 
+                payoutId: transactionResult.payoutId 
+            });
+        } else {
+            // If Safaricom rejects the submission outright, refund the balance immediately
+            await ispRef.update({ walletBalance: Firestore.FieldValue.increment(wAmount) });
+            await db.collection('withdrawals').doc(transactionResult.payoutId).update({ 
+                status: "Failed", 
+                error: b2cResponse.ResponseDescription || "Rejected by Safaricom" 
+            });
+            return res.status(500).json({ success: false, error: b2cResponse.ResponseDescription });
+        }
+
     } catch (error) {
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -1144,76 +1189,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
     } catch (error) {
         console.error("Analytics compile error:", error.message);
         return res.status(500).json({ error: error.message });
-    }
-});
-
-// Express Route for Payout Processing
-app.post('/api/payouts/request', async (req, res) => {
-    const { ispId, amount, phoneNumber } = req.body;
-
-    if (!ispId || !amount || !phoneNumber) {
-        return res.status(400).json({ success: false, error: "Missing required payout details." });
-    }
-
-    try {
-        const ispRef = db.collection('isps').doc(ispId);
-        
-        // Use a Firestore Transaction to safely prevent double-spending
-        const result = await db.runTransaction(async (transaction) => {
-            const ispDoc = await transaction.get(ispRef);
-            if (!ispDoc.exists) {
-                throw new Error("ISP account does not exist.");
-            }
-
-            const currentBalance = ispDoc.data().walletBalance || 0;
-            if (currentBalance < amount) {
-                throw new Error("Insufficient wallet balance for withdrawal.");
-            }
-
-            // 1. Deduct from local wallet
-            const newBalance = currentBalance - amount;
-            transaction.update(ispRef, { walletBalance: newBalance });
-
-            // 2. Queue payout request log
-            const payoutRef = db.collection('payouts').doc();
-            transaction.set(payoutRef, {
-                ispId,
-                amount,
-                phoneNumber,
-                status: 'processing',
-                createdAt: new Date().toISOString(),
-                payoutId: payoutRef.id
-            });
-
-            return { newBalance, payoutId: payoutRef.id };
-        });
-
-        // 3. Trigger actual Safaricom B2C dispatch
-        const b2cResponse = await sendMpesaB2CPayout(phoneNumber, amount, result.payoutId);
-
-        if (b2cResponse.ResponseCode === "0") {
-            // Update request status to 'submitted'
-            await db.collection('payouts').doc(result.payoutId).update({
-                status: 'submitted',
-                conversationId: b2cResponse.ConversationID,
-                originatorConversationId: b2cResponse.OriginatorConversationID
-            });
-
-            return res.json({ 
-                success: true, 
-                message: "Payout request submitted to M-Pesa.", 
-                payoutId: result.payoutId 
-            });
-        } else {
-            // Roll back wallet deduction if Daraja rejects the execution on the spot
-            await ispRef.update({ walletBalance: admin.firestore.FieldValue.increment(amount) });
-            await db.collection('payouts').doc(result.payoutId).update({ status: 'failed', error: b2cResponse.ResponseDescription });
-            
-            return res.status(500).json({ success: false, error: "Daraja registration failed." });
-        }
-
-    } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
