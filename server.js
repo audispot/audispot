@@ -4,14 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
-
-// Defensive wrapper for MikrotikClient to prevent startup crash if dependency acts up in container environment
-let MikrotikClient;
-try {
-    MikrotikClient = require('mikrotik-node');
-} catch (e) {
-    console.error("Warning: Mikrotik module load issue:", e.message);
-}
+const { RouterOSClient } = require('routeros-client');
 
 const app = express();
 app.use(cors());
@@ -46,17 +39,28 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
     }
 }
 
+// Helper Function: Get RouterOS API Client instance
+function getRouterClient(routerData) {
+    return new RouterOSClient({
+        host: routerData.routerIp,
+        user: routerData.routerUser,
+        password: routerData.routerPassword || '',
+        port: parseInt(routerData.routerPort || '8728'),
+        timeout: 10000
+    });
+}
+
 // 1. Core Platform Health Route
 app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
 });
 
-// [FIXED NEW ROUTE] Fetch live real-time inbound logs directly from Firestore
+// Fetch live real-time inbound logs directly from Firestore
 app.get('/api/hotspot/logs', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await db.collection('global_transactions')
-            .where('routerId', '!=', '') // Allows checking documents dynamically
+            .where('routerId', '!=', '') 
             .get();
             
         const logs = [];
@@ -80,7 +84,7 @@ app.get('/api/hotspot/logs', async (req, res) => {
     }
 });
 
-// [FIXED NEW ROUTE] Fetch complete router hardware fleet mapping arrays
+// Fetch complete router hardware fleet mapping arrays
 app.get('/api/hotspot/routers', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -139,7 +143,7 @@ app.post('/api/auth/isp-signup', async (req, res) => {
     }
 });
 
-// 4. Register Router Endpoint (Aligned with the frontend route structure directly)
+// 4. Register Router Endpoint
 app.post('/api/hotspot/register-router', async (req, res) => {
     const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
     if (!routerId) {
@@ -216,22 +220,23 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 const amountPaid = parseFloat(items.find(i => i.Name === 'Amount').Value);
                 const payingPhone = items.find(i => i.Name === 'PhoneNumber').Value;
                 const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber').Value;
+                const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
 
                 // Create global transaction log
                 await db.collection('global_transactions').doc(mpesaReceipt).set({
                     routerId, 
                     ispOwner: ispConfig.ispName, 
                     customerPhone: payingPhone, 
-                    macAddress: macAddress || 'N/A',
+                    macAddress: cleanMac,
                     grossAmount: amountPaid, 
                     processedAt: new Date().toISOString()
                 });
 
-                // Retrieve custom dynamic rules configuration of the active tenant's portal design settings
+                // Retrieve custom dynamic rules configuration of the active tenant's portal design settings (Synchronized to isp_portals)
                 const ispId = ispConfig.ispId || "default_isp";
-                let earnPointsAmount = 10; // default point logic
+                let earnPointsAmount = 10; 
                 try {
-                    const designDoc = await db.collection('portal_designs').doc(ispId).get();
+                    const designDoc = await db.collection('isp_portals').doc(ispId).get();
                     if (designDoc.exists && designDoc.data().earnPoints) {
                         earnPointsAmount = parseInt(designDoc.data().earnPoints) || 10;
                     }
@@ -240,8 +245,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 }
 
                 // Create/Update Subscriber record mapping Phone <-> MAC and adding Loyalty Points
-                if (macAddress && macAddress !== 'nomac') {
-                    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+                if (cleanMac !== 'nomac') {
                     const subRef = db.collection('subscribers').doc(cleanMac);
                     await db.runTransaction(async (ts) => {
                         const subDoc = await ts.get(subRef);
@@ -266,23 +270,19 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     }
                 });
 
-                // Trigger remote MikroTik router activation sequence dynamically
+                // Trigger remote MikroTik router activation sequence dynamically (Standardized on routeros-client)
                 if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
                     try {
-                        const DynamicMikrotik = require('mikrotik-node');
-                        const router = new DynamicMikrotik({
-                            host: ispConfig.routerIp, port: parseInt(ispConfig.routerPort || '8728'),
-                            user: ispConfig.routerUser, password: ispConfig.routerPassword, timeout: 10000 
-                        });
-
-                        router.connect().then(() => {
-                            let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                            return router.write('/ip/hotspot/user/add', [
-                                `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
-                            ]);
-                        }).then(() => router.close()).catch(err => console.error("Router connection failure:", err.message));
-                    } catch (modError) {
-                        console.error("Mikrotik execution engine skipped: Module compilation mismatch.", modError.message);
+                        const client = getRouterClient(ispConfig);
+                        const api = await client.connect();
+                        
+                        let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                        await api.write('/ip/hotspot/user/add', [
+                            `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
+                        ]);
+                        await api.close();
+                    } catch (err) {
+                        console.error("Router execution failure:", err.message);
                     }
                 }
             }
@@ -347,7 +347,6 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
 
     const defaultIspId = ispId || "default_isp";
     
-    // Auto-onboard router layout to database structure seamlessly upon code compilation requests
     try {
         const routerRef = db.collection('routers').doc(routerId);
         const doc = await routerRef.get();
@@ -366,13 +365,13 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
             });
         }
 
-        // Generate clean MikroTik terminal configuration code blocks
+        // Generate clean MikroTik terminal configuration code blocks (Walled gardens synced)
         const provisioningScript = `/sys identity set name="${routerId}";
 /ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
 /ip hotspot profile set "AudiSpot_Prof" html-directory=flash/hotspot;
 /ip hotspot walled-garden add dst-host="*.safaricom.co.ke" action=allow;
 /ip hotspot walled-garden add dst-host="*.audiory.site" action=allow;
-/ip hotspot walled-garden add dst-host="audispot-749056206562.europe-west1.run.app" action=allow;
+/ip hotspot walled-garden add dst-host="audispoty-749056206562.europe-west1.run.app" action=allow;
 /tool fetch url="https://audispot.audiory.site/portal-files.html" dst-path="flash/hotspot/login.html";
 :log info "AudiSpot Capital Edge Captive Gateway Core Stack Installed Successfully Instance ID: ${routerId}";`;
 
@@ -386,7 +385,7 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
 // PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
 // ====================================================================
 
-// A. Fetch all active billing packages for a specific ISP tenant
+// Fetch all active billing packages for a specific ISP tenant
 app.get('/api/packages', async (req, res) => {
     const { ispId } = req.query;
     const targetTenant = ispId || "default_isp";
@@ -414,7 +413,7 @@ app.get('/api/packages', async (req, res) => {
     }
 });
 
-// B. Save a new custom access package into Firestore
+// Save a new custom access package into Firestore
 app.post('/api/packages/create', async (req, res) => {
     const { ispId, packageName, price, duration, bandwidthProfile } = req.body;
     
@@ -439,7 +438,7 @@ app.post('/api/packages/create', async (req, res) => {
     }
 });
 
-// C. Shred and remove an access product layer entirely
+// Shred and remove an access product layer entirely
 app.post('/api/packages/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
@@ -476,7 +475,7 @@ app.get('/api/hotspot/loyalty/balance', async (req, res) => {
     }
 });
 
-// Redeem Loyalty Points for Free Daily Hotspot Session
+// Redeem Loyalty Points for Free Daily Hotspot Session (Synchronized Collections & Client)
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     const { macAddress, routerId } = req.body;
     if (!macAddress || !routerId) {
@@ -486,15 +485,14 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
 
     try {
-        // Fetch active router configs & design profile thresholds
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router network not found." });
         const routerData = routerDoc.data();
 
         const ispId = routerData.ispId || "default_isp";
-        let pointsRequired = 100; // default backup threshold
+        let pointsRequired = 100; 
         try {
-            const designDoc = await db.collection('portal_designs').doc(ispId).get();
+            const designDoc = await db.collection('isp_portals').doc(ispId).get();
             if (designDoc.exists && designDoc.data().redeemPoints) {
                 pointsRequired = parseInt(designDoc.data().redeemPoints) || 100;
             }
@@ -502,7 +500,6 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
             console.error("Design fetch fail during loyalty logic:", pe.message);
         }
 
-        // Fetch subscriber balance
         const subRef = db.collection('subscribers').doc(cleanMac);
         const subDoc = await subRef.get();
         if (!subDoc.exists) return res.status(400).json({ success: false, error: "Subscriber profile not found." });
@@ -512,7 +509,6 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
             return res.status(400).json({ success: false, error: `Insufficient points. You need ${pointsRequired} points.` });
         }
 
-        // Deduct points from Firestore database balance
         await db.runTransaction(async (ts) => {
             ts.update(subRef, { 
                 loyaltyPoints: currentPoints - pointsRequired,
@@ -520,23 +516,18 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
             });
         });
 
-        // Trigger free internet access profile deployment on Mikrotik hardware
         if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
-            const DynamicMikrotik = require('mikrotik-node');
-            const router = new DynamicMikrotik({
-                host: routerData.routerIp, port: parseInt(routerData.routerPort || '8728'),
-                user: routerData.routerUser, password: routerData.routerPassword, timeout: 10000 
-            });
-
+            const client = getRouterClient(routerData);
             const phoneUser = subDoc.data().phoneNumber || cleanMac;
-            await router.connect();
-            await router.write('/ip/hotspot/user/add', [
+            
+            const api = await client.connect();
+            await api.write('/ip/hotspot/user/add', [
                 `=name=${phoneUser}`, `=password=${phoneUser}`, `=profile=24_Hour_Plan`, `=comment=LoyaltyRedeem_${cleanMac}`
             ]);
-            await router.close();
+            await api.close();
         }
 
-        return res.status(200).json({ success: true, message: "Free daily pass activated! enjoy browsing." });
+        return res.status(200).json({ success: true, message: "Free daily pass activated! Enjoy browsing." });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
@@ -561,31 +552,25 @@ app.get('/api/hotspot/reconnect', async (req, res) => {
         const lastActiveTime = new Date(subData.lastActiveTimestamp);
         const diffInMinutes = (new Date() - lastActiveTime) / 60000;
 
-        // Calculate if previous subscription pass profile is still valid based on amount paid
         const lastPaidAmount = subData.lastActivePackage || 0;
-        let validityDurationMinutes = 60; // 1 hour for KSh 10 (default)
-        if (lastPaidAmount >= 50) validityDurationMinutes = 1440; // 24 hours
-        else if (lastPaidAmount >= 20) validityDurationMinutes = 180; // 3 hours
+        let validityDurationMinutes = 60; 
+        if (lastPaidAmount >= 50) validityDurationMinutes = 1440; 
+        else if (lastPaidAmount >= 20) validityDurationMinutes = 180; 
 
         if (diffInMinutes < validityDurationMinutes) {
-            // Re-assert connectivity credentials on MikroTik router if not present
             const routerDoc = await db.collection('routers').doc(routerId).get();
             if (routerDoc.exists) {
                 const rData = routerDoc.data();
                 if (rData.routerIp && rData.routerUser && rData.routerPassword) {
                     try {
-                        const DynamicMikrotik = require('mikrotik-node');
-                        const router = new DynamicMikrotik({
-                            host: rData.routerIp, port: parseInt(rData.routerPort || '8728'),
-                            user: rData.routerUser, password: rData.routerPassword, timeout: 10000
-                        });
-                        await router.connect();
+                        const client = getRouterClient(rData);
+                        const api = await client.connect();
                         
                         let dynamicProfile = lastPaidAmount >= 20 ? (lastPaidAmount >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                        await router.write('/ip/hotspot/user/add', [
+                        await api.write('/ip/hotspot/user/add', [
                             `=name=${subData.phoneNumber}`, `=password=${subData.phoneNumber}`, `=profile=${dynamicProfile}`, `=comment=AutoReconnect_${cleanMac}`
                         ]);
-                        await router.close();
+                        await api.close();
                     } catch (routerErr) {
                         console.error("Autologin routing failure:", routerErr.message);
                     }
@@ -622,15 +607,9 @@ app.post('/api/hotspot/register-tv', async (req, res) => {
         if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router router node path not found." });
         const routerData = routerDoc.data();
 
-        // 1. Program static lease assignment on MikroTik DHCP Subsystem
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         
-        // 2. Program Hotspot IP-Binding bypass rule - this instantly unlocks web-less devices
         await api.write('/ip/hotspot/ip-binding/add', [
             `=mac-address=${cleanTvMac}`,
             `=type=bypassed`,
@@ -648,33 +627,21 @@ app.post('/api/hotspot/register-tv', async (req, res) => {
 // HOTSPOT ENGINE: SESSIONS & LIVE DISCONNECTS
 // ====================================================================
 
-// 1. Fetch live active hotspot sessions from MikroTik hardware
+// Fetch live active hotspot sessions from MikroTik hardware
 app.get('/api/hotspot/active-sessions', async (req, res) => {
     const { routerId } = req.query;
     if (!routerId) return res.status(400).json({ error: "Missing active router parameters." });
 
     try {
-        // Fetch credentials securely from your Firestore database mapping
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (!routerDoc.exists) return res.status(404).json({ error: "Target node not registered." });
-        
         const routerData = routerDoc.data();
         
-        // Connect directly to MikroTik API via your standard communication connector
-        // (Assuming you are using common routeros API wrappers like 'routeros-client')
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp,
-            user: routerData.routerUser,
-            password: routerData.routerPassword || '',
-            port: parseInt(routerData.routerPort || 8728)
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         const activeSessions = await api.write('/ip/hotspot/active/print');
         await api.close();
 
-        // Standardize output payload parameters for front-end parsing loops
         const standardized = activeSessions.map(s => ({
             id: s['.id'],
             user: s.user || 'Unknown',
@@ -686,12 +653,11 @@ app.get('/api/hotspot/active-sessions', async (req, res) => {
         return res.status(200).json(standardized);
     } catch (error) {
         console.error("Session fetching error logs context:", error.message);
-        // Fallback array mock layer to prevent UI locking if the router connection fails
         return res.status(200).json([]);
     }
 });
 
-// 2. Force terminate and disconnect an active user session rule entry
+// Force terminate and disconnect an active user session rule entry
 app.post('/api/hotspot/disconnect', async (req, res) => {
     const { routerId, username } = req.body;
     if (!routerId || !username) return res.status(400).json({ error: "Missing required identification keys." });
@@ -701,13 +667,8 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
         if (!routerDoc.exists) return res.status(404).json({ error: "Router record absent." });
         const routerData = routerDoc.data();
 
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
-        // Look up unique active ID for user instance token 
         const items = await api.write('/ip/hotspot/active/print', [`.query=user=${username}`]);
         if(items.length > 0) {
             await api.write('/ip/hotspot/active/remove', [`.id=${items[0]['.id']}`]);
@@ -725,7 +686,7 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
 // PPPOE ENGINE: MANAGING BROADBAND SUBSCRIBERS
 // ====================================================================
 
-// 3. Register a new PPPoE subscriber entry inside MikroTik core secrets database
+// Register a new PPPoE subscriber entry inside MikroTik core secrets database
 app.post('/api/pppoe/create-secret', async (req, res) => {
     const { routerId, username, password, profile } = req.body;
     if (!routerId || !username || !password || !profile) {
@@ -736,11 +697,7 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
         const routerDoc = await db.collection('routers').doc(routerId).get();
         const routerData = routerDoc.data();
 
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         await api.write('/ppp/secret/add', [
             `=name=${username}`,
@@ -756,7 +713,7 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
     }
 });
 
-// 4. Read active registered broadband users pool array
+// Read active registered broadband users pool array
 app.get('/api/pppoe/secrets', async (req, res) => {
     const { routerId } = req.query;
     try {
@@ -764,11 +721,7 @@ app.get('/api/pppoe/secrets', async (req, res) => {
         if(!routerDoc.exists) return res.status(200).json([]);
         const routerData = routerDoc.data();
 
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         const secrets = await api.write('/ppp/secret/print');
         await api.close();
@@ -790,7 +743,7 @@ app.get('/api/pppoe/secrets', async (req, res) => {
 // DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
 // ====================================================================
 
-// 5. Append permanent MAC/IP rule mappings bypass layout arrays
+// Append permanent MAC/IP rule mappings bypass layout arrays
 app.post('/api/dhcp/create-lease', async (req, res) => {
     const { routerId, macAddress, ipAddress, comment } = req.body;
     if(!routerId || !macAddress || !ipAddress) return res.status(400).json({ success: false });
@@ -799,11 +752,7 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
         const routerDoc = await db.collection('routers').doc(routerId).get();
         const routerData = routerDoc.data();
 
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         await api.write('/ip/dhcp-server/lease/add', [
             `=mac-address=${macAddress}`,
@@ -818,7 +767,7 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
     }
 });
 
-// 6. Enumerate configured permanent hardware reservations 
+// Enumerate configured permanent hardware reservations 
 app.get('/api/dhcp/leases', async (req, res) => {
     const { routerId } = req.query;
     try {
@@ -826,16 +775,11 @@ app.get('/api/dhcp/leases', async (req, res) => {
         if(!routerDoc.exists) return res.status(200).json([]);
         const routerData = routerDoc.data();
 
-        const RouterConnect = require('routeros-client').RouterOSClient;
-        const client = new RouterConnect({
-            host: routerData.routerIp, user: routerData.routerUser, password: routerData.routerPassword || '', port: 8728
-        });
-
+        const client = getRouterClient(routerData);
         const api = await client.connect();
         const leases = await api.write('/ip/dhcp-server/lease/print');
         await api.close();
 
-        // Isolate manually defined permanent leases from system allocations
         const staticLeases = leases.filter(l => l.dynamic === 'false').map(l => ({
             macAddress: l['mac-address'],
             address: l.address,
@@ -852,7 +796,7 @@ app.get('/api/dhcp/leases', async (req, res) => {
 // SYSTEM COMPONENT: SECURE SYSTEM ACCESS VOUCHERS API
 // ====================================================================
 
-// A. Fetch vouchers for a specific ISP tenant via Firestore query strings
+// Fetch vouchers for a specific ISP tenant via Firestore query strings
 app.get('/api/vouchers', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -863,7 +807,6 @@ app.get('/api/vouchers', async (req, res) => {
         snapshot.forEach(doc => {
             vouchers.push({ id: doc.id, ...doc.data() });
         });
-        // Sort newest vouchers first
         vouchers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return res.status(200).json(vouchers);
     } catch (error) {
@@ -871,11 +814,10 @@ app.get('/api/vouchers', async (req, res) => {
     }
 });
 
-// B. Batch Generate Vouchers tied to actual user packages inside Firestore
+// Batch Generate Vouchers tied to actual user packages inside Firestore
 app.post('/api/vouchers/generate', async (req, res) => {
     const { ispId, packageId, count, codeLength } = req.body;
     try {
-        // Fetch the package configured by the user dynamically from the DB collection
         const pkgDoc = await db.collection('isp_packages').doc(packageId).get();
         if (!pkgDoc.exists) {
             return res.status(400).json({ success: false, error: "The selected custom package configuration rules do not exist." });
@@ -888,7 +830,7 @@ app.post('/api/vouchers/generate', async (req, res) => {
 
         const batch = db.batch();
         const collectionRef = db.collection('isp_vouchers');
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Clean validation dictionary strings
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
         
         const batchCount = Math.min(Math.max(count || 10, 1), 100);
         const len = codeLength || 8;
@@ -919,7 +861,7 @@ app.post('/api/vouchers/generate', async (req, res) => {
     }
 });
 
-// C. Bulk Delete Selected Vouchers Array Mapping Subsystems
+// Bulk Delete Selected Vouchers Array Mapping Subsystems
 app.post('/api/vouchers/bulk-delete', async (req, res) => {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) {
@@ -946,7 +888,7 @@ app.post('/api/vouchers/bulk-delete', async (req, res) => {
 // TENANT CONFIGURATION: CAPTIVE PORTAL CUSTOMIZER ENDPOINTS
 // ====================================================================
 
-// A. Pull Active Portal Configuration Profile Maps Matching Tenant Criteria
+// Pull Active Portal Configuration Profile Maps Matching Tenant Criteria
 app.get('/api/portal/design', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -954,7 +896,6 @@ app.get('/api/portal/design', async (req, res) => {
         const doc = await docRef.get();
         
         if (!doc.exists) {
-            // Supply standardized clean defaults fallback rule maps if not configured yet
             return res.status(200).json({
                 brandName: "AudiSpot Wireless",
                 welcomeGreeting: "Enter verification parameters to connect.",
@@ -975,7 +916,7 @@ app.get('/api/portal/design', async (req, res) => {
     }
 });
 
-// B. Save / Overwrite branding configurations inside Firestore database
+// Save / Overwrite branding configurations inside Firestore database
 app.post('/api/portal/design/save', async (req, res) => {
     const { 
         ispId, brandName, welcomeGreeting, supportContact, accentColor,
@@ -1010,8 +951,7 @@ app.post('/api/portal/design/save', async (req, res) => {
 // EXPENSES SYSTEM: CREATE, READ, & DELETE EXPENSE RECORDS
 // ====================================================================
 
-// A. Fetch all active expenses for a specific ISP tenant
-// Note: If this is inside an 'api' router file, change the path to '/expenses'
+// Fetch all active expenses for a specific ISP tenant
 app.get('/api/expenses', async (req, res) => {
     const { ispId } = req.query;
     const targetTenant = ispId || "default_isp";
@@ -1032,7 +972,6 @@ app.get('/api/expenses', async (req, res) => {
             });
         });
         
-        // Sort newest expenses to the top
         expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
         return res.status(200).json(expenses);
     } catch (error) {
@@ -1041,8 +980,7 @@ app.get('/api/expenses', async (req, res) => {
     }
 });
 
-// B. Save a new custom expense record into Firestore
-// Note: If this is inside an 'api' router file, change the path to '/expenses/create'
+// Save a new custom expense record into Firestore
 app.post('/api/expenses/create', async (req, res) => {
     const { ispId, description, amount, category, date } = req.body;
     
@@ -1068,8 +1006,7 @@ app.post('/api/expenses/create', async (req, res) => {
     }
 });
 
-// C. Delete an expense record
-// Note: If this is inside an 'api' router file, change the path to '/expenses/delete'
+// Delete an expense record
 app.post('/api/expenses/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
@@ -1093,7 +1030,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
     const targetTenant = ispId || "default_isp";
     
     try {
-        // 1. Fetch all routers owned by this ISP to filter transactions
         const routersSnapshot = await db.collection('routers')
             .where('ispId', '==', targetTenant)
             .get();
@@ -1103,11 +1039,9 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
         
         let totalRevenue = 0;
         let transactionCount = 0;
-        const revenueOverTime = {}; // Grouped by date: YYYY-MM-DD
+        const revenueOverTime = {}; 
         
         if (routerIds.length > 0) {
-            // Firestore 'in' queries are capped at 30 items per batch. 
-            // We split them if needed to fetch live corresponding transactions.
             const chunks = [];
             for (let i = 0; i < routerIds.length; i += 30) {
                 chunks.push(routerIds.slice(i, i + 30));
@@ -1124,7 +1058,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
                     totalRevenue += amount;
                     transactionCount++;
                     
-                    // Format date to simple day string
                     const rawDate = data.processedAt || new Date().toISOString();
                     const dayString = rawDate.split('T')[0];
                     revenueOverTime[dayString] = (revenueOverTime[dayString] || 0) + amount;
@@ -1132,7 +1065,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
             }
         }
         
-        // 2. Fetch total active expenses
         const expensesSnapshot = await db.collection('isp_expenses')
             .where('ispId', '==', targetTenant)
             .get();
@@ -1149,7 +1081,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
             expensesByCategory[category] = (expensesByCategory[category] || 0) + amount;
         });
         
-        // 3. Get subscriber totals 
         const subscribersSnapshot = await db.collection('subscribers')
             .where('routerId', 'in', routerIds.length > 0 ? routerIds : ['__non_existent__'])
             .get();
@@ -1157,7 +1088,6 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
         const totalSubscribers = subscribersSnapshot.size;
         const netEarnings = Math.max(0, totalRevenue - totalExpenses);
 
-        // Format timeline data for rendering in Chart.js
         const chartTimeline = Object.keys(revenueOverTime)
             .sort()
             .map(date => ({ date, amount: revenueOverTime[date] }));
