@@ -1467,6 +1467,10 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         if (typeof fetchPerformanceAnalytics === "function") {
             fetchPerformanceAnalytics();
         }
+    } else if (activeTab === 'vouchers') { // <-- ADD THIS NEW HOOK
+        if (typeof fetchSystemVoucherRegistry === "function") {
+            fetchSystemVoucherRegistry();
+        }
     }
 }
         // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
@@ -1612,7 +1616,7 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
         }
 
-        // ==========================================
+       // ==========================================
 // VOUCHERS MANAGEMENT ENGINE (INLINE & BULK)
 // ==========================================
 
@@ -1620,8 +1624,15 @@ let systemVouchers = [];
 
 // Dynamically pull current packages from your database endpoint
 async function populateVoucherPackageOptions() {
-    const selectEl = document.getElementById('voucher-package-select');
-    if (!selectEl) return;
+    // Try both standard naming conventions to prevent ID mismatch failures
+    const selectEl = document.getElementById('voucher-package-select') || 
+                     document.getElementById('package-select') || 
+                     document.querySelector('[name="packageId"]');
+                     
+    if (!selectEl) {
+        console.warn("Voucher Package dropdown element not found in the DOM.");
+        return;
+    }
     
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
@@ -1630,26 +1641,31 @@ async function populateVoucherPackageOptions() {
         
         const packages = await response.json();
         
-        if (packages.length === 0) {
+        if (!packages || packages.length === 0) {
             selectEl.innerHTML = `<option value="">-- No Packages Added Yet --</option>`;
             return;
         }
         
+        // Populate options and clear out "loading" text
         selectEl.innerHTML = packages.map(pkg => 
-            `<option value="${pkg.id}"> ${pkg.packageName} — KSh ${pkg.price} (${pkg.duration} Hrs)</option>`
+            `<option value="${pkg.id}"> ${pkg.packageName || pkg.name} — KSh ${pkg.price} (${pkg.duration} Hrs)</option>`
         ).join('');
     } catch (err) {
+        console.error("Error loading packages:", err);
         selectEl.innerHTML = `<option value="">Error loading database profiles</option>`;
     }
 }
 
 // Fetch generated dynamic database vouchers
 async function fetchSystemVoucherRegistry() {
-    // Make sure options update immediately when navigating to the section
-    populateVoucherPackageOptions();
+    // 1. Immediately kick off package options populating
+    await populateVoucherPackageOptions();
     
     const tableBody = document.getElementById('vouchers-table-body');
-    if (!tableBody) return;
+    if (!tableBody) {
+        console.warn("Table body 'vouchers-table-body' not found.");
+        return;
+    }
 
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
@@ -1659,6 +1675,7 @@ async function fetchSystemVoucherRegistry() {
         systemVouchers = await response.json();
         renderVouchersTable(systemVouchers);
     } catch (err) {
+        console.error("Voucher Registry Fetch error:", err);
         tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Failed syncing data register layers.</td></tr>`;
     }
 }
@@ -1668,10 +1685,10 @@ function renderVouchersTable(vouchersList) {
     const selectAllBox = document.getElementById('th-select-all-vouchers');
     if (!tableBody) return;
     
-    if(selectAllBox) selectAllBox.checked = false;
+    if (selectAllBox) selectAllBox.checked = false;
     updateBulkDeleteButtonState();
 
-    if (vouchersList.length === 0) {
+    if (!vouchersList || vouchersList.length === 0) {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-medium">
@@ -1683,7 +1700,8 @@ function renderVouchersTable(vouchersList) {
     }
 
     tableBody.innerHTML = vouchersList.map(voucher => {
-        const badgeColor = voucher.status === 'Active' 
+        const statusVal = voucher.status || 'Active';
+        const badgeColor = statusVal === 'Active' 
             ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
             : 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
 
@@ -1692,11 +1710,11 @@ function renderVouchersTable(vouchersList) {
                 <td class="p-3.5 text-center">
                     <input type="checkbox" value="${voucher.id}" onclick="updateBulkDeleteButtonState()" class="voucher-row-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-transparent">
                 </td>
-                <td class="p-3.5 font-mono font-bold text-indigo-400 select-all">${voucher.code}</td>
-                <td class="p-3.5 font-medium">${voucher.packageName}</td>
-                <td class="p-3.5 font-semibold text-slate-900 dark:text-white">KSh ${voucher.price}</td>
-                <td class="p-3.5 text-slate-400">${voucher.duration} Hours</td>
-                <td class="p-3.5"><span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeColor}">${voucher.status}</span></td>
+                <td class="p-3.5 font-mono font-bold text-indigo-400 select-all">${voucher.code || 'N/A'}</td>
+                <td class="p-3.5 font-medium">${voucher.packageName || 'Unknown Plan'}</td>
+                <td class="p-3.5 font-semibold text-slate-900 dark:text-white">KSh ${voucher.price || 0}</td>
+                <td class="p-3.5 text-slate-400">${voucher.duration || 0} Hours</td>
+                <td class="p-3.5"><span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeColor}">${statusVal}</span></td>
             </tr>
         `;
     }).join('');
@@ -1715,12 +1733,14 @@ function updateBulkDeleteButtonState() {
     const bulkButton = document.getElementById('btn-bulk-delete-vouchers');
     const indicatorCount = document.getElementById('selected-voucher-count');
     
-    if(!bulkButton || !indicatorCount) return;
+    if (!bulkButton) return;
     
     const count = checkboxes.length;
-    indicatorCount.innerText = count;
+    if (indicatorCount) {
+        indicatorCount.innerText = count;
+    }
     
-    if(count > 0) {
+    if (count > 0) {
         bulkButton.removeAttribute('disabled');
         bulkButton.classList.remove('opacity-50', 'cursor-not-allowed');
     } else {
@@ -1734,8 +1754,8 @@ async function handleBulkVoucherDeletion() {
     const checkboxes = document.querySelectorAll('.voucher-row-checkbox:checked');
     const targetIds = Array.from(checkboxes).map(cb => cb.value);
     
-    if(targetIds.length === 0) return;
-    if(!confirm(`Are you sure you want to delete the ${targetIds.length} selected voucher(s)?`)) return;
+    if (targetIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${targetIds.length} selected voucher(s)?`)) return;
 
     try {
         const response = await fetch('/api/vouchers/bulk-delete', {
@@ -1745,13 +1765,17 @@ async function handleBulkVoucherDeletion() {
         });
 
         if (response.ok) {
-            showInlineToastNotice(`Successfully deleted ${targetIds.length} vouchers.`);
+            if (typeof showInlineToastNotice === "function") {
+                showInlineToastNotice(`Successfully deleted ${targetIds.length} vouchers.`);
+            } else {
+                alert(`Successfully deleted ${targetIds.length} vouchers.`);
+            }
             fetchSystemVoucherRegistry();
         } else {
-            showInlineToastNotice("Failed to execute bulk deletion.");
+            alert("Failed to execute bulk deletion.");
         }
     } catch (err) {
-        showInlineToastNotice("Communication failure handling execution block.");
+        console.error("Bulk Delete error:", err);
     }
 }
 
@@ -1765,8 +1789,8 @@ async function handleVoucherBatchGeneration(e) {
     const payload = {
         ispId: targetTenant,
         packageId: formData.get('packageId'),
-        count: parseInt(formData.get('count')),
-        codeLength: parseInt(formData.get('codeLength'))
+        count: parseInt(formData.get('count')) || 1,
+        codeLength: parseInt(formData.get('codeLength')) || 6
     };
 
     try {
@@ -1777,12 +1801,16 @@ async function handleVoucherBatchGeneration(e) {
         });
 
         if (response.ok) {
-            showInlineToastNotice("Access tokens generated successfully.");
+            if (typeof showInlineToastNotice === "function") {
+                showInlineToastNotice("Access tokens generated successfully.");
+            } else {
+                alert("Access tokens generated successfully.");
+            }
             form.reset();
             fetchSystemVoucherRegistry();
         }
     } catch (err) {
-        showInlineToastNotice("API failure building system batches.");
+        console.error("Voucher Generation error:", err);
     }
 }
 
