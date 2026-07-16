@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AudiSpot Studio</title>
+
+    <meta charset="UTF-8">
+    <!-- MUST BE THE FIRST SCRIPT IN HEAD: Quick Session Guard -->
+    <script>
+        (function() {
+            // Check if there's a valid authentication token stored
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                // If not logged in, immediately redirect to login page (preventing page flash)
+                window.location.replace('/login/index.html');
+            }
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
