@@ -138,11 +138,10 @@
         <!-- VIEW 1: PREMIUM VUNAFLOW DASHBOARD -->
         <div id="viewframe-dashboard" class="space-y-6 block viewframe">
             
-            <!-- Dynamic Alert Banner Strip (Hidden by default, shown via JS) -->
             <div id="subscription-expiry-banner" class="hidden bg-amber-500/10 text-amber-500 border border-amber-500/20 p-4 rounded-xl mb-6 text-sm flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span id="subscription-expiry-text">Your free trial is currently active.</span>
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                    <span id="subscription-expiry-text">Trial check processing...</span>
                 </div>
                 <button onclick="document.getElementById('subscription-expiry-banner').classList.add('hidden')" class="text-amber-500/50 hover:text-amber-500">
                     <i class="fa-solid fa-xmark"></i>
@@ -2819,34 +2818,39 @@ async function removeTechnician(techId) {
 function checkSubscriptionTrial() {
     const createdAtStr = localStorage.getItem('created_at');
     const banner = document.getElementById('subscription-expiry-banner');
-    const bannerText = document.getElementById('subscription-expiry-text'); // Make sure you have a span/text element for this inside your banner
+    const bannerText = document.getElementById('subscription-expiry-text');
 
-    if (!createdAtStr || !banner) return;
+    if (!banner) {
+        console.error("Banner element #subscription-expiry-banner not found in DOM");
+        return;
+    }
+
+    if (!createdAtStr) {
+        console.warn("created_at not found in localStorage. Try logging in again.");
+        return;
+    }
 
     const createdAt = new Date(createdAtStr);
     const now = new Date();
     
-    // Calculate the difference in time
+    // Difference calculation in days
     const msPerDay = 24 * 60 * 60 * 1000;
     const daysElapsed = Math.floor((now - createdAt) / msPerDay);
     const daysRemaining = 5 - daysElapsed;
 
     if (daysRemaining > 0) {
-        // Show Trial Active Banner
+        // Show Active Trial Notification
         banner.classList.remove('hidden');
         if (bannerText) {
-            bannerText.innerHTML = `<strong>Free Trial Active:</strong> You have <strong>${daysRemaining} days</strong> remaining on your free trial. <a href="#settings" class="underline font-bold hover:text-amber-800">Activate your router subscription now</a> to avoid service interruption (KSh 500/router).`;
+            bannerText.innerHTML = `<strong>Free Trial Active:</strong> You have <strong>${daysRemaining} day(s)</strong> remaining on your free trial. <a href="#settings" class="underline font-bold hover:text-amber-400 ml-1">Activate your router subscription now</a> to avoid service interruption (KSh 500/router).`;
         }
     } else {
-        // Trial has expired! Block access or show expiration banner
+        // Show Blocked/Expired Notification
         banner.classList.remove('hidden');
-        banner.className = "p-4 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl mb-6 text-sm flex items-center justify-between";
+        banner.className = "p-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
         if (bannerText) {
             bannerText.innerHTML = `<strong>Trial Expired:</strong> Your 5-day free trial has expired. Please clear your subscription dues to re-enable dashboard actions.`;
         }
-        
-        // Optional: Disable dashboard interactions until they pay
-        // document.getElementById('main-dashboard-content').style.opacity = '0.3';
     }
 }
 
