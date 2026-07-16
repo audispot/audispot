@@ -1009,8 +1009,11 @@
 
     <!-- CONTROL RUNTIME PROCESSING MATRIX -->
     <script>
-        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
-        const CURRENT_ISP_ID = "default_isp";
+        // 1. Correct the API Base URL to include /api
+        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app/api";
+
+        // 2. Dynamically get the logged-in ISP ID, fallback if not found
+        const CURRENT_ISP_ID = localStorage.getItem("ispId") || "default_isp";
 
         // Wire up global initialization execution loops
 document.addEventListener("DOMContentLoaded", () => {
@@ -2236,20 +2239,20 @@ async function fetchAndRenderAnalytics() {
 
 async function fetchAndRenderDashboard() {
     try {
-        // 1. Fetch dashboard metric payload
+        // Corrected path: will now hit /api/isp/dashboard-stats/...
         const statsResponse = await fetch(`${API_BASE_URL}/isp/dashboard-stats/${CURRENT_ISP_ID}`);
-        if (!statsResponse.ok) throw new Error("Failed to fetch dashboard stats");
+        if (!statsResponse.ok) throw new Error(`Failed to fetch dashboard stats (Status: ${statsResponse.status})`);
         const stats = await statsResponse.json();
 
-        // 2. Fetch design settings to aid onboarding validation 
+        // 3. Fetch design settings
         const designResponse = await fetch(`${API_BASE_URL}/portal/design?ispId=${CURRENT_ISP_ID}`);
         const design = designResponse.ok ? await designResponse.json() : null;
 
-        // 3. Fetch package listings
+        // 4. Fetch package listings
         const pkgResponse = await fetch(`${API_BASE_URL}/packages?ispId=${CURRENT_ISP_ID}`);
         const packages = pkgResponse.ok ? await pkgResponse.json() : [];
 
-        // 4. Fetch expense listings
+        // 5. Fetch expense listings
         const expResponse = await fetch(`${API_BASE_URL}/expenses?ispId=${CURRENT_ISP_ID}`);
         const expenses = expResponse.ok ? await expResponse.json() : [];
 
@@ -2271,9 +2274,8 @@ async function fetchAndRenderDashboard() {
         // ==========================================
         // RENDERING SUBSCRIPTION EXPIRY WINDOW
         // ==========================================
-        // Calculates a 14-day trial period from the Firestore creation date
         if (stats.createdAt) {
-            const createdDate = new Date(stats.createdAt);
+            const createdDate = new Date(stats.createdAt._seconds ? stats.createdAt._seconds * 1000 : stats.createdAt);
             const trialDays = 14; 
             const expiryDate = new Date(createdDate.getTime() + (trialDays * 24 * 60 * 60 * 1000));
             const today = new Date();
@@ -2336,7 +2338,7 @@ async function fetchAndRenderDashboard() {
             nextTabTarget = "packages";
         } else if (!stepDesign) {
             nextTaskMsg = "Next: Customize your Portal Design →";
-            nextTabTarget = "portal-design"; // Match your custom navigation tab ID
+            nextTabTarget = "portal-design";
         } else if (!stepPhone) {
             nextTaskMsg = "Next: Configure support phone contact →";
             nextTabTarget = "profile";
@@ -2357,7 +2359,6 @@ async function fetchAndRenderDashboard() {
         actionBtn.innerText = nextTaskMsg;
         actionBtn.setAttribute("onclick", `changeActiveLayoutTab('${nextTabTarget}')`);
 
-        // If completely done, you can cleanly hide the onboarding card to free up whitespace:
         if (completedSteps === 6) {
             document.getElementById("onboarding-card").classList.add("hidden");
         }
@@ -2366,7 +2367,6 @@ async function fetchAndRenderDashboard() {
         console.error("Dashboard engine failed to sync dynamically:", err.message);
     }
 }
-
 // Call on load
 document.addEventListener("DOMContentLoaded", fetchAndRenderDashboard);
         
