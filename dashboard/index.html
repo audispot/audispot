@@ -903,109 +903,154 @@
         </div>
     </main>
 </div>
-                
-                <!-- VIEW 4: SYSTEM & HARDWARE CONFIGURATION AREA (Exact VunaFlow Spec) -->
-                <div id="viewframe-settings" class="space-y-6 hidden viewframe">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                        
-                        <!-- Left Block Column -->
-                        <div class="space-y-6">
-                            <!-- Section: Account Details -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-address-card text-indigo-500 mr-1.5"></i> Account Details</h3>
-                                <div class="space-y-3">
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div class="space-y-1"><label class="text-slate-400">Name</label><input type="text" id="inp-sett-name" value="Official Bigi" oninput="syncRealtimeMetadata()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold"></div>
-                                        <div class="space-y-1"><label class="text-slate-400">Email</label><input type="email" id="inp-sett-email" value="komboismail56@gmail.com" oninput="syncRealtimeMetadata()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold"></div>
-                                    </div>
-                                    <div class="space-y-1"><label class="text-slate-400">Company</label><input type="text" value="AudiSpot Networks" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white"></div>
-                                    <div class="space-y-1"><label class="text-slate-400">Password</label><input type="password" value="••••••••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-400"></div>
-                                </div>
-                            </div>
 
-                            <!-- Section: Technicians Sub-logins -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                                <div class="flex items-center justify-between">
-                                    <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-user-gear text-indigo-500 mr-1.5"></i> Technicians</h3>
-                                    <span class="text-slate-500 font-semibold text-[11px]">Technicians (0)</span>
-                                </div>
-                                <p class="text-slate-400 leading-relaxed">Create sub-logins for your team. Technicians can manage routers, PPPoE and Static IP customers but cannot access billing or payments.</p>
-                                <div class="border border-dashed border-slate-200 dark:border-vunaborder p-6 rounded-lg text-center text-slate-500">
-                                    <i class="fa-solid fa-user-shield text-lg mb-1 block text-slate-600"></i>
-                                    <span>No Technicians Yet</span>
-                                    <p class="text-[11px] text-slate-400 mt-0.5">Add a technician to give them access to routers, PPPoE and Static IP customers without billing access.</p>
-                                </div>
-                                <button onclick="triggerToastDisplay('Auxiliary engineering sub-token provisioning layout initialized.')" class="w-full bg-slate-100 dark:bg-vunaborder hover:bg-slate-200 text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition">Add Technician</button>
-                                <div class="pt-2 border-t border-vunaborder"><label class="flex items-center gap-2 text-slate-400 font-medium"><input type="checkbox" checked class="accent-indigo-600"> Email me about technician changes</label></div>
-                            </div>
-
-                            <!-- Section: SMS Notifications Configuration -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
-                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-message text-indigo-500 mr-1.5"></i> SMS Notifications</h3>
-                                <p class="text-slate-400 leading-relaxed">Send vouchers, welcome, and reminder SMS to your customers. Activate to get 10 free SMS; top up anytime from your top bar.</p>
-                                <div class="p-3 bg-slate-100 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg flex items-center justify-between text-[11px]">
-                                    <span class="text-slate-400 font-semibold"><i class="fa-solid fa-circle-minus text-amber-500 mr-1"></i> SMS is currently off.</span>
-                                    <button onclick="triggerToastDisplay('SMS service layers active. 10 Complimentary test frames allocated.')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-md transition">Activate</button>
-                                </div>
-                            </div>
+<div id="viewframe-settings" class="space-y-6 hidden viewframe">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        
+        <div class="space-y-6">
+            <form id="form-settings-account" onsubmit="saveAccountDetails(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-address-card text-indigo-500 mr-1.5"></i> Account Details</h3>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-slate-400">Name</label>
+                            <input type="text" id="inp-sett-name" name="name" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
                         </div>
-
-                        <!-- Right Block Column -->
-                        <div class="space-y-6">
-                            <!-- Section: M-PESA Configuration Gateway -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Payment Receiving</h3>
-                                <div class="flex gap-4 border-b border-vunaborder pb-3 font-semibold text-slate-400">
-                                    <label class="flex items-center gap-1.5 text-slate-900 dark:text-white"><input type="radio" checked class="accent-indigo-600"> Till / Buy Goods</label>
-                                    <label class="flex items-center gap-1.5 opacity-40"><input type="radio" disabled class="accent-indigo-600"> Paybill</label>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-slate-400">Your Till Number</label>
-                                    <input type="text" value="4030905" readonly class="w-full p-2.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-vunaborder font-mono text-slate-500 rounded-lg">
-                                    <span class="text-[11px] text-emerald-500 block font-medium"><i class="fa-solid fa-circle-check"></i> Ready to receive payments</span>
-                                    <p class="text-[11px] text-slate-400 leading-normal">Payments settle directly to your till. No extra setup, and you never share any M-Pesa credentials.</p>
-                                </div>
-                                <div class="space-y-3 pt-3 border-t border-vunaborder">
-                                    <label class="block font-bold text-slate-400 uppercase text-[10px] tracking-wider">Payment gateway choose</label>
-                                    <!-- Gateway Tier Blocks -->
-                                    <div class="space-y-2">
-                                        <div class="p-3 border-2 border-indigo-600 bg-indigo-600/5 rounded-xl flex items-center justify-between">
-                                            <div class="flex items-start gap-3"><div class="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center font-bold text-xs shrink-0">M·P</div><div><span class="font-bold block text-slate-900 dark:text-white">Platform M-Pesa</span><span class="text-[10px] text-slate-400 block mt-0.5">Settles to AudiSpot, paid out to you. Zero setup.</span></div></div>
-                                            <span class="bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-md tracking-wider">ACTIVE</span>
-                                        </div>
-                                        <div class="p-3 border border-vunaborder bg-slate-50 dark:bg-vunainput/40 rounded-xl flex items-center justify-between opacity-50 select-none">
-                                            <div class="flex items-start gap-3"><div class="w-7 h-7 bg-slate-800 rounded text-slate-400 flex items-center justify-center font-bold text-xs shrink-0">M·P</div><div><span class="font-bold block text-slate-400">My own M-Pesa (Daraja)</span><span class="text-[10px] text-slate-500 block mt-0.5">Direct link via independent Daraja production key environments.</span></div></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Section: PPPoE Defaults -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
-                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-shield-halved text-indigo-500 mr-1.5"></i> PPPoE Defaults</h3>
-                                <p class="text-slate-400 leading-relaxed">A default password pre-filled when you add a PPPoE customer (you set each customer's username; the password defaults to this and stays editable per customer).</p>
-                                <div class="space-y-1"><label class="text-slate-400">Default PPPoE Password</label><input type="text" value="vunaflow123" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
-                            </div>
-
-                            <!-- Section: Network & Branding Options Matrix -->
-                            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-sliders text-indigo-500 mr-1.5"></i> Network & Branding</h3>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="space-y-1"><label class="text-slate-400">Dashboard Server IP</label><input type="text" value="10.5.5.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
-                                    <div class="space-y-1"><label class="text-slate-400">Support Phone</label><input type="text" value="+254700000000" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
-                                </div>
-                                <div class="space-y-1"><label class="text-slate-400">Business Name</label><input type="text" value="AudiSpot High-Speed Premium Network" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
-                                <div class="space-y-1"><label class="text-slate-400">Captive Portal Redirect URL</label><input type="text" value="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono"></div>
-                                <button onclick="triggerToastDisplay('Global matrix systems successfully committed to Cloud Firestore layer.')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
-                            </div>
+                        <div class="space-y-1">
+                            <label class="text-slate-400">Email</label>
+                            <input type="email" id="inp-sett-email" name="email" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
                         </div>
-
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Company / Organization</label>
+                        <input type="text" id="inp-sett-company" name="company" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white">
                     </div>
                 </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save Account Info</button>
+            </form>
 
+            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-user-gear text-indigo-500 mr-1.5"></i> Technicians</h3>
+                    <span id="lbl-tech-count" class="text-slate-500 font-semibold text-[11px]">Technicians (0)</span>
+                </div>
+                <p class="text-slate-400 leading-relaxed">Create sub-logins for your team. Technicians can manage routers, PPPoE and Static IP customers but cannot access billing or payments.</p>
+                
+                <div id="tech-list-container" class="space-y-2">
+                    <div id="tech-empty-state" class="border border-dashed border-slate-200 dark:border-vunaborder p-6 rounded-lg text-center text-slate-500">
+                        <i class="fa-solid fa-user-shield text-lg mb-1 block text-slate-600"></i>
+                        <span>No Technicians Yet</span>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Add a technician to give them restricted administrative access.</p>
+                    </div>
+                </div>
+                
+                <button onclick="openAddTechnicianModal()" class="w-full bg-slate-100 dark:bg-vunaborder hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition">Add Technician</button>
             </div>
-        </main>
+
+            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-message text-indigo-500 mr-1.5"></i> SMS Notifications</h3>
+                <p class="text-slate-400 leading-relaxed">Send vouchers, welcome messages, and automatic subscription reminders directly to customer phones.</p>
+                <div class="p-3 bg-slate-100 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg flex items-center justify-between text-[11px]">
+                    <span id="lbl-sms-status" class="text-slate-400 font-semibold"><i class="fa-solid fa-circle-minus text-amber-500 mr-1"></i> SMS is currently off.</span>
+                    <button id="btn-toggle-sms" onclick="toggleSmsSystem()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-md transition">Activate</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <form id="form-settings-mpesa" onsubmit="saveMpesaGatewaySettings(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Payment Receiving</h3>
+                <div class="flex gap-4 border-b border-vunaborder pb-3 font-semibold text-slate-400">
+                    <label class="flex items-center gap-1.5 text-slate-900 dark:text-white"><input type="radio" name="mpesaType" value="till" checked class="accent-indigo-600"> Till / Buy Goods</label>
+                    <label class="flex items-center gap-1.5 opacity-40"><input type="radio" disabled class="accent-indigo-600"> Paybill</label>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-slate-400">Your Till / Paybill Number</label>
+                    <input type="text" id="inp-sett-till" name="tillNumber" placeholder="4030905" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
+                    <span id="lbl-mpesa-ready" class="text-[11px] text-emerald-500 block font-medium"><i class="fa-solid fa-circle-check"></i> Ready to receive gateway payments</span>
+                    <p class="text-[11px] text-slate-400 leading-normal">Payments settle directly to your Till. No advanced credentials needed for platform integration routing.</p>
+                </div>
+                <div class="space-y-3 pt-3 border-t border-vunaborder">
+                    <label class="block font-bold text-slate-400 uppercase text-[10px] tracking-wider">Payment Gateway Tier</label>
+                    <div class="space-y-2">
+                        <div class="p-3 border-2 border-indigo-600 bg-indigo-600/5 rounded-xl flex items-center justify-between">
+                            <div class="flex items-start gap-3">
+                                <div class="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center font-bold text-xs shrink-0">M·P</div>
+                                <div>
+                                    <span class="font-bold block text-slate-900 dark:text-white">Platform M-Pesa Integration</span>
+                                    <span class="text-[10px] text-slate-400 block mt-0.5">Settles to AudiSpot, automated payout schedules. Zero setup.</span>
+                                </div>
+                            </div>
+                            <span class="bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-md tracking-wider animate-pulse">ACTIVE</span>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save Payment Rules</button>
+            </form>
+
+            <form id="form-settings-pppoe" onsubmit="savePppoeDefaults(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-shield-halved text-indigo-500 mr-1.5"></i> PPPoE Defaults</h3>
+                <p class="text-slate-400 leading-relaxed">The fallback network authentication password dynamically assigned to new subscriber allocations.</p>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Default PPPoE Connection Password</label>
+                    <input type="text" id="inp-sett-pppoe-pass" name="defaultPassword" placeholder="vunaflow123" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save PPPoE Policies</button>
+            </form>
+
+            <form id="form-settings-branding" onsubmit="saveBrandingState(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-sliders text-indigo-500 mr-1.5"></i> Network & Branding</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Dashboard Server Host</label>
+                        <input type="text" id="inp-sett-ip" name="serverIp" placeholder="10.5.5.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Support Phone Line</label>
+                        <input type="text" id="inp-sett-phone" name="supportPhone" placeholder="+254700000000" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white">
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Network / Brand Name</label>
+                    <input type="text" id="inp-sett-brand" name="brandName" placeholder="AudiSpot Premium Hotspot" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Captive Portal Redirect Address</label>
+                    <input type="text" id="inp-sett-redirect" name="redirectUrl" placeholder="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
+            </form>
+        </div>
+
     </div>
+</div>
+
+<div id="modal-add-technician" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-vunaborder pb-3">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase"><i class="fa-solid fa-user-shield text-indigo-500 mr-1.5"></i> Register New Technician</h3>
+            <button onclick="closeAddTechnicianModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="form-register-technician" onsubmit="handleTechnicianRegistration(event)" class="space-y-3 text-xs">
+            <div class="space-y-1">
+                <label class="text-slate-400">Full Name</label>
+                <input type="text" id="tech-name" required class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-medium">
+            </div>
+            <div class="space-y-1">
+                <label class="text-slate-400">Email Login Address</label>
+                <input type="email" id="tech-email" required class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono">
+            </div>
+            <div class="space-y-1">
+                <label class="text-slate-400">Assign Security Access Password</label>
+                <input type="password" id="tech-password" required minlength="6" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white">
+            </div>
+            <div class="pt-2 flex gap-2 justify-end">
+                <button type="button" onclick="closeAddTechnicianModal()" class="px-4 py-2 bg-slate-100 dark:bg-vunaborder hover:bg-slate-800 text-slate-900 dark:text-white rounded-lg transition font-bold">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition font-bold">Save Access Credentials</button>
+            </div>
+        </form>
+    </div>
+</div>
 
     <!-- CONTROL RUNTIME PROCESSING MATRIX -->
     <script>
@@ -1470,6 +1515,12 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'vouchers') { // <-- ADD THIS NEW HOOK
         if (typeof fetchSystemVoucherRegistry === "function") {
             fetchSystemVoucherRegistry();
+        }
+    }
+
+    } else if (activeTab === 'settings') { // <-- ADD THIS NEW TRIGGER HERE
+        if (typeof fetchAndRenderSystemSettings === "function") {
+            fetchAndRenderSystemSettings();
         }
     }
 }
@@ -2459,6 +2510,271 @@ async function fetchAndRenderDashboard() {
         
     } catch (err) {
         console.error("Dashboard engine failed to sync dynamically:", err.message);
+    }
+}
+
+// =========================================================================
+// SYSTEM CONFIGURATION & CONFIG MATRIX ENGINE
+// =========================================================================
+
+async function fetchAndRenderSystemSettings() {
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}`);
+        if (!res.ok) throw new Error("Could not pull active hardware configurations.");
+        const config = await res.json();
+        
+        // Load Brand Form Configs
+        document.getElementById('inp-sett-brand').value = config.brandName || "AudiSpot Premium Hotspot";
+        document.getElementById('inp-sett-ip').value = config.serverIp || "10.5.5.1";
+        document.getElementById('inp-sett-phone').value = config.supportPhone || "+254700000000";
+        document.getElementById('inp-sett-redirect').value = config.redirectUrl || "https://audispot.audiory.site/login";
+        
+        // Load PPPoE default connection pass rules
+        document.getElementById('inp-sett-pppoe-pass').value = config.defaultPppoePassword || "vunaflow123";
+        
+        // Load M-Pesa details
+        document.getElementById('inp-sett-till').value = config.tillNumber || "";
+        
+        // Load user info
+        document.getElementById('inp-sett-name').value = config.accountName || "Official Bigi";
+        document.getElementById('inp-sett-email').value = config.accountEmail || "komboismail56@gmail.com";
+        document.getElementById('inp-sett-company').value = config.accountCompany || "AudiSpot Networks";
+
+        // Update SMS state text UI
+        const smsStatusLabel = document.getElementById('lbl-sms-status');
+        const smsToggleButton = document.getElementById('btn-toggle-sms');
+        if (config.smsActive) {
+            smsStatusLabel.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> SMS is active (${config.smsCredits || 0} remaining).`;
+            smsToggleButton.innerText = "Deactivate";
+            smsToggleButton.className = "bg-rose-600/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white font-bold px-3 py-1 rounded-md transition";
+        } else {
+            smsStatusLabel.innerHTML = `<i class="fa-solid fa-circle-minus text-amber-500 mr-1"></i> SMS is currently off.`;
+            smsToggleButton.innerText = "Activate";
+            smsToggleButton.className = "bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-md transition";
+        }
+        
+        // Render technicians sub list
+        await loadTechniciansRegistry();
+        
+    } catch (err) {
+        console.error("Configuration system load failure:", err);
+    }
+}
+
+// Save functions using dynamic base urls
+async function saveBrandingState(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    const payload = {
+        brandName: document.getElementById('inp-sett-brand').value,
+        serverIp: document.getElementById('inp-sett-ip').value,
+        supportPhone: document.getElementById('inp-sett-phone').value,
+        redirectUrl: document.getElementById('inp-sett-redirect').value
+    };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/branding?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Network branding layout successfully committed to registry.');
+        }
+    } catch (err) {
+        console.error("Save failure:", err);
+    }
+}
+
+async function savePppoeDefaults(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    const payload = { defaultPppoePassword: document.getElementById('inp-sett-pppoe-pass').value };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/pppoe?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('PPPoE default policies updated.');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function saveMpesaGatewaySettings(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    const payload = { tillNumber: document.getElementById('inp-sett-till').value };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/mpesa?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('M-Pesa payment receiving rules updated.');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function saveAccountDetails(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    const payload = {
+        accountName: document.getElementById('inp-sett-name').value,
+        accountEmail: document.getElementById('inp-sett-email').value,
+        accountCompany: document.getElementById('inp-sett-company').value
+    };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/account?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Account profile parameters secured.');
+        }
+    } catch (err) {
+         console.error(err);
+    }
+}
+
+async function toggleSmsSystem() {
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/toggle-sms?ispId=${targetTenant}`, { method: 'POST' });
+        if (res.ok) {
+            fetchAndRenderSystemSettings();
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// Technician modal control handlers
+function openAddTechnicianModal() {
+    document.getElementById('modal-add-technician').classList.remove('hidden');
+}
+function closeAddTechnicianModal() {
+    document.getElementById('modal-add-technician').classList.add('hidden');
+    document.getElementById('form-register-technician').reset();
+}
+
+// Technician management routines
+async function handleTechnicianRegistration(e) {
+    e.preventDefault();
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+
+    const payload = {
+        name: document.getElementById('tech-name').value,
+        email: document.getElementById('tech-email').value,
+        password: document.getElementById('tech-password').value,
+        ispId: targetTenant
+    };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/technicians`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            closeAddTechnicianModal();
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('New restricted technician user added successfully.');
+            loadTechniciansRegistry();
+        } else {
+            alert("Could not complete registration.");
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function loadTechniciansRegistry() {
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const container = document.getElementById('tech-list-container');
+    const emptyState = document.getElementById('tech-empty-state');
+    const countLabel = document.getElementById('lbl-tech-count');
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/technicians?ispId=${targetTenant}`);
+        if (!res.ok) return;
+        const technicians = await res.json();
+
+        countLabel.innerText = `Technicians (${technicians.length})`;
+
+        // Remove old dynamic technician items (excluding the base template empty state)
+        const activeItems = container.querySelectorAll('.tech-active-item');
+        activeItems.forEach(item => item.remove());
+
+        if (technicians.length === 0) {
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+        technicians.forEach(tech => {
+            const row = document.createElement('div');
+            row.className = "tech-active-item flex items-center justify-between p-3 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-xs";
+            row.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-indigo-600/10 text-indigo-500 flex items-center justify-center font-bold font-mono">
+                        ${tech.name.substring(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                        <span class="font-bold text-slate-900 dark:text-white block">${tech.name}</span>
+                        <span class="text-slate-400 font-mono text-[10px] block mt-0.5">${tech.email}</span>
+                    </div>
+                </div>
+                <button onclick="removeTechnician('${tech.id}')" class="text-rose-400 hover:text-rose-500 p-1 font-semibold transition hover:scale-110">
+                    <i class="fa-solid fa-trash-can text-sm"></i>
+                </button>
+            `;
+            container.appendChild(row);
+        });
+
+    } catch (err) {
+        console.error("Failed loading technicians registry:", err);
+    }
+}
+
+async function removeTechnician(techId) {
+    if (!confirm("Are you sure you want to terminate this technician's administrative rights?")) return;
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/technicians/${techId}?ispId=${targetTenant}`, { method: 'DELETE' });
+        if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Technician terminated.');
+            loadTechniciansRegistry();
+        }
+    } catch (err) {
+        console.error(err);
     }
 }
 
