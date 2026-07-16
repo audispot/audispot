@@ -115,7 +115,7 @@ async function getOrCreateSettings(databaseInstance, ispId) {
             serverIp: "10.5.5.1",
             supportPhone: "+254700000000",
             redirectUrl: "https://audispot.audiory.site/login",
-            defaultPppoePassword: "vunaflow123",
+            defaultPppoePassword: "AudiSpot123",
             tillNumber: "",
             accountName: "Official Bigi",
             accountEmail: "komboismail56@gmail.com",
