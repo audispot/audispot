@@ -1009,11 +1009,12 @@
 
     <!-- CONTROL RUNTIME PROCESSING MATRIX -->
     <script>
-        // 1. Correct the API Base URL to include /api
-        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app/api";
+        // 1. Point to the ROOT domain (without /api) to prevent double '/api/api' paths!
+        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
 
-        // 2. Dynamically get the logged-in ISP ID, fallback if not found
-        const CURRENT_ISP_ID = localStorage.getItem("ispId") || "default_isp";
+        // 2. Fetch the true logged-in ISP ID.
+        // If not found in localStorage, we fallback to your known working ISP ID: "testisp_audispot_com"
+        const CURRENT_ISP_ID = localStorage.getItem("ispId") || "testisp_audispot_com";
 
         // Wire up global initialization execution loops
 document.addEventListener("DOMContentLoaded", () => {
@@ -2238,22 +2239,28 @@ async function fetchAndRenderAnalytics() {
 }
 
 async function fetchAndRenderDashboard() {
+    // Stop early if we are still using a generic default string that doesn't exist in Firestore
+    if (CURRENT_ISP_ID === "default_isp") {
+        console.warn("Dashboard sync paused: No active ISP ID found. Please log in.");
+        return;
+    }
+
     try {
-        // Corrected path: will now hit /api/isp/dashboard-stats/...
-        const statsResponse = await fetch(`${API_BASE_URL}/isp/dashboard-stats/${CURRENT_ISP_ID}`);
+        // Corrected: Will cleanly compile to .../api/isp/dashboard-stats/testisp_audispot_com
+        const statsResponse = await fetch(`${API_BASE_URL}/api/isp/dashboard-stats/${CURRENT_ISP_ID}`);
         if (!statsResponse.ok) throw new Error(`Failed to fetch dashboard stats (Status: ${statsResponse.status})`);
         const stats = await statsResponse.json();
 
-        // 3. Fetch design settings
-        const designResponse = await fetch(`${API_BASE_URL}/portal/design?ispId=${CURRENT_ISP_ID}`);
+        // Fetch Design settings cleanly (.../api/portal/design?ispId=...)
+        const designResponse = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${CURRENT_ISP_ID}`);
         const design = designResponse.ok ? await designResponse.json() : null;
 
-        // 4. Fetch package listings
-        const pkgResponse = await fetch(`${API_BASE_URL}/packages?ispId=${CURRENT_ISP_ID}`);
+        // Fetch Packages cleanly (.../api/packages?ispId=...)
+        const pkgResponse = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
         const packages = pkgResponse.ok ? await pkgResponse.json() : [];
 
-        // 5. Fetch expense listings
-        const expResponse = await fetch(`${API_BASE_URL}/expenses?ispId=${CURRENT_ISP_ID}`);
+        // Fetch Expenses cleanly (.../api/expenses?ispId=...)
+        const expResponse = await fetch(`${API_BASE_URL}/api/expenses?ispId=${CURRENT_ISP_ID}`);
         const expenses = expResponse.ok ? await expResponse.json() : [];
 
         // ==========================================
@@ -2262,7 +2269,7 @@ async function fetchAndRenderDashboard() {
         const ispName = stats.ispName || "AudiSpot Partner";
         const email = stats.email || `${CURRENT_ISP_ID.replace(/_/g, '.')}@audispot.com`;
         
-        // Dynamic Initials Circle
+        // Dynamic Initials
         const initials = ispName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         document.getElementById("lbl-side-initials").innerText = initials || "AS";
         
@@ -2305,31 +2312,24 @@ async function fetchAndRenderDashboard() {
         let nextTaskMsg = "Next: Connect your MikroTik router →";
         let nextTabTarget = "routers";
 
-        // Step 1: Registered a router?
         const stepRouter = (stats.routersCount && stats.routersCount > 0);
         if (stepRouter) completedSteps++;
 
-        // Step 2: Created at least 1 pricing package?
         const stepPackage = (packages && packages.length > 0);
         if (stepPackage) completedSteps++;
 
-        // Step 3: Saved custom captive portal design?
         const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi");
         if (stepDesign) completedSteps++;
 
-        // Step 4: Configured a real phone number?
         const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678");
         if (stepPhone) completedSteps++;
 
-        // Step 5: Logged at least one business expense?
         const stepExpense = (expenses && expenses.length > 0);
         if (stepExpense) completedSteps++;
 
-        // Step 6: Processed your first client transaction?
         const stepTransaction = (stats.walletBalance && stats.walletBalance > 0);
         if (stepTransaction) completedSteps++;
 
-        // Determine onboarding action advice text
         if (!stepRouter) {
             nextTaskMsg = "Next: Connect your MikroTik router →";
             nextTabTarget = "routers";
@@ -2350,7 +2350,6 @@ async function fetchAndRenderDashboard() {
             nextTabTarget = "dashboard";
         }
 
-        // Render Onboarding score UI elements
         const progressPercentage = Math.round((completedSteps / 6) * 100);
         document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
         document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
