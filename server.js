@@ -92,6 +92,32 @@ function getRouterClient(routerData) {
     });
 }
 
+// Helper: Ensure document exist fallback values
+async function getOrCreateSettings(db, ispId) {
+    const settingsRef = db.collection('settings').doc(ispId);
+    const doc = await settingsRef.get();
+    
+    if (!doc.exists) {
+        const defaultData = {
+            ispId,
+            brandName: "AudiSpot Premium Hotspot",
+            serverIp: "10.5.5.1",
+            supportPhone: "+254700000000",
+            redirectUrl: "https://audispot.audiory.site/login",
+            defaultPppoePassword: "vunaflow123",
+            tillNumber: "",
+            accountName: "Official Bigi",
+            accountEmail: "komboismail56@gmail.com",
+            accountCompany: "AudiSpot Networks",
+            smsActive: false,
+            smsCredits: 10
+        };
+        await settingsRef.set(defaultData);
+        return defaultData;
+    }
+    return doc.data();
+}
+
 // 1. Core Platform Health Route
 app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
@@ -1230,6 +1256,153 @@ app.post('/api/mpesa/b2c-callback', async (req, res) => {
     }
 
     return res.json({ ResultCode: 0, ResultDesc: "Callback received and processed" });
+});
+
+// 1. Get Settings Configuration Object
+app.get('/api/settings', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const settings = await getOrCreateSettings(req.db, ispId);
+        res.json(settings);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Save account setup rules
+app.post('/api/settings/account', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    const { accountName, accountEmail, accountCompany } = req.body;
+    try {
+        await req.db.collection('settings').doc(ispId).set({
+            accountName,
+            accountEmail,
+            accountCompany
+        }, { merge: true });
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Save M-Pesa Till Configurations
+app.post('/api/settings/mpesa', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    const { tillNumber } = req.body;
+    try {
+        await req.db.collection('settings').doc(ispId).set({ tillNumber }, { merge: true });
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Save PPPoE Default Password rules
+app.post('/api/settings/pppoe', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    const { defaultPppoePassword } = req.body;
+    try {
+        await req.db.collection('settings').doc(ispId).set({ defaultPppoePassword }, { merge: true });
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 5. Save Network/Branding Options Matrix
+app.post('/api/settings/branding', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    const { brandName, serverIp, supportPhone, redirectUrl } = req.body;
+    try {
+        await req.db.collection('settings').doc(ispId).set({
+            brandName,
+            serverIp,
+            supportPhone,
+            redirectUrl
+        }, { merge: true });
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 6. Toggle SMS Activation with free test credits allotment
+app.post('/api/settings/toggle-sms', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const settingsRef = req.db.collection('settings').doc(ispId);
+        const settingsDoc = await settingsRef.get();
+        const currentActiveState = settingsDoc.exists ? settingsDoc.data().smsActive : false;
+        
+        await settingsRef.set({
+            smsActive: !currentActiveState,
+            // Give 10 promotional test SMS units if activating for the first time
+            ...(!currentActiveState && { smsCredits: 10 })
+        }, { merge: true });
+        
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==================== TECHNICIAN SECURITY LOGINS ====================
+
+// 7. Register a restricted technician user account
+app.post('/api/technicians', async (req, res) => {
+    const { name, email, password, ispId } = req.body;
+    try {
+        const newTechRef = req.db.collection('technicians').doc();
+        const techUser = {
+            id: newTechRef.id,
+            name,
+            email,
+            password, // In development, hash securely using crypt layers (e.g. bcrypt)
+            ispId,
+            role: "technician",
+            createdAt: new Date().toISOString()
+        };
+        await newTechRef.set(techUser);
+        res.status(201).json(techUser);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 8. Retrieve registered technicians by ISP 
+app.get('/api/technicians', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await req.db.collection('technicians')
+            .where('ispId', '==', ispId)
+            .orderBy('createdAt', 'desc')
+            .get();
+            
+        const techList = [];
+        snapshot.forEach(doc => techList.push(doc.data()));
+        res.json(techList);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 9. Terminate technician access credentials
+app.delete('/api/technicians/:id', async (req, res) => {
+    const techId = req.params.id;
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const techRef = req.db.collection('technicians').doc(techId);
+        const doc = await techRef.get();
+        
+        if (!doc.exists || doc.data().ispId !== ispId) {
+            return res.status(404).json({ error: "Technician credential payload not located." });
+        }
+        
+        await techRef.delete();
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 const PORT = process.env.PORT || 8080;
