@@ -99,6 +99,7 @@ function getRouterClient(routerData) {
 }
 
 // Helper: Ensure document exists with fallback default configuration schemas
+// Helper: Ensure document exists with fallback default configuration schemas
 async function getOrCreateSettings(databaseInstance, ispId) {
     const activeDb = databaseInstance || db;
     if (!activeDb) {
@@ -121,7 +122,8 @@ async function getOrCreateSettings(databaseInstance, ispId) {
             accountEmail: "komboismail56@gmail.com",
             accountCompany: "AudiSpot Networks",
             smsActive: false,
-            smsCredits: 10
+            smsCredits: 10,
+            createdAt: new Date().toISOString() // Added tracking baseline
         };
         await settingsRef.set(defaultData);
         return defaultData;
@@ -209,18 +211,31 @@ app.post('/api/auth/isp-signup', async (req, res) => {
     }
     try {
         const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
+        const registrationTimestamp = new Date().toISOString();
+
         await db.collection('isp_users').doc(ispId).set({
-            ispName, email, password, phoneNumber,
+            ispName, 
+            email, 
+            password, 
+            phoneNumber,
             plan: selectedPlan || "standard_monthly",
             walletBalance: 0,
-            createdAt: new Date().toISOString()
+            createdAt: registrationTimestamp
         });
-        return res.status(201).json({ success: true, message: "Account created successfully!", ispId });
+
+        // Initialize default settings for this ISP on signup
+        await getOrCreateSettings(db, ispId);
+
+        return res.status(201).json({ 
+            success: true, 
+            message: "Account created successfully!", 
+            ispId,
+            createdAt: registrationTimestamp // Returned for frontend storage
+        });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
 });
-
 // 4. Register Router Endpoint
 app.post('/api/hotspot/register-router', async (req, res) => {
     const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
@@ -1047,8 +1062,9 @@ app.post('/api/portal/design/save', async (req, res) => {
 app.get('/api/expenses', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
-        const snapshot = await db.collection('isp_expenses')
-            .where('ispId', '==', targetTenant)
+        // Query matching documents WITHOUT orderBy to avoid Firestore Index errors
+        const snapshot = await req.db.collection('expenses')
+            .where('ispId', '==', ispId)
             .get();
             
         const expenses = [];
@@ -1062,11 +1078,18 @@ app.get('/api/expenses', async (req, res) => {
                 date: data.date || new Date().toISOString()
             });
         });
-        
-        expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // Safe in-memory sorting by createdAt (descending)
+        expenses.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+        });
+
         return res.status(200).json(expenses);
-    } catch (error) {
-        console.error("Failed to fetch custom expenses:", error.message);
+    } catch (err) {
+        console.error("Expenses fetch failure:", err);
+        res.status(500).json({ error: err.message });
         return res.status(500).json({ error: error.message });
     }
 });
