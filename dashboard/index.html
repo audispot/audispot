@@ -1072,7 +1072,7 @@
 
         // 2. Fetch the true logged-in ISP ID.
         // If not found in localStorage, we fallback to your known working ISP ID: "testisp_audispot_com"
-        const CURRENT_ISP_ID = localStorage.getItem("ispId") || "testisp_audispot_com";
+        const CURRENT_ISP_ID = localStorage.getItem('isp_id') || 'default_isp';
 
         // Wire up global initialization execution loops
 document.addEventListener("DOMContentLoaded", () => {
