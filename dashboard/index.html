@@ -139,12 +139,14 @@
         <div id="viewframe-dashboard" class="space-y-6 block viewframe">
             
             <!-- Dynamic Alert Banner Strip (Hidden by default, shown via JS) -->
-            <div id="subscription-expiry-banner" class="hidden bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between text-xs font-medium">
-                <span class="flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation"></i> 
-                    <span id="lbl-subscription-expiry-text">Your AudiSpot subscription setup window expires in -- days.</span>
-                </span>
-                <button class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg transition font-bold">Renew now</button>
+            <div id="subscription-expiry-banner" class="hidden bg-amber-500/10 text-amber-500 border border-amber-500/20 p-4 rounded-xl mb-6 text-sm flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="subscription-expiry-text">Your free trial is currently active.</span>
+                </div>
+                <button onclick="document.getElementById('subscription-expiry-banner').classList.add('hidden')" class="text-amber-500/50 hover:text-amber-500">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
             <!-- Task List Workflow Context Map -->
