@@ -92,14 +92,18 @@ function getRouterClient(routerData) {
     });
 }
 
-// Helper: Ensure document exist fallback values
+// Helper: Ensure document exists with fallback default configuration schemas
 async function getOrCreateSettings(db, ispId) {
+    if (!db) {
+        throw new Error("Database reference is undefined. Make sure req.db middleware is configured.");
+    }
+    
     const settingsRef = db.collection('settings').doc(ispId);
     const doc = await settingsRef.get();
     
     if (!doc.exists) {
         const defaultData = {
-            ispId,
+            ispId: ispId,
             brandName: "AudiSpot Premium Hotspot",
             serverIp: "10.5.5.1",
             supportPhone: "+254700000000",
@@ -115,6 +119,7 @@ async function getOrCreateSettings(db, ispId) {
         await settingsRef.set(defaultData);
         return defaultData;
     }
+    
     return doc.data();
 }
 
