@@ -1191,24 +1191,51 @@ async function fetchStaticDHCPLeases() {
 // ==========================================
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
 // ==========================================
+
+// Helper function to create a small delay
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 function togglePackageCreationModal(show) {
-    document.getElementById("package-creation-modal").classList.toggle("hidden", !show);
+    const modal = document.getElementById("package-creation-modal");
+    if (modal) {
+        modal.classList.toggle("hidden", !show);
+    }
 }
 
 async function handlePackageSubmission(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    payload.ispId = CURRENT_ISP_ID; // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
+    
+    // Ensure we send the correct active ISP ID
+    payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+
+    // Convert inputs to numbers so they match expected database types
+    if (payload.price) payload.price = Number(payload.price);
+    if (payload.duration) payload.duration = Number(payload.duration);
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/packages/create`, { // <--- Changed from CORE_API_HOST to API_BASE_URL
+        const res = await fetch(`${API_BASE_URL}/api/packages/create`, { 
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-        if(res.ok) { togglePackageCreationModal(false); e.target.reset(); fetchActiveBillingCatalog(); }
-    } catch(err) { alert("Failed to append configuration block to product catalog framework."); }
+        
+        if (res.ok) { 
+            togglePackageCreationModal(false); 
+            e.target.reset(); 
+            
+            // Give Firestore 500ms to commit the write, then fetch the updated catalog
+            await delay(500);
+            fetchActiveBillingCatalog(); 
+        } else {
+            const errText = await res.text();
+            alert(`Failed to save package: ${errText || 'Server responded with an error.'}`);
+        }
+    } catch(err) { 
+        console.error("Submission error:", err);
+        alert("Failed to append configuration block to product catalog framework."); 
+    }
 }
 
 async function fetchActiveBillingCatalog() {
@@ -1230,9 +1257,8 @@ async function fetchActiveBillingCatalog() {
     }, 3000);
 
     try {
-        // Use the exact tenant identifier matching your core variables
-        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp'; // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
-        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); // <--- Changed from CORE_API_HOST to API_BASE_URL
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); 
         
         // Mark as processed to handle fallback clearing
         contentRendered = true; 
@@ -1254,27 +1280,30 @@ async function fetchActiveBillingCatalog() {
         }
 
         // 3. Render items smoothly into the grid layout
-        gridMount.innerHTML = packages.map(pkg => `
-            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
-                <div>
-                    <div class="flex justify-between items-start">
-                        <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || 'Unnamed Tier'}</h4>
-                        <span class="bg-indigo-600/10 text-indigo-400 text-[11px] font-extrabold px-2.5 py-1 rounded-md font-sans">KES ${pkg.price || 0}</span>
+        gridMount.innerHTML = packages.map(pkg => {
+            // Support multiple formats for package ID (id vs docId)
+            const pkgId = pkg.id || pkg.docId || '';
+            return `
+                <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || 'Unnamed Tier'}</h4>
+                            <span class="bg-indigo-600/10 text-indigo-400 text-[11px] font-extrabold px-2.5 py-1 rounded-md font-sans">KES ${pkg.price || 0}</span>
+                        </div>
+                        <div class="mt-3 space-y-1.5 text-[11px] text-slate-400 font-sans">
+                            <div class="flex items-center gap-1.5"><i class="fa-solid fa-clock text-slate-500 w-4"></i> Active Duration: <strong>${pkg.duration || 0} Hours</strong></div>
+                            <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile || 'Default'}</span></div>
+                        </div>
                     </div>
-                    <div class="mt-3 space-y-1.5 text-[11px] text-slate-400 font-sans">
-                        <div class="flex items-center gap-1.5"><i class="fa-solid fa-clock text-slate-500 w-4"></i> Active Duration: <strong>${pkg.duration || 0} Hours</strong></div>
-                        <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile || 'Default'}</span></div>
+                    <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2">
+                        <button onclick="deletePackageItem('${pkgId}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
                     </div>
                 </div>
-                <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2">
-                    <button onclick="deletePackageItem('${pkg.id}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
     } catch (err) {
         console.error("Catalog retrieval drop:", err.message);
-        // Clear out the hanging spinner on error
         if (!contentRendered) {
             clearTimeout(fallbackTimeout);
             gridMount.innerHTML = `
@@ -1286,6 +1315,33 @@ async function fetchActiveBillingCatalog() {
         }
     }
 }
+
+async function deletePackageItem(packageId) {
+    if (!packageId) {
+        alert("Cannot delete package: Invalid package ID.");
+        return;
+    }
+    if (!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
+    
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+        const res = await fetch(`${API_BASE_URL}/api/packages/delete`, { 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: packageId, ispId: targetTenant }) 
+        });
+        
+        if (res.ok) {
+            await delay(500); // Small Firestore sync buffer
+            fetchActiveBillingCatalog();
+        } else {
+            alert("Failed to delete the package on the server.");
+        }
+    } catch(err) { 
+        alert("Transaction command transmission failure."); 
+    }
+}
+
 async function syncDashboardFleetTable() {
     const tbody = document.getElementById("fleet-table-body");
     if (!tbody) return;
@@ -1350,17 +1406,6 @@ async function syncDashboardFleetTable() {
                 </tr>`;
         }
     }
-}
-async function deletePackageItem(packageId) {
-    if(!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
-    try {
-        await fetch(`${API_BASE_URL}/api/packages/delete`, { // <--- Changed from CORE_API_HOST to API_BASE_URL
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: packageId, ispId: CURRENT_ISP_ID }) // <--- Changed from TENANT_CLUSTER_ID to CURRENT_ISP_ID
-        });
-        fetchActiveBillingCatalog();
-    } catch(err) { alert("Transaction command transmission failure."); }
 }
 
 function changeActiveLayoutTab(targetTab) {
@@ -2387,8 +2432,168 @@ async function fetchAndRenderDashboard() {
         console.error("Dashboard engine failed to sync dynamically:", err.message);
     }
 }
-// Call on load
-document.addEventListener("DOMContentLoaded", fetchAndRenderDashboard);
+
+// ==========================================
+// SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
+// ==========================================
+
+// Helper function to create a small delay
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+function togglePackageCreationModal(show) {
+    const modal = document.getElementById("package-creation-modal");
+    if (modal) {
+        modal.classList.toggle("hidden", !show);
+    }
+}
+
+async function handlePackageSubmission(e) {
+    e.preventDefault();
+    const fData = new FormData(e.target);
+    const payload = Object.fromEntries(fData.entries());
+    
+    // Ensure we send the correct active ISP ID
+    payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+
+    // Convert inputs to numbers so they match expected database types
+    if (payload.price) payload.price = Number(payload.price);
+    if (payload.duration) payload.duration = Number(payload.duration);
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/packages/create`, { 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) { 
+            togglePackageCreationModal(false); 
+            e.target.reset(); 
+            
+            // Give Firestore 500ms to commit the write, then fetch the updated catalog
+            await delay(500);
+            fetchActiveBillingCatalog(); 
+        } else {
+            const errText = await res.text();
+            alert(`Failed to save package: ${errText || 'Server responded with an error.'}`);
+        }
+    } catch(err) { 
+        console.error("Submission error:", err);
+        alert("Failed to append configuration block to product catalog framework."); 
+    }
+}
+
+async function fetchActiveBillingCatalog() {
+    const gridMount = document.getElementById("billing-packages-grid-mount");
+    if (!gridMount) return;
+    
+    let contentRendered = false;
+
+    // 1. Establish an absolute 3-second recovery backup safety timer
+    const fallbackTimeout = setTimeout(() => {
+        if (!contentRendered) {
+            gridMount.innerHTML = `
+                <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans animate-fade-in">
+                    <i class="fa-solid fa-boxes block text-3xl mb-3 text-slate-600"></i>
+                    <p class="text-sm font-bold text-slate-400">No active billing packages found.</p>
+                    <p class="text-xs text-slate-500 mt-1">Create your first access profile above to monetize your captive hotspot gateway.</p>
+                </div>`;
+        }
+    }, 3000);
+
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); 
+        
+        // Mark as processed to handle fallback clearing
+        contentRendered = true; 
+        clearTimeout(fallbackTimeout);
+
+        if (!res.ok) throw new Error("Catalog fetch error channel status mismatch.");
+        
+        const packages = await res.json();
+
+        // 2. Safe check for empty, null, or non-array returns
+        if (!packages || !Array.isArray(packages) || packages.length === 0) {
+            gridMount.innerHTML = `
+                <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans">
+                    <i class="fa-solid fa-boxes block text-3xl mb-3 text-slate-600"></i>
+                    <p class="text-sm font-bold text-slate-400">No active billing packages found.</p>
+                    <p class="text-xs text-slate-500 mt-1">Create your first access profile above to monetize your captive hotspot gateway.</p>
+                </div>`;
+            return;
+        }
+
+        // 3. Render items smoothly into the grid layout
+        gridMount.innerHTML = packages.map(pkg => {
+            // Support multiple formats for package ID (id vs docId)
+            const pkgId = pkg.id || pkg.docId || '';
+            return `
+                <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || 'Unnamed Tier'}</h4>
+                            <span class="bg-indigo-600/10 text-indigo-400 text-[11px] font-extrabold px-2.5 py-1 rounded-md font-sans">KES ${pkg.price || 0}</span>
+                        </div>
+                        <div class="mt-3 space-y-1.5 text-[11px] text-slate-400 font-sans">
+                            <div class="flex items-center gap-1.5"><i class="fa-solid fa-clock text-slate-500 w-4"></i> Active Duration: <strong>${pkg.duration || 0} Hours</strong></div>
+                            <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile || 'Default'}</span></div>
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2">
+                        <button onclick="deletePackageItem('${pkgId}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error("Catalog retrieval drop:", err.message);
+        if (!contentRendered) {
+            clearTimeout(fallbackTimeout);
+            gridMount.innerHTML = `
+                <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans">
+                    <i class="fa-solid fa-boxes block text-3xl mb-3 text-slate-600"></i>
+                    <p class="text-sm font-bold text-slate-400">No active billing packages found.</p>
+                    <p class="text-xs text-slate-500 mt-1">Create your first access profile above to monetize your captive hotspot gateway.</p>
+                </div>`;
+        }
+    }
+}
+
+async function deletePackageItem(packageId) {
+    if (!packageId) {
+        alert("Cannot delete package: Invalid package ID.");
+        return;
+    }
+    if (!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
+    
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
+        const res = await fetch(`${API_BASE_URL}/api/packages/delete`, { 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: packageId, ispId: targetTenant }) 
+        });
+        
+        if (res.ok) {
+            await delay(500); // Small Firestore sync buffer
+            fetchActiveBillingCatalog();
+        } else {
+            alert("Failed to delete the package on the server.");
+        }
+    } catch(err) { 
+        alert("Transaction command transmission failure."); 
+    }
+}
+
+// =========================================================================
+// INITIALIZE ON LOAD: Ensures packages fetch immediately when the page loads
+// =========================================================================
+document.addEventListener("DOMContentLoaded", () => {
+    fetchActiveBillingCatalog();
+    fetchAndRenderDashboard();
+});
         
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
