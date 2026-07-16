@@ -1192,8 +1192,6 @@ async function fetchStaticDHCPLeases() {
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
 // ==========================================
 
-// Helper function to create a small delay
-const delay = ms => new Promise(res => setTimeout(res, ms));
 
 function togglePackageCreationModal(show) {
     const modal = document.getElementById("package-creation-modal");
@@ -2593,6 +2591,7 @@ async function deletePackageItem(packageId) {
 document.addEventListener("DOMContentLoaded", () => {
     fetchActiveBillingCatalog();
     fetchAndRenderDashboard();
+    changeActiveLayoutTab();
 });
         
         window.onload = () => {
