@@ -1382,5 +1382,41 @@ app.delete('/api/technicians/:id', async (req, res) => {
     }
 });
 
+// ISP Login Endpoint
+app.post('/api/auth/isp-login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, error: "Email and password are required." });
+    }
+
+    try {
+        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
+        const ispDoc = await db.collection('isp_users').doc(ispId).get();
+
+        if (!ispDoc.exists) {
+            return res.status(401).json({ success: false, error: "Invalid email or password." });
+        }
+
+        const ispData = ispDoc.data();
+
+        // Simple password verification (In production, use bcrypt hashing!)
+        if (ispData.password !== password) {
+            return res.status(401).json({ success: false, error: "Invalid email or password." });
+        }
+
+        // Generate a simple token (or use JWT in production)
+        const token = Buffer.from(`${ispId}:${Date.now()}`).toString('base64');
+
+        return res.status(200).json({
+            success: true,
+            token: token,
+            ispId: ispId,
+            ispName: ispData.ispName
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
