@@ -1044,7 +1044,7 @@ function evaluateActiveViewRoutingContext() {
 async function syncLiveSessions() {
     const tbody = document.getElementById("sessions-table-body");
     try {
-        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         const routers = await response.json();
         
         if (!routers || routers.length === 0) {
@@ -1056,7 +1056,7 @@ async function syncLiveSessions() {
 
         // Target active hardware node instance array tracking metrics data stream
         const targetRouter = routers[0].id; 
-        const sessionsRes = await fetch(`${CORE_API_HOST}/api/hotspot/active-sessions?routerId=${targetRouter}`);
+        const sessionsRes = await fetch(`${API_BASE_URL}/api/hotspot/active-sessions?routerId=${targetRouter}`);
         const sessions = await sessionsRes.json();
 
         document.getElementById("session-metric-online").innerHTML = `${sessions.length} <span class="text-xs font-normal text-slate-400">devices</span>`;
@@ -1084,7 +1084,7 @@ async function syncLiveSessions() {
 async function terminateTargetLease(routerId, username) {
     if(!confirm(`Force disconnect authorization for subscriber token session: "${username}"?`)) return;
     try {
-        await fetch(`${CORE_API_HOST}/api/hotspot/disconnect`, {
+        await fetch(`${API_BASE_URL}/api/hotspot/disconnect`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ routerId, username })
@@ -1102,7 +1102,7 @@ async function handlePPPoEProvisioning(e) {
     const payload = Object.fromEntries(fData.entries());
     
     try {
-        const res = await fetch(`${CORE_API_HOST}/api/pppoe/create-secret`, {
+        const res = await fetch(`${API_BASE_URL}/api/pppoe/create-secret`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -1118,11 +1118,11 @@ async function handlePPPoEProvisioning(e) {
 async function fetchPPPoESubscriberBase() {
     const tbody = document.getElementById("pppoe-table-body");
     try {
-        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const response = await fetch(`${API_BASE_URLT}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         const routers = await response.json();
         if(routers.length === 0) return;
 
-        const res = await fetch(`${CORE_API_HOST}/api/pppoe/secrets?routerId=${routers[0].id}`);
+        const res = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${routers[0].id}`);
         const secrets = await res.json();
 
         document.getElementById("pppoe-metric-active").textContent = secrets.length;
@@ -1153,7 +1153,7 @@ async function handleStaticLeaseBinding(e) {
     const payload = Object.fromEntries(fData.entries());
     
     try {
-        const res = await fetch(`${CORE_API_HOST}/api/dhcp/create-lease`, {
+        const res = await fetch(`${API_BASE_URL}/api/dhcp/create-lease`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -1165,11 +1165,11 @@ async function handleStaticLeaseBinding(e) {
 async function fetchStaticDHCPLeases() {
     const tbody = document.getElementById("static-table-body");
     try {
-        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         const routers = await response.json();
         if(routers.length === 0) return;
 
-        const res = await fetch(`${CORE_API_HOST}/api/dhcp/leases?routerId=${routers[0].id}`);
+        const res = await fetch(`${API_BASE_URL}/api/dhcp/leases?routerId=${routers[0].id}`);
         const leases = await res.json();
 
         if(leases.length === 0) {
@@ -1359,7 +1359,7 @@ async function syncDashboardFleetTable() {
     }, 3000);
 
     try {
-        const response = await fetch(`${CORE_API_HOST}/api/hotspot/routers?ispId=${TENANT_CLUSTER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         
         contentRendered = true;
         clearTimeout(fallbackTimeout);
