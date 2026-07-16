@@ -2527,20 +2527,39 @@ async function fetchAndRenderSystemSettings() {
         
         const data = await response.json();
         
-        // 1. Map dynamic text fields safely (supporting both camelCase and snake_case properties)
-        document.getElementById('txt-settings-brand-name').value = data.brandName || data.brand_name || '';
-        document.getElementById('txt-settings-server-ip').value = data.serverIp || data.server_ip || '';
-        document.getElementById('txt-settings-support-phone').value = data.supportPhone || data.support_phone || '';
-        document.getElementById('txt-settings-redirect-url').value = data.redirectUrl || data.redirect_url || '';
-        document.getElementById('txt-settings-pppoe-password').value = data.defaultPppoePassword || data.default_pppoe_password || '';
-        document.getElementById('txt-settings-till-number').value = data.tillNumber || data.till_number || '';
+        // Use helper variables to fetch fields from either camelCase or snake_case formats
+        const brand = data.brandName || data.brand_name || '';
+        const ip = data.serverIp || data.server_ip || '';
+        const phone = data.supportPhone || data.support_phone || '';
+        const redirect = data.redirectUrl || data.redirect_url || '';
+        const pppoe = data.defaultPppoePassword || data.default_pppoe_password || '';
+        const till = data.tillNumber || data.till_number || '';
 
-        // 2. Map Admin account fields safely
-        document.getElementById('txt-settings-admin-name').value = data.accountName || data.account_name || '';
-        document.getElementById('txt-settings-admin-email').value = data.accountEmail || data.account_email || '';
-        document.getElementById('txt-settings-admin-company').value = data.accountCompany || data.account_company || '';
+        // Safely set HTML form values using the actual element IDs present in your HTML
+        const elBrand = document.getElementById('inp-sett-brand');
+        const elIp = document.getElementById('inp-sett-ip');
+        const elPhone = document.getElementById('inp-sett-phone');
+        const elRedirect = document.getElementById('inp-sett-redirect');
+        const elPppoe = document.getElementById('inp-sett-pppoe-pass');
+        const elTill = document.getElementById('inp-sett-till');
 
-        // 3. Update SMS service toggles dynamically
+        if (elBrand) elBrand.value = brand;
+        if (elIp) elIp.value = ip;
+        if (elPhone) elPhone.value = phone;
+        if (elRedirect) elRedirect.value = redirect;
+        if (elPppoe) elPppoe.value = pppoe;
+        if (elTill) elTill.value = till;
+
+        // Admin Identity Card elements
+        const elAdminName = document.getElementById('txt-settings-admin-name') || document.getElementById('inp-sett-name');
+        const elAdminEmail = document.getElementById('txt-settings-admin-email') || document.getElementById('inp-sett-email');
+        const elAdminCompany = document.getElementById('txt-settings-admin-company');
+
+        if (elAdminName) elAdminName.value = data.accountName || data.account_name || '';
+        if (elAdminEmail) elAdminEmail.value = data.accountEmail || data.account_email || '';
+        if (elAdminCompany) elAdminCompany.value = data.accountCompany || data.account_company || '';
+
+        // SMS configurations
         const isSmsActive = data.smsActive === true || data.sms_active === true;
         const smsToggleBtn = document.getElementById('btn-settings-sms-toggle');
         const smsBadge = document.getElementById('badge-settings-sms-status');
