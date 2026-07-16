@@ -21,6 +21,14 @@ try {
     console.error("Firestore initialization error:", error.message);
 }
 
+// ====================================================================
+// CRITICAL FIX: Middleware to bind Firestore DB context globally
+// ====================================================================
+app.use((req, res, next) => {
+    req.db = db;
+    next();
+});
+
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
     ? 'https://api.safaricom.co.ke' 
     : 'https://sandbox.safaricom.co.ke';
@@ -43,7 +51,6 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
 async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
     const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
     
-    // Dynamically set Safaricom base URL depending on your Cloud Run Env variables
     const MPESA_HOST = process.env.MPESA_ENV === 'production' 
         ? 'https://api.safaricom.co.ke' 
         : 'https://sandbox.safaricom.co.ke';
@@ -59,7 +66,7 @@ async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
         const payload = {
             InitiatorName: process.env.MPESA_B2C_INITIATOR, 
             SecurityCredential: process.env.MPESA_B2C_SECURITY_CREDENTIAL, 
-            CommandID: "BusinessPayment", // Will execute live on Production
+            CommandID: "BusinessPayment", 
             Amount: parseInt(amount),
             PartyA: process.env.MPESA_B2C_SHORTCODE, 
             PartyB: phoneNumber, 
@@ -75,7 +82,6 @@ async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
 
         return response.data;
     } catch (error) {
-        // Log the exact Safaricom error in Cloud Run Console so we can debug easily!
         console.error("Safaricom API Error:", error.response ? error.response.data : error.message);
         throw new Error("Failed to dispatch B2C payment through Safaricom");
     }
@@ -93,12 +99,13 @@ function getRouterClient(routerData) {
 }
 
 // Helper: Ensure document exists with fallback default configuration schemas
-async function getOrCreateSettings(db, ispId) {
-    if (!db) {
-        throw new Error("Database reference is undefined. Make sure req.db middleware is configured.");
+async function getOrCreateSettings(databaseInstance, ispId) {
+    const activeDb = databaseInstance || db;
+    if (!activeDb) {
+        throw new Error("Database reference is undefined. Make sure Firestore is initialized.");
     }
     
-    const settingsRef = db.collection('settings').doc(ispId);
+    const settingsRef = activeDb.collection('settings').doc(ispId);
     const doc = await settingsRef.get();
     
     if (!doc.exists) {
@@ -130,7 +137,6 @@ app.get('/', (req, res) => {
 
 // Fetch live real-time inbound logs directly from Firestore
 app.get('/api/hotspot/logs', async (req, res) => {
-    const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await db.collection('global_transactions')
             .where('routerId', '!=', '') 
@@ -148,7 +154,6 @@ app.get('/api/hotspot/logs', async (req, res) => {
             });
         });
         
-        // Sort newest transactions to the top
         logs.sort((a, b) => new Date(b.processedAt) - new Date(a.processedAt));
         return res.status(200).json(logs);
     } catch (error) {
@@ -295,7 +300,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber').Value;
                 const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
 
-                // Create global transaction log
                 await db.collection('global_transactions').doc(mpesaReceipt).set({
                     routerId, 
                     ispOwner: ispConfig.ispName, 
@@ -305,7 +309,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     processedAt: new Date().toISOString()
                 });
 
-                // Retrieve custom dynamic rules configuration of the active tenant's portal design settings (Synchronized to isp_portals)
                 const ispId = ispConfig.ispId || "default_isp";
                 let earnPointsAmount = 10; 
                 try {
@@ -317,7 +320,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     console.error("Portal config fetch error:", pe.message);
                 }
 
-                // Create/Update Subscriber record mapping Phone <-> MAC and adding Loyalty Points
                 if (cleanMac !== 'nomac') {
                     const subRef = db.collection('subscribers').doc(cleanMac);
                     await db.runTransaction(async (ts) => {
@@ -333,7 +335,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     });
                 }
 
-                // Update ISP Wallet Balance
                 const ispRef = db.collection('isp_users').doc(ispId);
                 await db.runTransaction(async (ts) => {
                     const ispDoc = await ts.get(ispRef);
@@ -343,7 +344,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     }
                 });
 
-                // Trigger remote MikroTik router activation sequence dynamically (Standardized on routeros-client)
                 if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
                     try {
                         const client = getRouterClient(ispConfig);
@@ -401,7 +401,6 @@ app.post('/api/isp/withdraw', async (req, res) => {
             return res.status(400).json({ success: false, error: "Invalid amount." });
         }
         
-        // Execute a Firestore Transaction to prevent double-spending requests
         const transactionResult = await db.runTransaction(async (transaction) => {
             const ispDoc = await transaction.get(ispRef);
             if (!ispDoc.exists) {
@@ -415,10 +414,9 @@ app.post('/api/isp/withdraw', async (req, res) => {
                 throw new Error("Insufficient wallet balance.");
             }
 
-            // Deduct the requested payout amount from their current balance immediately
             transaction.update(ispRef, { walletBalance: currentBalance - wAmount });
 
-            // Create a pending payout record
+            // FIXED COLLECTION MATCH: Using 'withdrawals' explicitly everywhere
             const payoutRef = db.collection('withdrawals').doc();
             transaction.set(payoutRef, {
                 ispId,
@@ -432,7 +430,6 @@ app.post('/api/isp/withdraw', async (req, res) => {
             return { phoneNumber, payoutId: payoutRef.id };
         });
 
-        // Trigger the actual B2C dispatch
         const b2cResponse = await sendMpesaB2CPayout(transactionResult.phoneNumber, wAmount, transactionResult.payoutId);
 
         if (b2cResponse.ResponseCode === "0") {
@@ -442,7 +439,6 @@ app.post('/api/isp/withdraw', async (req, res) => {
                 payoutId: transactionResult.payoutId 
             });
         } else {
-            // If Safaricom rejects the submission outright, refund the balance immediately
             await ispRef.update({ walletBalance: Firestore.FieldValue.increment(wAmount) });
             await db.collection('withdrawals').doc(transactionResult.payoutId).update({ 
                 status: "Failed", 
@@ -483,7 +479,6 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
             });
         }
 
-        // Generate clean MikroTik terminal configuration code blocks (Walled gardens synced)
         const provisioningScript = `/sys identity set name="${routerId}";
 /ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
 /ip hotspot profile set "AudiSpot_Prof" html-directory=flash/hotspot;
@@ -503,7 +498,6 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
 // PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
 // ====================================================================
 
-// Fetch all active billing packages for a specific ISP tenant
 app.get('/api/packages', async (req, res) => {
     const { ispId } = req.query;
     const targetTenant = ispId || "default_isp";
@@ -531,7 +525,6 @@ app.get('/api/packages', async (req, res) => {
     }
 });
 
-// Save a new custom access package into Firestore
 app.post('/api/packages/create', async (req, res) => {
     const { ispId, packageName, price, duration, bandwidthProfile } = req.body;
     
@@ -556,7 +549,6 @@ app.post('/api/packages/create', async (req, res) => {
     }
 });
 
-// Shred and remove an access product layer entirely
 app.post('/api/packages/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
@@ -573,7 +565,6 @@ app.post('/api/packages/delete', async (req, res) => {
 // LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
 // ====================================================================
 
-// Check Loyalty Points Balance
 app.get('/api/hotspot/loyalty/balance', async (req, res) => {
     const { macAddress } = req.query;
     if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
@@ -593,7 +584,6 @@ app.get('/api/hotspot/loyalty/balance', async (req, res) => {
     }
 });
 
-// Redeem Loyalty Points for Free Daily Hotspot Session (Synchronized Collections & Client)
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     const { macAddress, routerId } = req.body;
     if (!macAddress || !routerId) {
@@ -651,7 +641,6 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     }
 });
 
-
 // ====================================================================
 // RECONNECT SESSION ENGINE (AUTO-LOGIN ALREADY PAID DEVICES)
 // ====================================================================
@@ -707,7 +696,6 @@ app.get('/api/hotspot/reconnect', async (req, res) => {
     }
 });
 
-
 // ====================================================================
 // SMART TV / GAME CONSOLE BRIDGING ENGINE
 // ====================================================================
@@ -745,7 +733,6 @@ app.post('/api/hotspot/register-tv', async (req, res) => {
 // HOTSPOT ENGINE: SESSIONS & LIVE DISCONNECTS
 // ====================================================================
 
-// Fetch live active hotspot sessions from MikroTik hardware
 app.get('/api/hotspot/active-sessions', async (req, res) => {
     const { routerId } = req.query;
     if (!routerId) return res.status(400).json({ error: "Missing active router parameters." });
@@ -775,7 +762,6 @@ app.get('/api/hotspot/active-sessions', async (req, res) => {
     }
 });
 
-// Force terminate and disconnect an active user session rule entry
 app.post('/api/hotspot/disconnect', async (req, res) => {
     const { routerId, username } = req.body;
     if (!routerId || !username) return res.status(400).json({ error: "Missing required identification keys." });
@@ -799,12 +785,10 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
     }
 });
 
-
 // ====================================================================
 // PPPOE ENGINE: MANAGING BROADBAND SUBSCRIBERS
 // ====================================================================
 
-// Register a new PPPoE subscriber entry inside MikroTik core secrets database
 app.post('/api/pppoe/create-secret', async (req, res) => {
     const { routerId, username, password, profile } = req.body;
     if (!routerId || !username || !password || !profile) {
@@ -831,7 +815,6 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
     }
 });
 
-// Read active registered broadband users pool array
 app.get('/api/pppoe/secrets', async (req, res) => {
     const { routerId } = req.query;
     try {
@@ -856,12 +839,10 @@ app.get('/api/pppoe/secrets', async (req, res) => {
     }
 });
 
-
 // ====================================================================
 // DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
 // ====================================================================
 
-// Append permanent MAC/IP rule mappings bypass layout arrays
 app.post('/api/dhcp/create-lease', async (req, res) => {
     const { routerId, macAddress, ipAddress, comment } = req.body;
     if(!routerId || !macAddress || !ipAddress) return res.status(400).json({ success: false });
@@ -885,7 +866,6 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
     }
 });
 
-// Enumerate configured permanent hardware reservations 
 app.get('/api/dhcp/leases', async (req, res) => {
     const { routerId } = req.query;
     try {
@@ -914,7 +894,6 @@ app.get('/api/dhcp/leases', async (req, res) => {
 // SYSTEM COMPONENT: SECURE SYSTEM ACCESS VOUCHERS API
 // ====================================================================
 
-// Fetch vouchers for a specific ISP tenant via Firestore query strings
 app.get('/api/vouchers', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -932,7 +911,6 @@ app.get('/api/vouchers', async (req, res) => {
     }
 });
 
-// Batch Generate Vouchers tied to actual user packages inside Firestore
 app.post('/api/vouchers/generate', async (req, res) => {
     const { ispId, packageId, count, codeLength } = req.body;
     try {
@@ -975,11 +953,10 @@ app.post('/api/vouchers/generate', async (req, res) => {
         await batch.commit();
         return res.status(200).json({ success: true, message: "Batch generation complete." });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 });
 
-// Bulk Delete Selected Vouchers Array Mapping Subsystems
 app.post('/api/vouchers/bulk-delete', async (req, res) => {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) {
@@ -1006,7 +983,6 @@ app.post('/api/vouchers/bulk-delete', async (req, res) => {
 // TENANT CONFIGURATION: CAPTIVE PORTAL CUSTOMIZER ENDPOINTS
 // ====================================================================
 
-// Pull Active Portal Configuration Profile Maps Matching Tenant Criteria
 app.get('/api/portal/design', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -1034,7 +1010,6 @@ app.get('/api/portal/design', async (req, res) => {
     }
 });
 
-// Save / Overwrite branding configurations inside Firestore database
 app.post('/api/portal/design/save', async (req, res) => {
     const { 
         ispId, brandName, welcomeGreeting, supportContact, accentColor,
@@ -1069,7 +1044,6 @@ app.post('/api/portal/design/save', async (req, res) => {
 // EXPENSES SYSTEM: CREATE, READ, & DELETE EXPENSE RECORDS
 // ====================================================================
 
-// Fetch all active expenses for a specific ISP tenant
 app.get('/api/expenses', async (req, res) => {
     const { ispId } = req.query;
     const targetTenant = ispId || "default_isp";
@@ -1098,7 +1072,6 @@ app.get('/api/expenses', async (req, res) => {
     }
 });
 
-// Save a new custom expense record into Firestore
 app.post('/api/expenses/create', async (req, res) => {
     const { ispId, description, amount, category, date } = req.body;
     
@@ -1124,7 +1097,6 @@ app.post('/api/expenses/create', async (req, res) => {
     }
 });
 
-// Delete an expense record
 app.post('/api/expenses/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
@@ -1142,7 +1114,6 @@ app.post('/api/expenses/delete', async (req, res) => {
 // ANALYTICS ENGINE: LIVE STATISTICAL COMPILING
 // ====================================================================
 
-// Fetch dynamic real-time performance analytics directly aggregated from live ledgers
 app.get('/api/isp/analytics/:ispId', async (req, res) => {
     const { ispId } = req.params;
     const targetTenant = ispId || "default_isp";
@@ -1229,52 +1200,60 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
     }
 });
 
+// FIXED: Handles withdrawal records correctly against 'withdrawals' and refunds to 'isp_users'
 app.post('/api/mpesa/b2c-callback', async (req, res) => {
     const { payoutId } = req.query;
     const { Result } = req.body;
 
-    const payoutRef = db.collection('payouts').doc(payoutId);
-    const payoutDoc = await payoutRef.get();
+    try {
+        const payoutRef = db.collection('withdrawals').doc(payoutId);
+        const payoutDoc = await payoutRef.get();
 
-    if (!payoutDoc.exists) {
-        return res.json({ ResultCode: 1, ResultDesc: "Payout record not found" });
+        if (!payoutDoc.exists) {
+            return res.json({ ResultCode: 1, ResultDesc: "Payout record not found" });
+        }
+
+        const { ispId, amount } = payoutDoc.data();
+
+        if (Result.ResultCode === 0) {
+            await payoutRef.update({
+                status: 'completed',
+                mpesaReceipt: Result.ResultParameters.ResultParameter.find(p => p.Key === "TransactionReceipt").Value,
+                completedAt: new Date().toISOString()
+            });
+        } else {
+            // FIXED: Target 'isp_users' collection to execute the transaction refund properly
+            const ispRef = db.collection('isp_users').doc(ispId);
+            await db.runTransaction(async (transaction) => {
+                const ispDoc = await transaction.get(ispRef);
+                const currentBalance = ispDoc.exists ? (ispDoc.data().walletBalance || 0) : 0;
+                transaction.update(ispRef, { walletBalance: currentBalance + amount });
+                transaction.update(payoutRef, { status: 'failed', errorCode: Result.ResultCode, errorDesc: Result.ResultDesc });
+            });
+        }
+
+        return res.json({ ResultCode: 0, ResultDesc: "Callback received and processed" });
+    } catch (error) {
+        console.error("B2C Callback error:", error.message);
+        return res.status(500).json({ error: error.message });
     }
-
-    const { ispId, amount } = payoutDoc.data();
-
-    if (Result.ResultCode === 0) {
-        // SUCCESS: Payout finalized!
-        await payoutRef.update({
-            status: 'completed',
-            mpesaReceipt: Result.ResultParameters.ResultParameter.find(p => p.Key === "TransactionReceipt").Value,
-            completedAt: new Date().toISOString()
-        });
-    } else {
-        // FAILED: Refund the balance back to the ISP's wallet
-        const ispRef = db.collection('isps').doc(ispId);
-        await db.runTransaction(async (transaction) => {
-            const ispDoc = await transaction.get(ispRef);
-            const currentBalance = ispDoc.data().walletBalance || 0;
-            transaction.update(ispRef, { walletBalance: currentBalance + amount });
-            transaction.update(payoutRef, { status: 'failed', errorCode: Result.ResultCode, errorDesc: Result.ResultDesc });
-        });
-    }
-
-    return res.json({ ResultCode: 0, ResultDesc: "Callback received and processed" });
 });
 
-// 1. Get Settings Configuration Object
+// ====================================================================
+// SETTINGS MIDDLEWARE-DRIVEN ENDPOINTS
+// ====================================================================
+
 app.get('/api/settings', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
         const settings = await getOrCreateSettings(req.db, ispId);
         res.json(settings);
     } catch (err) {
+        console.error("Settings loading failure:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// 2. Save account setup rules
 app.post('/api/settings/account', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     const { accountName, accountEmail, accountCompany } = req.body;
@@ -1290,7 +1269,6 @@ app.post('/api/settings/account', async (req, res) => {
     }
 });
 
-// 3. Save M-Pesa Till Configurations
 app.post('/api/settings/mpesa', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     const { tillNumber } = req.body;
@@ -1302,7 +1280,6 @@ app.post('/api/settings/mpesa', async (req, res) => {
     }
 });
 
-// 4. Save PPPoE Default Password rules
 app.post('/api/settings/pppoe', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     const { defaultPppoePassword } = req.body;
@@ -1314,7 +1291,6 @@ app.post('/api/settings/pppoe', async (req, res) => {
     }
 });
 
-// 5. Save Network/Branding Options Matrix
 app.post('/api/settings/branding', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     const { brandName, serverIp, supportPhone, redirectUrl } = req.body;
@@ -1331,7 +1307,6 @@ app.post('/api/settings/branding', async (req, res) => {
     }
 });
 
-// 6. Toggle SMS Activation with free test credits allotment
 app.post('/api/settings/toggle-sms', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -1339,12 +1314,12 @@ app.post('/api/settings/toggle-sms', async (req, res) => {
         const settingsDoc = await settingsRef.get();
         const currentActiveState = settingsDoc.exists ? settingsDoc.data().smsActive : false;
         
-        await settingsRef.set({
-            smsActive: !currentActiveState,
-            // Give 10 promotional test SMS units if activating for the first time
-            ...(!currentActiveState && { smsCredits: 10 })
-        }, { merge: true });
-        
+        const payload = { smsActive: !currentActiveState };
+        if (!currentActiveState) {
+            payload.smsCredits = 10;
+        }
+
+        await settingsRef.set(payload, { merge: true });
         res.sendStatus(200);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1353,7 +1328,6 @@ app.post('/api/settings/toggle-sms', async (req, res) => {
 
 // ==================== TECHNICIAN SECURITY LOGINS ====================
 
-// 7. Register a restricted technician user account
 app.post('/api/technicians', async (req, res) => {
     const { name, email, password, ispId } = req.body;
     try {
@@ -1362,7 +1336,7 @@ app.post('/api/technicians', async (req, res) => {
             id: newTechRef.id,
             name,
             email,
-            password, // In development, hash securely using crypt layers (e.g. bcrypt)
+            password, 
             ispId,
             role: "technician",
             createdAt: new Date().toISOString()
@@ -1374,7 +1348,6 @@ app.post('/api/technicians', async (req, res) => {
     }
 });
 
-// 8. Retrieve registered technicians by ISP 
 app.get('/api/technicians', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
@@ -1391,7 +1364,6 @@ app.get('/api/technicians', async (req, res) => {
     }
 });
 
-// 9. Terminate technician access credentials
 app.delete('/api/technicians/:id', async (req, res) => {
     const techId = req.params.id;
     const ispId = req.query.ispId || 'default_isp';
