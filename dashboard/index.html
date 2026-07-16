@@ -1624,19 +1624,15 @@ let systemVouchers = [];
 
 // Dynamically pull current packages from your database endpoint
 async function populateVoucherPackageOptions() {
-    // Try both standard naming conventions to prevent ID mismatch failures
-    const selectEl = document.getElementById('voucher-package-select') || 
-                     document.getElementById('package-select') || 
-                     document.querySelector('[name="packageId"]');
-                     
-    if (!selectEl) {
-        console.warn("Voucher Package dropdown element not found in the DOM.");
-        return;
-    }
+    const selectEl = document.getElementById('voucher-package-select');
+    if (!selectEl) return;
     
     try {
+        // Fall back gracefully if global variable configurations are missing
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
-        const response = await fetch(`/api/packages?ispId=${targetTenant}`);
+        const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        
+        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
         if (!response.ok) throw new Error('Failed to pull packages');
         
         const packages = await response.json();
@@ -1646,36 +1642,34 @@ async function populateVoucherPackageOptions() {
             return;
         }
         
-        // Populate options and clear out "loading" text
         selectEl.innerHTML = packages.map(pkg => 
             `<option value="${pkg.id}"> ${pkg.packageName || pkg.name} — KSh ${pkg.price} (${pkg.duration} Hrs)</option>`
         ).join('');
     } catch (err) {
-        console.error("Error loading packages:", err);
+        console.error("Voucher Package Loader Error:", err);
         selectEl.innerHTML = `<option value="">Error loading database profiles</option>`;
     }
 }
 
 // Fetch generated dynamic database vouchers
 async function fetchSystemVoucherRegistry() {
-    // 1. Immediately kick off package options populating
+    // Make sure options update immediately when navigating to the section
     await populateVoucherPackageOptions();
     
     const tableBody = document.getElementById('vouchers-table-body');
-    if (!tableBody) {
-        console.warn("Table body 'vouchers-table-body' not found.");
-        return;
-    }
+    if (!tableBody) return;
 
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
-        const response = await fetch(`/api/vouchers?ispId=${targetTenant}`);
+        const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        
+        const response = await fetch(`${baseEndpoint}/api/vouchers?ispId=${targetTenant}`);
         if (!response.ok) throw new Error('Network registry dropped.');
         
         systemVouchers = await response.json();
         renderVouchersTable(systemVouchers);
     } catch (err) {
-        console.error("Voucher Registry Fetch error:", err);
+        console.error("Voucher Registry Sync Error:", err);
         tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Failed syncing data register layers.</td></tr>`;
     }
 }
@@ -1711,7 +1705,7 @@ function renderVouchersTable(vouchersList) {
                     <input type="checkbox" value="${voucher.id}" onclick="updateBulkDeleteButtonState()" class="voucher-row-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-transparent">
                 </td>
                 <td class="p-3.5 font-mono font-bold text-indigo-400 select-all">${voucher.code || 'N/A'}</td>
-                <td class="p-3.5 font-medium">${voucher.packageName || 'Unknown Plan'}</td>
+                <td class="p-3.5 font-medium">${voucher.packageName || 'Unknown'}</td>
                 <td class="p-3.5 font-semibold text-slate-900 dark:text-white">KSh ${voucher.price || 0}</td>
                 <td class="p-3.5 text-slate-400">${voucher.duration || 0} Hours</td>
                 <td class="p-3.5"><span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeColor}">${statusVal}</span></td>
@@ -1733,12 +1727,10 @@ function updateBulkDeleteButtonState() {
     const bulkButton = document.getElementById('btn-bulk-delete-vouchers');
     const indicatorCount = document.getElementById('selected-voucher-count');
     
-    if (!bulkButton) return;
+    if (!bulkButton || !indicatorCount) return;
     
     const count = checkboxes.length;
-    if (indicatorCount) {
-        indicatorCount.innerText = count;
-    }
+    indicatorCount.innerText = count;
     
     if (count > 0) {
         bulkButton.removeAttribute('disabled');
@@ -1758,15 +1750,16 @@ async function handleBulkVoucherDeletion() {
     if (!confirm(`Are you sure you want to delete the ${targetIds.length} selected voucher(s)?`)) return;
 
     try {
-        const response = await fetch('/api/vouchers/bulk-delete', {
+        const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        const response = await fetch(`${baseEndpoint}/api/vouchers/bulk-delete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: targetIds })
         });
 
         if (response.ok) {
-            if (typeof showInlineToastNotice === "function") {
-                showInlineToastNotice(`Successfully deleted ${targetIds.length} vouchers.`);
+            if (typeof triggerToastDisplay === "function") {
+                triggerToastDisplay(`Successfully deleted ${targetIds.length} vouchers.`);
             } else {
                 alert(`Successfully deleted ${targetIds.length} vouchers.`);
             }
@@ -1775,7 +1768,7 @@ async function handleBulkVoucherDeletion() {
             alert("Failed to execute bulk deletion.");
         }
     } catch (err) {
-        console.error("Bulk Delete error:", err);
+        console.error("Bulk Delete Communications Failure:", err);
     }
 }
 
@@ -1786,31 +1779,35 @@ async function handleVoucherBatchGeneration(e) {
     const formData = new FormData(form);
     
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    
     const payload = {
         ispId: targetTenant,
         packageId: formData.get('packageId'),
-        count: parseInt(formData.get('count')) || 1,
-        codeLength: parseInt(formData.get('codeLength')) || 6
+        count: parseInt(formData.get('count')) || 10,
+        codeLength: parseInt(formData.get('codeLength')) || 8
     };
 
     try {
-        const response = await fetch('/api/vouchers/generate', {
+        const response = await fetch(`${baseEndpoint}/api/vouchers/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
-            if (typeof showInlineToastNotice === "function") {
-                showInlineToastNotice("Access tokens generated successfully.");
+            if (typeof triggerToastDisplay === "function") {
+                triggerToastDisplay("Access tokens generated successfully.");
             } else {
                 alert("Access tokens generated successfully.");
             }
             form.reset();
             fetchSystemVoucherRegistry();
+        } else {
+            alert("API rejected batch voucher parameters.");
         }
     } catch (err) {
-        console.error("Voucher Generation error:", err);
+        console.error("Voucher Batch Generation Error:", err);
     }
 }
 
