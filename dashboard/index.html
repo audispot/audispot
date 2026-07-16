@@ -1512,13 +1512,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         if (typeof fetchPerformanceAnalytics === "function") {
             fetchPerformanceAnalytics();
         }
-    } else if (activeTab === 'vouchers') { // <-- ADD THIS NEW HOOK
+    } else if (activeTab === 'vouchers') { 
         if (typeof fetchSystemVoucherRegistry === "function") {
             fetchSystemVoucherRegistry();
         }
-    }
-
-    } else if (activeTab === 'settings') { // <-- ADD THIS NEW TRIGGER HERE
+    } else if (activeTab === 'settings') { 
         if (typeof fetchAndRenderSystemSettings === "function") {
             fetchAndRenderSystemSettings();
         }
