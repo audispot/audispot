@@ -110,6 +110,7 @@
                 localStorage.setItem('auth_token', result.token);
                 localStorage.setItem('isp_id', result.ispId);
                 localStorage.setItem('isp_name', result.ispName || '');
+                localStorage.setItem('created_at', result.createdAt || new Date().toISOString());
 
                 // Redirect to the main system dashboard
                 setTimeout(() => {
