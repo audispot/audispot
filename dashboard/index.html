@@ -2310,23 +2310,32 @@ async function fetchAndRenderDashboard() {
         // ==========================================
         let completedSteps = 0;
 
-        // Step Evaluation
-        const stepRouter = (stats.routersCount && stats.routersCount > 0); // 1
+        // 1. Router Registration Check (Reads from API stats, falling back to the rendered HTML count)
+        const routerTextElement = document.getElementById("lbl-count-routers");
+        const renderedRoutersCount = routerTextElement ? parseInt(routerTextElement.innerText) || 0 : 0;
+        const stepRouter = (stats.routersCount > 0 || renderedRoutersCount > 0); 
         if (stepRouter) completedSteps++;
 
-        const stepPackage = (packages && packages.length > 0); // 2
+        // 2. Pricing Packages Check
+        const stepPackage = (packages && packages.length > 0); 
         if (stepPackage) completedSteps++;
 
-        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi"); // 3
+        // 3. Saved Custom Captive Portal Design Check
+        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi"); 
         if (stepDesign) completedSteps++;
 
-        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678"); // 4
+        // 4. Configured Real Support Phone Number Check
+        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678" && stats.phoneNumber !== ""); 
         if (stepPhone) completedSteps++;
 
-        const stepExpense = (expenses && expenses.length > 0); // 5
+        // 5. Logged Business Expense Check
+        const stepExpense = (expenses && expenses.length > 0); 
         if (stepExpense) completedSteps++;
 
-        const stepTransaction = (stats.walletBalance && stats.walletBalance > 0); // 6
+        // 6. First Client Transaction Check (Evaluates wallet balance OR active transaction logs)
+        const paymentTableBody = document.getElementById("payment-logs-table-body");
+        const hasPaymentRows = paymentTableBody && paymentTableBody.children.length > 0;
+        const stepTransaction = (stats.walletBalance > 0 || hasPaymentRows); 
         if (stepTransaction) completedSteps++;
 
         // Render Onboarding progress score numbers
@@ -2363,12 +2372,15 @@ async function fetchAndRenderDashboard() {
 
         // Apply to the action button
         const actionBtn = document.getElementById("btn-onboarding-action");
-        actionBtn.innerHTML = nextTaskMsg;
-        actionBtn.setAttribute("onclick", `changeActiveLayoutTab('${nextTabTarget}')`);
+        if (actionBtn) {
+            actionBtn.innerHTML = nextTaskMsg;
+            actionBtn.setAttribute("onclick", `changeActiveLayoutTab('${nextTabTarget}')`);
+        }
 
         // Clean up: Hide the progress tracker completely once 6 of 6 is complete!
-        if (completedSteps === 6) {
-            document.getElementById("onboarding-card").classList.add("hidden");
+        const onboardingCard = document.getElementById("onboarding-card");
+        if (completedSteps === 6 && onboardingCard) {
+            onboardingCard.classList.add("hidden");
         }
         
     } catch (err) {
