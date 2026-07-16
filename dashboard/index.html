@@ -2814,6 +2814,40 @@ async function removeTechnician(techId) {
     }
 }
 
+function checkSubscriptionTrial() {
+    const createdAtStr = localStorage.getItem('created_at');
+    const banner = document.getElementById('subscription-expiry-banner');
+    const bannerText = document.getElementById('subscription-expiry-text'); // Make sure you have a span/text element for this inside your banner
+
+    if (!createdAtStr || !banner) return;
+
+    const createdAt = new Date(createdAtStr);
+    const now = new Date();
+    
+    // Calculate the difference in time
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysElapsed = Math.floor((now - createdAt) / msPerDay);
+    const daysRemaining = 5 - daysElapsed;
+
+    if (daysRemaining > 0) {
+        // Show Trial Active Banner
+        banner.classList.remove('hidden');
+        if (bannerText) {
+            bannerText.innerHTML = `<strong>Free Trial Active:</strong> You have <strong>${daysRemaining} days</strong> remaining on your free trial. <a href="#settings" class="underline font-bold hover:text-amber-800">Activate your router subscription now</a> to avoid service interruption (KSh 500/router).`;
+        }
+    } else {
+        // Trial has expired! Block access or show expiration banner
+        banner.classList.remove('hidden');
+        banner.className = "p-4 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl mb-6 text-sm flex items-center justify-between";
+        if (bannerText) {
+            bannerText.innerHTML = `<strong>Trial Expired:</strong> Your 5-day free trial has expired. Please clear your subscription dues to re-enable dashboard actions.`;
+        }
+        
+        // Optional: Disable dashboard interactions until they pay
+        // document.getElementById('main-dashboard-content').style.opacity = '0.3';
+    }
+}
+
 // =========================================================================
 // INITIALIZE ON LOAD: Ensures packages fetch immediately when the page loads
 // =========================================================================
@@ -2823,6 +2857,7 @@ document.addEventListener("DOMContentLoaded", () => {
     changeActiveLayoutTab();
     syncDashboardFleetTable();
     fetchAndRenderSystemSettings();
+    checkSubscriptionTrial();
 });
         
         window.onload = () => {
