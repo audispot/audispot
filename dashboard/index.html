@@ -1406,7 +1406,10 @@ async function syncDashboardFleetTable() {
     }
 }
 
-function changeActiveLayoutTab(targetTab) {
+function changeActiveLayoutTab(targetTab = 'dashboard') {
+    // Prevent errors if an empty or invalid parameter is passed
+    const activeTab = targetTab || 'dashboard';
+
     // 1. Hide all view panels
     const viewframes = document.querySelectorAll('.viewframe');
     viewframes.forEach(frame => {
@@ -1414,7 +1417,7 @@ function changeActiveLayoutTab(targetTab) {
     });
 
     // 2. Show target view panel
-    const activeFrame = document.getElementById(`viewframe-${targetTab}`);
+    const activeFrame = document.getElementById(`viewframe-${activeTab}`);
     if (activeFrame) {
         activeFrame.classList.remove('hidden');
     }
@@ -1426,7 +1429,7 @@ function changeActiveLayoutTab(targetTab) {
     });
 
     // 4. Highlight the active tab button to match dashboard's active theme
-    const activeLink = document.getElementById(`tablink-${targetTab}`);
+    const activeLink = document.getElementById(`tablink-${activeTab}`);
     if (activeLink) {
         activeLink.className = "w-full flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-semibold transition";
     }
@@ -1434,8 +1437,12 @@ function changeActiveLayoutTab(targetTab) {
     // 5. Update header title context dynamically
     const headerTitle = document.getElementById('lbl-header-title');
     if (headerTitle) {
+        // Read real username from sidebar to keep the welcome title dynamic on load
+        const usernameEl = document.getElementById("lbl-side-username");
+        const realName = (usernameEl && usernameEl.innerText.trim()) ? usernameEl.innerText.trim() : "Official Bigi";
+
         const titleMap = {
-            'dashboard': 'Welcome, Official Bigi',
+            'dashboard': `Welcome, ${realName}`,
             'sessions': 'Subscriber Active Sessions',
             'pppoe': 'PPPoE Broadband Core',
             'static-ip': 'Static DHCP Configurations',
@@ -1448,21 +1455,20 @@ function changeActiveLayoutTab(targetTab) {
             'expenses': 'Operation Expense Tracking',
             'analytics': 'Financial Performance Engine'
         };
-        headerTitle.innerText = titleMap[targetTab] || "AudiSpot Network Control Center";
+        headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
 
     // ==================== LIVE DATA HOOK TRIGGERS ====================
-    if (targetTab === 'expenses') {
+    if (activeTab === 'expenses') {
         if (typeof fetchAndRenderExpenses === "function") {
             fetchAndRenderExpenses();
         }
-    } else if (targetTab === 'analytics') {
+    } else if (activeTab === 'analytics') {
         if (typeof fetchPerformanceAnalytics === "function") {
             fetchPerformanceAnalytics();
         }
     }
 }
-
         // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
         function triggerToastDisplay(textMessage, isWarningMessage = false) {
             const toastFrame = document.getElementById('inline-toast');
