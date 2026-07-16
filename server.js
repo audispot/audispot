@@ -138,50 +138,46 @@ app.get('/', (req, res) => {
 });
 
 // Fetch live real-time inbound logs directly from Firestore
+// 1. Fetch Hotspot Logs Filtered by ISP
 app.get('/api/hotspot/logs', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
-        const snapshot = await db.collection('global_transactions')
-            .where('routerId', '!=', '') 
+        const snapshot = await req.db.collection('payments')
+            .where('ispId', '==', ispId)
             .get();
-            
+
         const logs = [];
         snapshot.forEach(doc => {
-            const data = doc.data();
-            logs.push({
-                id: doc.id,
-                customerPhone: data.customerPhone || 'Unknown',
-                routerId: data.routerId || 'N/A',
-                grossAmount: data.grossAmount || 0,
-                processedAt: data.processedAt || ''
-            });
+            logs.push({ id: doc.id, ...doc.data() });
         });
-        
-        logs.sort((a, b) => new Date(b.processedAt) - new Date(a.processedAt));
-        return res.status(200).json(logs);
-    } catch (error) {
-        console.error("Error reading global transactions ledger:", error.message);
-        return res.status(500).json({ error: error.message });
+
+        // Safely sort the records by creation time in-memory
+        logs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        res.json(logs);
+    } catch (err) {
+        console.error("Failed fetching hotspot logs:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
-// Fetch complete router hardware fleet mapping arrays
+// 2. Fetch Routers Filtered by ISP
 app.get('/api/hotspot/routers', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
-        const snapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+        const snapshot = await req.db.collection('routers')
+            .where('ispId', '==', ispId)
+            .get();
+
         const routers = [];
         snapshot.forEach(doc => {
-            const data = doc.data();
-            routers.push({
-                id: doc.id,
-                routerIp: data.routerIp || '0.0.0.0',
-                routerUser: data.routerUser || 'admin'
-            });
+            routers.push({ id: doc.id, ...doc.data() });
         });
-        return res.status(200).json(routers);
-    } catch (error) {
-        console.error("Error pulling router fleet configurations:", error.message);
-        return res.status(500).json({ error: error.message });
+
+        res.json(routers);
+    } catch (err) {
+        console.error("Failed fetching routers:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
