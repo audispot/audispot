@@ -1045,8 +1045,7 @@ app.post('/api/portal/design/save', async (req, res) => {
 // ====================================================================
 
 app.get('/api/expenses', async (req, res) => {
-    const { ispId } = req.query;
-    const targetTenant = ispId || "default_isp";
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await db.collection('isp_expenses')
             .where('ispId', '==', targetTenant)
@@ -1249,7 +1248,6 @@ app.get('/api/settings', async (req, res) => {
         const settings = await getOrCreateSettings(req.db, ispId);
         res.json(settings);
     } catch (err) {
-        console.error("Settings loading failure:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
