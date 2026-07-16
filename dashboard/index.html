@@ -2309,59 +2309,68 @@ async function fetchAndRenderDashboard() {
         // CALCULATING REAL ONBOARDING SCORE (0 OF 6)
         // ==========================================
         let completedSteps = 0;
-        let nextTaskMsg = "Next: Connect your MikroTik router →";
-        let nextTabTarget = "routers";
 
-        const stepRouter = (stats.routersCount && stats.routersCount > 0);
+        // Step Evaluation
+        const stepRouter = (stats.routersCount && stats.routersCount > 0); // 1
         if (stepRouter) completedSteps++;
 
-        const stepPackage = (packages && packages.length > 0);
+        const stepPackage = (packages && packages.length > 0); // 2
         if (stepPackage) completedSteps++;
 
-        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi");
+        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi"); // 3
         if (stepDesign) completedSteps++;
 
-        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678");
+        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678"); // 4
         if (stepPhone) completedSteps++;
 
-        const stepExpense = (expenses && expenses.length > 0);
+        const stepExpense = (expenses && expenses.length > 0); // 5
         if (stepExpense) completedSteps++;
 
-        const stepTransaction = (stats.walletBalance && stats.walletBalance > 0);
+        const stepTransaction = (stats.walletBalance && stats.walletBalance > 0); // 6
         if (stepTransaction) completedSteps++;
 
+        // Render Onboarding progress score numbers
+        const progressPercentage = Math.round((completedSteps / 6) * 100);
+        document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
+        document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
+
+        // Smart Dynamic Task Selector (Finds the FIRST incomplete step)
+        let nextTaskMsg = "";
+        let nextTabTarget = "";
+
         if (!stepRouter) {
-            nextTaskMsg = "Next: Connect your MikroTik router →";
+            nextTaskMsg = "Next: Connect your MikroTik router &rarr;";
             nextTabTarget = "routers";
         } else if (!stepPackage) {
-            nextTaskMsg = "Next: Create a data package →";
+            nextTaskMsg = "Next: Create your Pricing Packages &rarr;";
             nextTabTarget = "packages";
         } else if (!stepDesign) {
-            nextTaskMsg = "Next: Customize your Portal Design →";
-            nextTabTarget = "portal-design";
+            nextTaskMsg = "Next: Customize your Captive Portal &rarr;";
+            nextTabTarget = "portal-design"; 
         } else if (!stepPhone) {
-            nextTaskMsg = "Next: Configure support phone contact →";
+            nextTaskMsg = "Next: Setup support phone contact &rarr;";
             nextTabTarget = "profile";
         } else if (!stepExpense) {
-            nextTaskMsg = "Next: Log an operational expense →";
+            nextTaskMsg = "Next: Log an operational expense &rarr;";
             nextTabTarget = "expenses";
+        } else if (!stepTransaction) {
+            nextTaskMsg = "Next: Make a test customer payment &rarr;";
+            nextTabTarget = "dashboard";
         } else {
             nextTaskMsg = "Awesome! Your system is 100% configured 🎉";
             nextTabTarget = "dashboard";
         }
 
-        const progressPercentage = Math.round((completedSteps / 6) * 100);
-        document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
-        document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
-        
+        // Apply to the action button
         const actionBtn = document.getElementById("btn-onboarding-action");
-        actionBtn.innerText = nextTaskMsg;
+        actionBtn.innerHTML = nextTaskMsg;
         actionBtn.setAttribute("onclick", `changeActiveLayoutTab('${nextTabTarget}')`);
 
+        // Clean up: Hide the progress tracker completely once 6 of 6 is complete!
         if (completedSteps === 6) {
             document.getElementById("onboarding-card").classList.add("hidden");
         }
-
+        
     } catch (err) {
         console.error("Dashboard engine failed to sync dynamically:", err.message);
     }
