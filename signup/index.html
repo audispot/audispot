@@ -4,15 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ISP Registration | AudioSpot</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex items-center justify-center p-4">
 
-    <div class="w-full max-w-lg bg-slate-800 rounded-2xl shadow-xl border border-slate-700/50 p-8">
-        <!-- Logo / Branding -->
+    <div class="w-full max-w-lg bg-[#111827] rounded-2xl shadow-xl border border-[#1f293d] p-8">
         <div class="text-center mb-8">
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-600/10 text-indigo-500 mb-3">
                 <i class="fa-solid fa-tower-broadcast text-3xl"></i>
@@ -21,12 +18,9 @@
             <p class="text-slate-400 text-sm mt-1">Get started with AudioSpot management system</p>
         </div>
 
-        <!-- Alert Notification -->
         <div id="alert-box" class="hidden mb-6 p-4 rounded-lg text-sm font-medium"></div>
 
-        <!-- Signup Form -->
         <form id="signup-form" class="space-y-5">
-            <!-- Brand / ISP Name -->
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">ISP / Brand Name</label>
                 <div class="relative">
@@ -34,11 +28,10 @@
                         <i class="fa-solid fa-globe"></i>
                     </span>
                     <input type="text" id="inp-brand-name" required placeholder="e.g. SwiftNet Broadband" 
-                        class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
                 </div>
             </div>
 
-            <!-- Admin Contact Details (Two Columns) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Admin Name</label>
@@ -47,7 +40,7 @@
                             <i class="fa-solid fa-user"></i>
                         </span>
                         <input type="text" id="inp-admin-name" required placeholder="John Doe" 
-                            class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                            class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
                     </div>
                 </div>
                 <div>
@@ -57,12 +50,11 @@
                             <i class="fa-solid fa-phone"></i>
                         </span>
                         <input type="tel" id="inp-phone" required placeholder="+254 700 000000" 
-                            class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                            class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
                     </div>
                 </div>
             </div>
 
-            <!-- Email Address -->
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Email Address</label>
                 <div class="relative">
@@ -70,11 +62,10 @@
                         <i class="fa-solid fa-envelope"></i>
                     </span>
                     <input type="email" id="inp-email" required placeholder="admin@isp.com" 
-                        class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
                 </div>
             </div>
 
-            <!-- Password -->
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Password</label>
                 <div class="relative">
@@ -82,30 +73,43 @@
                         <i class="fa-solid fa-lock"></i>
                     </span>
                     <input type="password" id="inp-password" required placeholder="••••••••" minlength="6"
-                        class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
                 </div>
             </div>
 
-            <!-- Submit Button -->
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Billing Plan Selection</label>
+                <div class="p-4 bg-[#131a2c] border border-indigo-500/30 rounded-xl flex items-start gap-3">
+                    <div class="mt-1">
+                        <input type="radio" name="plan" id="plan-standard" value="standard_monthly" checked 
+                            class="text-indigo-600 focus:ring-indigo-500 bg-transparent border-[#1f293d]">
+                    </div>
+                    <div>
+                        <span class="block text-xs font-bold text-white">Standard Router Plan</span>
+                        <span class="block text-[11px] text-slate-400 mt-0.5">KSh 500 / Month per connected Router</span>
+                        <span class="inline-block mt-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded">
+                            Includes 5-Day Free Full Access Trial
+                        </span>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" id="btn-submit"
                 class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-indigo-500/20 transition flex items-center justify-center gap-2 text-sm mt-2">
-                <span>Create ISP Account</span>
+                <span>Register with 5-Day Trial</span>
                 <i class="fa-solid fa-arrow-right"></i>
             </button>
         </form>
 
-        <!-- Footer -->
-        <div class="mt-8 pt-6 border-t border-slate-700/50 text-center text-sm text-slate-400">
+        <div class="mt-8 pt-6 border-t border-[#1f293d] text-center text-sm text-slate-400">
             Already have an account? 
             <a href="../login/index.html" class="text-indigo-400 hover:underline font-medium">Log in here</a>
         </div>
     </div>
 
-    <!-- Script to handle Form Submission -->
     <script>
-        // Set your backend base URL
-        const API_BASE_URL = window.location.origin.includes('localhost') 
-            ? 'http://localhost:8080' 
+        const API_BASE_URL = window.location.origin.includes('localhost')
+            ? 'http://localhost:8080'
             : 'https://audispoty-749056206562.europe-west1.run.app';
 
         const signupForm = document.getElementById('signup-form');
@@ -123,22 +127,22 @@
         signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Collect Form Data
+            // Collect Form Data matching backend variables
             const payload = {
-                brandName: document.getElementById('inp-brand-name').value.trim(),
-                adminName: document.getElementById('inp-admin-name').value.trim(),
-                phone: document.getElementById('inp-phone').value.trim(),
                 email: document.getElementById('inp-email').value.trim(),
-                password: document.getElementById('inp-password').value
+                password: document.getElementById('inp-password').value,
+                ispName: document.getElementById('inp-brand-name').value.trim(),
+                phoneNumber: document.getElementById('inp-phone').value.trim(),
+                selectedPlan: "standard_monthly"
             };
 
             // Loading UI state
             submitBtn.disabled = true;
-            submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Registering...`;
+            submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Initializing Environment...`;
             alertBox.classList.add('hidden');
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/auth/register-isp`, {
+                const response = await fetch(`${API_BASE_URL}/api/auth/isp-signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -147,16 +151,11 @@
                 const result = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(result.message || "Registration failed. Please try again.");
+                    throw new Error(result.error || result.message || "Registration failed. Please verify credentials.");
                 }
 
-                showAlert("Success! Your ISP has been registered. Redirecting to login...", false);
+                showAlert("Your ISP environment is provisioned! Redirecting to setup portal...", false);
                 
-                // Store provisional token or ID if provided by backend
-                if (result.token) {
-                    localStorage.setItem('auth_token', result.token);
-                }
-
                 // Redirect to Login page or dashboard after 2 seconds
                 setTimeout(() => {
                     window.location.href = '../login/index.html';
@@ -165,7 +164,7 @@
             } catch (err) {
                 showAlert(err.message, true);
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = `<span>Create ISP Account</span> <i class="fa-solid fa-arrow-right"></i>`;
+                submitBtn.innerHTML = `<span>Register with 5-Day Trial</span> <i class="fa-solid fa-arrow-right"></i>`;
             }
         });
     </script>
