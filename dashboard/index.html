@@ -2516,52 +2516,58 @@ async function fetchAndRenderDashboard() {
 // =========================================================================
 
 async function fetchAndRenderSystemSettings() {
-    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-    
-    try {
-        const res = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}`);
-        if (!res.ok) throw new Error("Could not pull active hardware configurations.");
-        const config = await res.json();
-        
-        // Load Brand Form Configs
-        document.getElementById('inp-sett-brand').value = config.brandName || "AudiSpot Premium Hotspot";
-        document.getElementById('inp-sett-ip').value = config.serverIp || "10.5.5.1";
-        document.getElementById('inp-sett-phone').value = config.supportPhone || "+254700000000";
-        document.getElementById('inp-sett-redirect').value = config.redirectUrl || "https://audispot.audiory.site/login";
-        
-        // Load PPPoE default connection pass rules
-        document.getElementById('inp-sett-pppoe-pass').value = config.defaultPppoePassword || "vunaflow123";
-        
-        // Load M-Pesa details
-        document.getElementById('inp-sett-till').value = config.tillNumber || "";
-        
-        // Load user info
-        document.getElementById('inp-sett-name').value = config.accountName || "Official Bigi";
-        document.getElementById('inp-sett-email').value = config.accountEmail || "komboismail56@gmail.com";
-        document.getElementById('inp-sett-company').value = config.accountCompany || "AudiSpot Networks";
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
 
-        // Update SMS state text UI
-        const smsStatusLabel = document.getElementById('lbl-sms-status');
-        const smsToggleButton = document.getElementById('btn-toggle-sms');
-        if (config.smsActive) {
-            smsStatusLabel.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> SMS is active (${config.smsCredits || 0} remaining).`;
-            smsToggleButton.innerText = "Deactivate";
-            smsToggleButton.className = "bg-rose-600/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white font-bold px-3 py-1 rounded-md transition";
-        } else {
-            smsStatusLabel.innerHTML = `<i class="fa-solid fa-circle-minus text-amber-500 mr-1"></i> SMS is currently off.`;
-            smsToggleButton.innerText = "Activate";
-            smsToggleButton.className = "bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-md transition";
+    try {
+        const response = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}`);
+        if (!response.ok) {
+            throw new Error("Could not pull active hardware configurations.");
         }
         
-        // Render technicians sub list
-        await loadTechniciansRegistry();
+        const data = await response.json();
         
+        // 1. Map dynamic text fields safely (supporting both camelCase and snake_case properties)
+        document.getElementById('txt-settings-brand-name').value = data.brandName || data.brand_name || '';
+        document.getElementById('txt-settings-server-ip').value = data.serverIp || data.server_ip || '';
+        document.getElementById('txt-settings-support-phone').value = data.supportPhone || data.support_phone || '';
+        document.getElementById('txt-settings-redirect-url').value = data.redirectUrl || data.redirect_url || '';
+        document.getElementById('txt-settings-pppoe-password').value = data.defaultPppoePassword || data.default_pppoe_password || '';
+        document.getElementById('txt-settings-till-number').value = data.tillNumber || data.till_number || '';
+
+        // 2. Map Admin account fields safely
+        document.getElementById('txt-settings-admin-name').value = data.accountName || data.account_name || '';
+        document.getElementById('txt-settings-admin-email').value = data.accountEmail || data.account_email || '';
+        document.getElementById('txt-settings-admin-company').value = data.accountCompany || data.account_company || '';
+
+        // 3. Update SMS service toggles dynamically
+        const isSmsActive = data.smsActive === true || data.sms_active === true;
+        const smsToggleBtn = document.getElementById('btn-settings-sms-toggle');
+        const smsBadge = document.getElementById('badge-settings-sms-status');
+        const smsCreditsEl = document.getElementById('lbl-settings-sms-credits');
+
+        if (smsToggleBtn && smsBadge && smsCreditsEl) {
+            if (isSmsActive) {
+                smsToggleBtn.innerText = "Deactivate SMS Integration";
+                smsToggleBtn.className = "px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs transition";
+                smsBadge.innerText = "Active";
+                smsBadge.className = "px-2 py-0.5 rounded text-xs bg-emerald-500/10 text-emerald-500 font-semibold";
+            } else {
+                smsToggleBtn.innerText = "Activate SMS Integration";
+                smsToggleBtn.className = "px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition";
+                smsBadge.innerText = "Inactive";
+                smsBadge.className = "px-2 py-0.5 rounded text-xs bg-slate-500/10 text-slate-400 font-semibold";
+            }
+            smsCreditsEl.innerText = `${data.smsCredits || data.sms_credits || 0} Credits remaining`;
+        }
+
     } catch (err) {
         console.error("Configuration system load failure:", err);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Failed to load settings from server.", true);
+        }
     }
 }
-
 // Save functions using dynamic base urls
 async function saveBrandingState(e) {
     e.preventDefault();
