@@ -99,8 +99,7 @@ function getRouterClient(routerData) {
 }
 
 // Helper: Ensure document exists with fallback default configuration schemas
-// Helper: Ensure document exists with fallback default configuration schemas
-async function getOrCreateSettings(databaseInstance, ispId) {
+async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = "", registrantName = "") {
     const activeDb = databaseInstance || db;
     if (!activeDb) {
         throw new Error("Database reference is undefined. Make sure Firestore is initialized.");
@@ -112,18 +111,18 @@ async function getOrCreateSettings(databaseInstance, ispId) {
     if (!doc.exists) {
         const defaultData = {
             ispId: ispId,
-            brandName: "AudiSpot Premium Hotspot",
+            brandName: registrantName ? `${registrantName} Hotspot` : "My Premium Hotspot",
             serverIp: "10.5.5.1",
             supportPhone: "+254700000000",
             redirectUrl: "https://audispot.audiory.site/login",
             defaultPppoePassword: "AudiSpot123",
             tillNumber: "",
-            accountName: "Official Bigi",
-            accountEmail: "komboismail56@gmail.com",
-            accountCompany: "AudiSpot Networks",
+            accountName: registrantName || "ISP Owner",
+            accountEmail: registrantEmail || "owner@example.com",
+            accountCompany: registrantName ? `${registrantName} Networks` : "My Network ISP",
             smsActive: false,
             smsCredits: 10,
-            createdAt: new Date().toISOString() // Added tracking baseline
+            createdAt: new Date().toISOString()
         };
         await settingsRef.set(defaultData);
         return defaultData;
@@ -1263,8 +1262,11 @@ app.post('/api/mpesa/b2c-callback', async (req, res) => {
 
 app.get('/api/settings', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
+    const email = req.query.email || '';
+    const name = req.query.name || '';
+    
     try {
-        const settings = await getOrCreateSettings(req.db, ispId);
+        const settings = await getOrCreateSettings(req.db, ispId, email, name);
         res.json(settings);
     } catch (err) {
         res.status(500).json({ error: err.message });
