@@ -707,6 +707,75 @@ app.get('/api/hotspot/reconnect', async (req, res) => {
 });
 
 // ====================================================================
+// NEW: MANIPULATE AND VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS
+// ====================================================================
+app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
+    const { mpesaCode, routerId, macAddress } = req.body;
+    
+    if (!mpesaCode || !routerId) {
+        return res.status(400).json({ error: "Missing M-Pesa reference code configuration metrics." });
+    }
+
+    const cleanCode = mpesaCode.trim().toUpperCase();
+
+    try {
+        // 1. Cross-reference your payments collection for the specific transaction reference
+        const transactionDoc = await db.collection('transactions').doc(cleanCode).get();
+        
+        if (!transactionDoc.exists) {
+            return res.status(404).json({ error: "Invalid M-Pesa transaction token code provided." });
+        }
+
+        const txData = transactionDoc.data();
+        
+        // 2. Safety check if the transaction token has already expired or has passed timeline thresholds
+        const purchaseTime = new Date(txData.timestamp || txData.createdAt);
+        const elapsedMinutes = (new Date() - purchaseTime) / 60000;
+        
+        // Match duration validity against package limits dynamically
+        const packageDurationHours = Number(txData.durationHours || 1); 
+        const maxValidityMinutes = packageDurationHours * 60;
+
+        if (elapsedMinutes >= maxValidityMinutes) {
+            return res.status(410).json({ error: "The transaction pass code for this package configuration has expired." });
+        }
+
+        // 3. Connect directly to MikroTik to provision the user interface network pass
+        const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (routerDoc.exists) {
+            const rData = routerDoc.data();
+            if (rData.routerIp && rData.routerUser && rData.routerPassword) {
+                try {
+                    const client = getRouterClient(rData);
+                    const api = await client.connect();
+                    
+                    const profileName = txData.profileName || "1_Hour_Plan";
+                    const fallbackUser = txData.phoneNumber || "HotspotUser";
+
+                    await api.write('/ip/hotspot/user/add', [
+                        `=name=${fallbackUser}`, 
+                        `=password=${fallbackUser}`, 
+                        `=profile=${profileName}`, 
+                        `=comment=CodeReconnect_${cleanCode}`
+                    ]);
+                    await api.close();
+                } catch (routerErr) {
+                    console.error("Router connection node synchronization drop:", routerErr.message);
+                }
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "M-Pesa transaction reference authenticated successfully. Reconnecting pipeline."
+        });
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ====================================================================
 // SMART TV / GAME CONSOLE BRIDGING ENGINE
 // ====================================================================
 
