@@ -2,94 +2,103 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hotspot Gateway Connect</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans selection:bg-indigo-500/30">
 
-    <!-- Main Container matching dashboard template styling -->
-    <div class="bg-[#11131c] border border-zinc-800 rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl flex flex-col">
+    <!-- Main Container: Scaled up width for desktops/TVs using md:max-w-4xl -->
+    <div class="bg-[#11131c] border border-zinc-800 rounded-3xl w-full max-w-sm md:max-w-4xl overflow-hidden shadow-2xl flex flex-col transition-all duration-300">
         
-        <div class="p-6 space-y-6 flex-1">
-            <!-- Header Brand Section -->
-            <div class="text-center space-y-3">
-                <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
-                    <i class="fa-solid fa-wifi"></i>
-                </div>
-                <h1 id="portal-brand-title" class="text-base font-black tracking-tight text-white">
-                    Loading Gateway...
-                </h1>
-                <p id="portal-welcome-text" class="text-xs text-slate-400 px-4">
-                    Please wait while we synchronize configuration metrics...
-                </p>
+        <!-- Header Brand Section (Full width on all screens) -->
+        <div class="p-6 pb-0 text-center space-y-3">
+            <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
+                <i class="fa-solid fa-wifi"></i>
             </div>
+            <h1 id="portal-brand-title" class="text-lg md:text-xl font-black tracking-tight text-white">
+                Loading Gateway...
+            </h1>
+            <p id="portal-welcome-text" class="text-xs text-slate-400 max-w-md mx-auto">
+                Please wait while we synchronize configuration metrics...
+            </p>
+        </div>
 
-            <!-- Packages Section -->
-            <div class="space-y-2">
-                <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
-                <div id="public-packages-wrapper" class="space-y-2">
-                    <div class="text-center py-4 text-slate-500 text-xs animate-pulse">
-                        <i class="fa-solid fa-circle-notch fa-spin mb-1"></i> Loading plans...
+        <!-- Interactive Core Body: Grid split layout for desktop/TV, stacked for mobile -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            
+            <!-- LEFT COLUMN (On Desktop): Packages Catalog -->
+            <div class="space-y-4">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
+                    <div id="public-packages-wrapper" class="space-y-2">
+                        <div class="text-center py-12 text-slate-500 text-xs animate-pulse">
+                            <i class="fa-solid fa-circle-notch fa-spin mb-2 text-base block"></i> Loading plans...
+                        </div>
                     </div>
                 </div>
+
+                <!-- M-Pesa Input & Main Purchase Form -->
+                <div class="space-y-3 pt-2">
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
+                        <!-- text-base prevents mobile zooming; md:text-xs restores density on desktop -->
+                        <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg flex items-center justify-center gap-2 active:scale-[0.99]">
+                        <span>Purchase Internet Pass</span>
+                    </button>
+                </div>
+
+                <!-- Reconnect Session Area -->
+                <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
+                    <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
+                    <a href="#" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1">Reconnect Device</a>
+                </div>
             </div>
 
-            <!-- M-Pesa Input Form Block -->
-            <div class="space-y-1.5">
-                <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
-                <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
-            </div>
-
-            <!-- Action Trigger Button -->
-            <div class="pt-1">
-                <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg flex items-center justify-center gap-2">
-                    <span>Purchase Internet Pass</span>
-                </button>
-            </div>
-
-            <!-- Reconnect Session Area -->
-            <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
-                <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
-                <a href="#" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1">Reconnect Device</a>
-            </div>
-
-            <!-- Loyalty Rewards Section -->
-            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
-                <div class="flex items-start gap-2.5">
-                    <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
-                    <div class="space-y-0.5">
-                        <p class="text-xs font-bold text-white">Hotspot Loyalty Rewards</p>
-                        <p class="text-[10px] text-slate-400 leading-relaxed">
-                            Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">0</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">0</span> points to redeem an instant free daily pass.
-                        </p>
+            <!-- RIGHT COLUMN (On Desktop): Loyalty & Smart TV Node Configs -->
+            <div class="space-y-4">
+                <!-- Loyalty Rewards Section -->
+                <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
+                    <div class="flex items-start gap-2.5">
+                        <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
+                        <div class="space-y-0.5">
+                            <p class="text-xs font-bold text-white">Hotspot Loyalty Rewards</p>
+                            <p class="text-[10px] text-slate-400 leading-relaxed">
+                                Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">0</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">0</span> points to redeem an instant free daily pass.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
+                        <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2 pt-1">
-                    <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
-                    <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
+
+                <!-- Smart TV / Console Module Setup -->
+                <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center gap-2 text-white font-bold text-xs">
+                        <i class="fa-solid fa-tv text-indigo-400"></i>
+                        <span>Smart TV / Game Console Setup</span>
+                    </div>
+                    <ol id="portal-tv-setup-list" class="text-[10px] text-slate-400 list-decimal list-inside space-y-1 pl-0.5">
+                        <li>Locate MAC address of TV</li>
+                        <li>Submit register address</li>
+                        <li>TV is authorized automatically.</li>
+                    </ol>
+                    <div class="space-y-1.5 pt-1">
+                        <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
+                        <!-- text-base prevents mobile zooming; md:text-xs restores density on desktop -->
+                        <input type="text" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-base md:text-[10px] focus:outline-none transition">
+                    </div>
+                    <button class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
                 </div>
             </div>
 
-            <!-- Smart TV / Console Module Setup -->
-            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
-                <div class="flex items-center gap-2 text-white font-bold text-xs">
-                    <i class="fa-solid fa-tv text-indigo-400"></i>
-                    <span>Smart TV / Game Console Setup</span>
-                </div>
-                <ol id="portal-tv-setup-list" class="text-[10px] text-slate-400 list-decimal list-inside space-y-1 pl-0.5">
-                    <li>Locate MAC address of TV</li>
-                    <li>Submit register address</li>
-                    <li>TV is authorized automatically.</li>
-                </ol>
-                <div class="space-y-1.5 pt-1">
-                    <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
-                    <input type="text" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-[10px] focus:outline-none transition">
-                </div>
-                <button class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
-            </div>
         </div>
 
         <!-- Support Footer Help Area -->
@@ -127,7 +136,6 @@
                 if (!designRes.ok) throw new Error("Could not pull design profile.");
                 const config = await designRes.json();
                 
-                // 1. Dynamic Texts Configuration mapping
                 document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
                 document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter verification parameters to connect.';
                 document.getElementById('portal-support-phone').innerText = config.supportContact || 'None provided';
@@ -136,7 +144,6 @@
                 document.getElementById('label-earn-pts').innerText = config.earnPoints || '1';
                 document.getElementById('label-redeem-threshold').innerText = config.redeemPoints || '20';
 
-                // 2. Parse Custom TV list parameters if separated by newlines
                 if (config.tvSetup) {
                     const steps = config.tvSetup.split('\n').filter(s => s.trim() !== '');
                     if (steps.length > 0) {
@@ -144,12 +151,10 @@
                     }
                 }
 
-                // 3. Apply custom colors variables dynamically
                 const accentColor = config.accentColor || '#4f46e5';
                 document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
                 document.getElementById('portal-icon-bg').style.backgroundColor = accentColor;
 
-                // 4. Load Packages Catalog Grid List
                 if (packagesRes.ok) {
                     let packages = await packagesRes.json();
                     if (packages && !Array.isArray(packages)) {
@@ -163,39 +168,52 @@
             }
         }
 
-        // Clean formatting helper matching your requirements layout structure
-        function formatPackageDuration(totalHours) {
-            const hours = Number(totalHours || 0);
-            if (hours >= 720 && hours % 720 === 0) {
-                const months = hours / 720;
-                return `${months} Hour Access`; // Or return `${months} Month Access` depending on backend tracking string
-            }
-            if (hours >= 168 && hours % 168 === 0) {
-                return `${hours} Hour Access`;
-            }
-            return `${hours} Hour Access`;
-        }
-
+        // Replacement function for rendering the packages grid cleanly
         function renderPortalPackagesGrid(packages, accentColor) {
             const wrapper = document.getElementById('public-packages-wrapper');
             if (!wrapper || packages.length === 0) {
-                wrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-2">No active internet packages configured.</p>`;
+                wrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active internet packages configured.</p>`;
                 return;
+            }
+
+            // Helper function to dynamically translate raw hours into Weeks or Months
+            function formatPackageDuration(totalHours) {
+                const hours = Number(totalHours || 0);
+        
+                // 720 hours = 30 days (1 Month)
+                if (hours >= 720 && hours % 720 === 0) {
+                    const months = hours / 720;
+                    return `${months} Month${months > 1 ? 's' : ''}`;
+                }
+                // 168 hours = 7 days (1 Week)
+                if (hours >= 168 && hours % 168 === 0) {
+                    const weeks = hours / 168;
+                    return `${weeks} Week${weeks > 1 ? 's' : ''}`;
+                }
+                // 24 hours = 1 day
+                if (hours >= 24 && hours % 24 === 0) {
+                    const days = hours / 24;
+                    return `${days} Day${days > 1 ? 's' : ''}`;
+                }
+                // Fallback for short durations (e.g., 3 Hours)
+                return `${hours} Hour${hours !== 1 ? 's' : ''}`;
             }
 
             wrapper.innerHTML = packages.map((pkg, idx) => {
                 const pkgId = pkg.id || pkg.docId || '';
-                // Checks whether to show "720 Hour Access" matching your dashboard's display exact strings
-                const displayDuration = `${pkg.duration} Hour Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+        
+                // Get the pretty duration text (e.g., "1 Month" or "3 Hours")
+                const dynamicDuration = formatPackageDuration(pkg.duration);
+                const displayDetails = `${dynamicDuration} Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
 
                 return `
-                    <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition" 
-                           style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px; bg-zinc-900/70` : 'border-color: #27272a; bg-zinc-900/20'}">
+                    <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
+                           style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
                         <div class="flex items-center gap-3">
                             <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
                             <div class="space-y-0.5">
                                 <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
-                                <p class="text-[10px] text-slate-400 font-medium">${displayDuration}</p>
+                                <p class="text-[10px] text-slate-400 font-medium">${displayDetails}</p>
                             </div>
                         </div>
                         <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
