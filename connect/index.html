@@ -1,33 +1,36 @@
+// 1. Explicitly define your backend base URL so this independent folder page can locate it
+const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app"; 
+
 document.addEventListener('DOMContentLoaded', () => {
     renderConsumerPortalView();
 });
 
 async function renderConsumerPortalView() {
-    // 1. Extract the unique ISP ID from the URL browser query parameters
+    // 2. Extract the unique ISP ID from the URL browser query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const ispId = urlParams.get('ispId');
 
     if (!ispId) {
         console.error("No ISP identification routing token provided in the URL.");
-        // Optional: Render a fallback generic network welcome layout here
+        const wrapper = document.getElementById('public-packages-wrapper');
+        if (wrapper) {
+            wrapper.innerHTML = `<p class="text-xs text-rose-500 text-center font-bold">Invalid Hotspot Gateway Configuration (Missing ISP ID).</p>`;
+        }
         return;
     }
 
     try {
-        // Your central backend endpoint base URL
-        const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-
-        // 2. Query both the custom branding layout configuration and their exact package tiers concurrently
+        // 3. Query both the custom branding layout configuration and their exact package tiers concurrently
         const [designRes, packagesRes] = await Promise.all([
-            fetch(`${baseEndpoint}/api/portal/design?ispId=${ispId}`),
-            fetch(`${baseEndpoint}/api/packages?ispId=${ispId}`)
+            fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`),
+            fetch(`${API_BASE_URL}/api/packages?ispId=${ispId}`)
         ]);
 
         if (!designRes.ok) throw new Error("Could not pull design layout rules.");
 
         const config = await designRes.json();
         
-        // 3. Apply the custom branding variables dynamically to the DOM elements
+        // 4. Apply the custom branding variables dynamically to the DOM elements
         if (document.getElementById('portal-brand-title')) {
             document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
         }
@@ -42,7 +45,7 @@ async function renderConsumerPortalView() {
             primaryButton.style.backgroundColor = accentColor;
         }
 
-        // 4. Safely render the custom pricing package catalog grid
+        // 5. Safely render the custom pricing package catalog grid
         if (packagesRes.ok) {
             let packages = await packagesRes.json();
             if (packages && !Array.isArray(packages)) {
@@ -56,26 +59,49 @@ async function renderConsumerPortalView() {
     }
 }
 
+// Quick helper to translate raw hours into readable formats for buyers (e.g. 168 hours -> 7 Days)
+function formatPackageDuration(totalHours) {
+    const hours = Number(totalHours || 0);
+    if (hours >= 720 && hours % 720 === 0) {
+        const months = hours / 720;
+        return `${months} Month${months > 1 ? 's' : ''}`;
+    }
+    if (hours >= 168 && hours % 168 === 0) {
+        const weeks = hours / 168;
+        return `${weeks} Week${weeks > 1 ? 's' : ''}`;
+    }
+    if (hours >= 24 && hours % 24 === 0) {
+        const days = hours / 24;
+        return `${days} Day${days > 1 ? 's' : ''}`;
+    }
+    return `${hours} Hour${hours !== 1 ? 's' : ''}`;
+}
+
 function renderPortalPackagesGrid(packages, accentColor) {
     const wrapper = document.getElementById('public-packages-wrapper');
     if (!wrapper) return;
 
     if (!packages || packages.length === 0) {
-        wrapper.innerHTML = `<p class="text-xs text-slate-400 text-center">No internet passes available.</p>`;
+        wrapper.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No internet passes available right now.</p>`;
         return;
     }
 
-    wrapper.innerHTML = packages.map((pkg, idx) => `
-        <label class="p-3 border rounded-xl flex items-center justify-between cursor-pointer bg-white dark:bg-zinc-900 transition" 
-               style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #e2e8f0;'}">
-            <div class="flex items-center gap-3">
-                <input type="radio" name="selectedPlan" value="${pkg.id}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-600">
-                <div>
-                    <p class="text-xs font-bold text-slate-900 dark:text-white">${pkg.packageName || 'Standard Plan'}</p>
-                    <p class="text-[10px] text-slate-400">${pkg.duration} Hours Access</p>
+    wrapper.innerHTML = packages.map((pkg, idx) => {
+        const pkgId = pkg.id || pkg.docId || '';
+        const readableDuration = formatPackageDuration(pkg.duration);
+        
+        return `
+            <label class="p-3 border rounded-xl flex items-center justify-between cursor-pointer bg-white dark:bg-zinc-900 transition mb-2" 
+                   style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #e2e8f0;'}">
+                <div class="flex items-center gap-3">
+                    <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-600">
+                    <div>
+                        <p class="text-xs font-bold text-slate-900 dark:text-white">${pkg.packageName || 'Standard Plan'}</p>
+                        <p class="text-[10px] text-slate-400">${readableDuration} Access</p>
+                    </div>
                 </div>
-            </div>
-            <span class="text-xs font-black" style="color: ${accentColor}">KES ${pkg.price}</span>
-        </label>
-    `).join('');
+                <span class="text-xs font-black" style="color: ${accentColor}">KES ${pkg.price || 0}</span>
+            </label>
+        `;
+    }).join('');
 }
