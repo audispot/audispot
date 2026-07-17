@@ -776,6 +776,114 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
 });
 
 // ====================================================================
+// 1. FETCH DYNAMIC REWARD TIERS (FIRESTORE BASED)
+// ====================================================================
+app.get('/api/portal/rewards-tiers', async (req, res) => {
+    const { ispId } = req.query;
+    if (!ispId) return res.status(400).json({ error: "Missing ISP parameter" });
+
+    try {
+        // Fetch custom point exchange configurations created by the ISP
+        const tiersSnapshot = await db.collection('routers').doc(ispId).collection('rewardTiers').orderBy('pointsRequired', 'asc').get();
+        const tiers = [];
+        tiersSnapshot.forEach(doc => {
+            tiers.push({ id: doc.id, ...doc.data() });
+        });
+        
+        return res.status(200).json(tiers);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ====================================================================
+// 2. CHECK WALLET POINTS BY PHONE NUMBER (REAL DATA LOOKUP)
+// ====================================================================
+app.get('/api/portal/check-points', async (req, res) => {
+    const { phoneNumber } = req.query;
+    if (!phoneNumber) return res.status(400).json({ error: "Phone number required" });
+
+    try {
+        const subscriberDoc = await db.collection('subscribers').where('phoneNumber', '==', phoneNumber.trim()).get();
+        if (subscriberDoc.empty) {
+            return res.status(200).json({ points: 0, message: "No rewards account found for this number yet." });
+        }
+        
+        const data = subscriberDoc.docs[0].data();
+        return res.status(200).json({ points: data.loyaltyPoints || 0 });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ====================================================================
+// 3. COMBINED RECONNECT ENGINE (MAC SYNC WITH M-PESA FALLBACK TRACING)
+// ====================================================================
+app.post('/api/hotspot/reconnect-verify', async (req, res) => {
+    const { macAddress, routerId, mpesaCode } = req.body;
+    if (!routerId) return res.status(400).json({ error: "Missing Router ID context." });
+
+    try {
+        // METHOD A: If an M-Pesa code is sent, verify the transaction token directly
+        if (mpesaCode) {
+            const cleanCode = mpesaCode.trim().toUpperCase();
+            const txDoc = await db.collection('transactions').doc(cleanCode).get();
+            
+            if (!txDoc.exists) return res.status(404).json({ error: "Invalid M-Pesa transaction token code." });
+            const txData = txDoc.data();
+
+            // Provision user session on Mikrotik
+            const routerDoc = await db.collection('routers').doc(routerId).get();
+            if (routerDoc.exists) {
+                const rData = routerDoc.data();
+                const client = getRouterClient(rData);
+                const api = await client.connect();
+                await api.write('/ip/hotspot/user/add', [
+                    `=name=${txData.phoneNumber}`, `=password=${txData.phoneNumber}`, `=profile=${txData.profileName || '1_Hour_Plan'}`, `=comment=CodeSync_${cleanCode}`
+                ]);
+                await api.close();
+            }
+            return res.status(200).json({ success: true, message: "Transaction token authorized! Device is now online." });
+        }
+
+        // METHOD B: Auto-reconnect via MAC Address timeline parameters
+        if (macAddress) {
+            const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+            const subDoc = await db.collection('subscribers').doc(cleanMac).get();
+            
+            if (!subDoc.exists) {
+                return res.status(404).json({ fallbackRequired: true, error: "No active device session found. Please use your M-Pesa code." });
+            }
+
+            const subData = subDoc.data();
+            const diffInMinutes = (new Date() - new Date(subData.lastActiveTimestamp)) / 60000;
+            const lastPaidAmount = subData.lastActivePackage || 0;
+            let validityWindow = lastPaidAmount >= 50 ? 1440 : (lastPaidAmount >= 20 ? 180 : 60);
+
+            if (diffInMinutes < validityWindow) {
+                const routerDoc = await db.collection('routers').doc(routerId).get();
+                if (routerDoc.exists) {
+                    const rData = routerDoc.data();
+                    const client = getRouterClient(rData);
+                    const api = await client.connect();
+                    let dynamicProfile = lastPaidAmount >= 20 ? (lastPaidAmount >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                    await api.write('/ip/hotspot/user/add', [
+                        `=name=${subData.phoneNumber}`, `=password=${subData.phoneNumber}`, `=profile=${dynamicProfile}`, `=comment=AutoMac_${cleanMac}`
+                    ]);
+                    await api.close();
+                }
+                return res.status(200).json({ success: true, message: "Valid active session found! Connecting automatically..." });
+            }
+            return res.status(401).json({ fallbackRequired: true, error: "Active session timeline expired. Please input your payment code." });
+        }
+
+        return res.status(400).json({ error: "No query parameters specified." });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ====================================================================
 // SMART TV / GAME CONSOLE BRIDGING ENGINE
 // ====================================================================
 
