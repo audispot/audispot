@@ -1963,13 +1963,17 @@ async function loadPortalPreviewPackages() {
     if (!container) return;
 
     try {
+        // Fall back gracefully if global variable configurations are missing
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+        const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        
+        // Assembles identical path string logic matching the working vouchers view
         const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
-        if (!response.ok) throw new Error();
+        if (!response.ok) throw new Error('Failed to pull packages');
         
         let packages = await response.json();
         
-        // Safety Check: If backend returns an object wrapper like { packages: [...] } or { data: [...] }
+        // Structural safety check if your endpoint envelopes items inside an object wrapper
         if (packages && !Array.isArray(packages)) {
             packages = packages.packages || packages.data || [];
         }
@@ -1982,7 +1986,7 @@ async function loadPortalPreviewPackages() {
             return;
         }
 
-        const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
+        const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
 
         // Display packages, showing the first one as checked/active
         container.innerHTML = packages.map((pkg, idx) => {
@@ -1997,7 +2001,7 @@ async function loadPortalPreviewPackages() {
                             <div class="w-1.5 h-1.5 rounded-full" style="${dotColor}"></div>
                         </div>
                         <div>
-                            <p class="text-[10px] font-bold text-slate-900">${pkg.packageName || 'Unnamed Package'}</p>
+                            <p class="text-[10px] font-bold text-slate-900">${pkg.packageName || pkg.name || 'Unnamed Plan'}</p>
                             <p class="text-[8px] text-slate-400">${pkg.duration || 0} Hour Access • ${pkg.bandwidthLimit || 'Unlimited'} Mbps</p>
                         </div>
                     </div>
@@ -2007,45 +2011,45 @@ async function loadPortalPreviewPackages() {
         }).join('');
 
     } catch (err) {
-        console.error("Error loading packages for portal frame simulator:", err);
+        console.error("Portal Frame Package Loader Error:", err);
         container.innerHTML = `<div class="p-2 text-center text-[9px] text-rose-500">Error rendering package profiles.</div>`;
     }
 }
 
 function updateLivePortalPreview() {
-    const brandInput = document.getElementById('input-portal-brand')?.value || 'My Hotspot Network';
-    const welcomeInput = document.getElementById('input-portal-welcome')?.value || 'Enter connection credentials.';
-    const supportInput = document.getElementById('input-portal-support')?.value || '0700000000';
-    const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
+    const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
+    const welcomeInput = document.getElementById('input-portal-welcome').value || 'Enter connection credentials.';
+    const supportInput = document.getElementById('input-portal-support').value || '0700000000';
+    const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
     
     // Loyalty and instructions fields
-    const earnPoints = document.getElementById('input-portal-earn-pts')?.value || '10';
-    const redeemPoints = document.getElementById('input-portal-redeem-threshold')?.value || '100';
-    const reconnectMsg = document.getElementById('input-portal-reconnect-msg')?.value || 'Checking matching active session links...';
-    const tvSetupText = document.getElementById('input-portal-tv-setup')?.value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
+    const earnPoints = document.getElementById('input-portal-earn-pts').value || '10';
+    const redeemPoints = document.getElementById('input-portal-redeem-threshold').value || '100';
+    const reconnectMsg = document.getElementById('input-portal-reconnect-msg').value || 'Checking matching active session links...';
+    const tvSetupText = document.getElementById('input-portal-tv-setup').value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
     
     // Success fields
-    const successTitle = document.getElementById('input-portal-success-title')?.value || 'Welcome Online!';
-    const successSub = document.getElementById('input-portal-success-sub')?.value || 'Your account connection rules are fully operational.';
-    const successBtn = document.getElementById('input-portal-success-btn')?.value || 'Proceed to Browsing';
+    const successTitle = document.getElementById('input-portal-success-title').value || 'Welcome Online!';
+    const successSub = document.getElementById('input-portal-success-sub').value || 'Your account connection rules are fully operational.';
+    const successBtn = document.getElementById('input-portal-success-btn').value || 'Proceed to Browsing';
 
     // Text bindings
-    if (document.getElementById('sim-text-brand')) document.getElementById('sim-text-brand').innerText = brandInput;
-    if (document.getElementById('sim-text-welcome')) document.getElementById('sim-text-welcome').innerText = welcomeInput;
-    if (document.getElementById('sim-text-support')) document.getElementById('sim-text-support').innerText = supportInput;
-    if (document.getElementById('input-portal-color-hex')) document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
+    document.getElementById('sim-text-brand').innerText = brandInput;
+    document.getElementById('sim-text-welcome').innerText = welcomeInput;
+    document.getElementById('sim-text-support').innerText = supportInput;
+    document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
     
-    if (document.getElementById('sim-text-reconnect')) document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
-    if (document.getElementById('sim-text-earn')) document.getElementById('sim-text-earn').innerText = earnPoints;
-    if (document.getElementById('sim-text-redeem')) document.getElementById('sim-text-redeem').innerText = redeemPoints;
-    if (document.getElementById('sim-text-tv-instructions')) document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
-    if (document.getElementById('sim-text-success-title')) document.getElementById('sim-text-success-title').innerText = successTitle;
-    if (document.getElementById('sim-text-success-sub')) document.getElementById('sim-text-success-sub').innerText = successSub;
-    if (document.getElementById('sim-success-btn-node')) document.getElementById('sim-success-btn-node').innerText = successBtn;
+    document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
+    document.getElementById('sim-text-earn').innerText = earnPoints;
+    document.getElementById('sim-text-redeem').innerText = redeemPoints;
+    document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
+    document.getElementById('sim-text-success-title').innerText = successTitle;
+    document.getElementById('sim-text-success-sub').innerText = successSub;
+    document.getElementById('sim-success-btn-node').innerText = successBtn;
 
     // Apply colors to controls
-    if (document.getElementById('sim-preview-logo-box')) document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
-    if (document.getElementById('sim-preview-accent-btn')) document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
+    document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
+    document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
 
     // Reload package lists to ensure border outline matches current selected color
     loadPortalPreviewPackages();
@@ -2059,20 +2063,18 @@ function toggleSimulatorSuccessState(showSuccess) {
     const btnMain = document.getElementById('sim-toggle-main');
     const btnSuccess = document.getElementById('sim-toggle-success');
 
-    if (!mainView || !successView) return;
-
     if (showSuccess) {
         mainView.classList.add('hidden');
         successView.classList.remove('hidden');
         
-        if (btnSuccess) btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
-        if (btnMain) btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     } else {
         mainView.classList.remove('hidden');
         successView.classList.add('hidden');
         
-        if (btnMain) btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
-        if (btnSuccess) btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     }
 }
 
@@ -2083,26 +2085,24 @@ async function fetchCurrentPortalDesign() {
         if (response.ok) {
             const config = await response.json();
             
-            if (document.getElementById('input-portal-brand')) document.getElementById('input-portal-brand').value = config.brandName || '';
-            if (document.getElementById('input-portal-welcome')) document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
-            if (document.getElementById('input-portal-support')) document.getElementById('input-portal-support').value = config.supportContact || '';
-            if (document.getElementById('input-portal-color')) document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
+            document.getElementById('input-portal-brand').value = config.brandName || '';
+            document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
+            document.getElementById('input-portal-support').value = config.supportContact || '';
+            document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
             
-            if (document.getElementById('input-portal-earn-pts')) document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
-            if (document.getElementById('input-portal-redeem-threshold')) document.getElementById('input-portal-redeem-threshold').value = config.redeemPoints || '100';
-            if (document.getElementById('input-portal-reconnect-msg')) document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
-            if (document.getElementById('input-portal-tv-setup')) document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
+            document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
+            document.getElementById('input-portal-redeem-threshold').value = config.redeemPoints || '100';
+            document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
+            document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
             
-            if (document.getElementById('input-portal-success-title')) document.getElementById('input-portal-success-title').value = config.successTitle || '';
-            if (document.getElementById('input-portal-success-sub')) document.getElementById('input-portal-success-sub').value = config.successSub || '';
-            if (document.getElementById('input-portal-success-btn')) document.getElementById('input-portal-success-btn').value = config.successBtn || '';
+            document.getElementById('input-portal-success-title').value = config.successTitle || '';
+            document.getElementById('input-portal-success-sub').value = config.successSub || '';
+            document.getElementById('input-portal-success-btn').value = config.successBtn || '';
+            
+            updateLivePortalPreview();
         }
-        // Force rendering logic even if fetch drops fallback values
-        updateLivePortalPreview();
     } catch(err) {
         console.error("Failed loading current design profile setup", err);
-        // Ensure preview attempts to pull fallback inputs regardless of endpoint failures
-        updateLivePortalPreview();
     }
 }
 
@@ -2117,8 +2117,8 @@ async function savePortalDesignSettings(e) {
         supportContact: document.getElementById('input-portal-support').value,
         accentColor: document.getElementById('input-portal-color').value,
         
-        earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value) || 10,
-        redeemPoints: parseInt(document.getElementById('input-portal-redeem-threshold').value) || 100,
+        earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value),
+        redeemPoints: parseInt(document.getElementById('input-portal-redeem-threshold').value),
         reconnectMsg: document.getElementById('input-portal-reconnect-msg').value,
         tvSetup: document.getElementById('input-portal-tv-setup').value,
         
