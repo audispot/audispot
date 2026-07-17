@@ -433,16 +433,30 @@
                 <!-- Section 2: Features & Loyalty -->
                 <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
                     <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">2. Features & Loyalty</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="md:col-span-2">
                             <label class="block text-[11px] font-medium text-slate-400 mb-1">Points Earned Per Purchase</label>
                             <input type="number" id="input-portal-earn-pts" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
                         </div>
-                        <div>
-                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Points Required for Free Pass</label>
-                            <input type="number" id="input-portal-redeem-threshold" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <!-- Dynamic Points Exchange Tiers Sub-Section -->
+                    <div class="space-y-2 bg-slate-50 dark:bg-vunainput/30 p-3 rounded-lg border border-slate-200 dark:border-vunaborder">
+                        <div class="flex justify-between items-center">
+                            <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Reward Exchange Tiers</label>
+                            <button type="button" onclick="addRewardTierRow()" class="text-[10px] bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-500 font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                                <i class="fa-solid fa-plus"></i> Add Tier
+                            </button>
                         </div>
-                        <div class="md:col-span-2">
+        
+                        <!-- Target dynamic container -->
+                        <div id="reward-tiers-list-container" class="space-y-2">
+                            <!-- Dynamic rows inject here -->
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 mt-4">
+                        <div>
                             <label class="block text-[11px] font-medium text-slate-400 mb-1">Already Paid / Reconnect Instructions</label>
                             <input type="text" id="input-portal-reconnect-msg" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
                         </div>
@@ -2013,11 +2027,12 @@ async function handleVoucherBatchGeneration(e) {
     }
 }
 
-// ==========================================
+// ====================================================================
 // CAPTIVE PORTAL DESIGNER CONTROLS
-// ==========================================
+// ====================================================================
 
 let activeSimScreen = 'login';
+let rewardTiersState = []; // Holds dynamic points exchange configurations
 
 // Renders user's actual custom billing options in the phone simulator frame
 async function loadPortalPreviewPackages() {
@@ -2078,6 +2093,52 @@ async function loadPortalPreviewPackages() {
     }
 }
 
+// Dynamic Points Exchange Tiers Row Utilities
+function addRewardTierRow(points = 100, profile = '24_Hour_Plan', title = '24 Hours Pass') {
+    const container = document.getElementById('reward-tiers-list-container');
+    if (!container) return;
+    
+    const rowId = 'tier-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
+
+    const rowHtml = `
+        <div id="${rowId}" class="tier-data-row grid grid-cols-12 gap-2 bg-white dark:bg-vunacard p-2 rounded-lg border border-slate-200 dark:border-vunaborder items-center shadow-sm">
+            <div class="col-span-4">
+                <input type="number" placeholder="Points" value="${points}" oninput="syncRewardTiersFromUI()" class="tier-pts w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none">
+            </div>
+            <div class="col-span-4">
+                <input type="text" placeholder="Profile Name" value="${profile}" oninput="syncRewardTiersFromUI()" class="tier-profile w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none font-mono text-[10px]">
+            </div>
+            <div class="col-span-3">
+                <input type="text" placeholder="Label (e.g. 1 Day)" value="${title}" oninput="syncRewardTiersFromUI()" class="tier-label w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none">
+            </div>
+            <div class="col-span-1 text-right">
+                <button type="button" onclick="removeRewardTierRow('${rowId}')" class="text-rose-500 hover:text-rose-400 transition text-xs">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', rowHtml);
+    syncRewardTiersFromUI();
+}
+
+function removeRewardTierRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    syncRewardTiersFromUI();
+}
+
+function syncRewardTiersFromUI() {
+    const rows = document.querySelectorAll('.tier-data-row');
+    rewardTiersState = Array.from(rows).map(row => ({
+        pointsRequired: parseInt(row.querySelector('.tier-pts').value) || 0,
+        mikrotikProfile: row.querySelector('.tier-profile').value || '',
+        displayName: row.querySelector('.tier-label').value || 'Free Pass'
+    }));
+    
+    updateLivePortalPreview();
+}
+
 function updateLivePortalPreview() {
     const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
     const welcomeInput = document.getElementById('input-portal-welcome').value || 'Enter connection credentials.';
@@ -2086,7 +2147,6 @@ function updateLivePortalPreview() {
     
     // Loyalty and instructions fields
     const earnPoints = document.getElementById('input-portal-earn-pts').value || '10';
-    const redeemPoints = document.getElementById('input-portal-redeem-threshold').value || '100';
     const reconnectMsg = document.getElementById('input-portal-reconnect-msg').value || 'Checking matching active session links...';
     const tvSetupText = document.getElementById('input-portal-tv-setup').value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
     
@@ -2103,11 +2163,27 @@ function updateLivePortalPreview() {
     
     document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
     document.getElementById('sim-text-earn').innerText = earnPoints;
-    document.getElementById('sim-text-redeem').innerText = redeemPoints;
     document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
     document.getElementById('sim-text-success-title').innerText = successTitle;
     document.getElementById('sim-text-success-sub').innerText = successSub;
     document.getElementById('sim-success-btn-node').innerText = successBtn;
+
+    // Backward-compatible sync check for legacy text node reference fallback if present
+    const legacyRedeemNode = document.getElementById('sim-text-redeem');
+    if (legacyRedeemNode) {
+        legacyRedeemNode.innerText = rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : '100';
+    }
+
+    // Dynamic text rendering loop updates for smartphone preview block
+    const rewardWidgetParagraph = document.querySelector('#sim-scrollable-flow .bg-white.border.border-slate-200.p-2.5 p');
+    if (rewardWidgetParagraph) {
+        if (rewardTiersState.length > 0) {
+            const lowTier = rewardTiersState[0];
+            rewardWidgetParagraph.innerHTML = `Earn +<span class="font-bold text-indigo-600">${earnPoints}</span> points on every checkout! Exchange starting from <span class="font-bold text-indigo-600">${lowTier.pointsRequired} pts</span> for a <b>${lowTier.displayName}</b>.`;
+        } else {
+            rewardWidgetParagraph.innerHTML = `Earn +<span class="font-bold text-indigo-600">${earnPoints}</span> points on every checkout! Reach <span id="sim-text-redeem" class="font-bold text-indigo-600">100</span> points to redeem an instant free daily pass.`;
+        }
+    }
 
     // Apply colors to controls
     document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
@@ -2155,13 +2231,33 @@ async function fetchCurrentPortalDesign() {
             document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
             
             document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
-            document.getElementById('input-portal-redeem-threshold').value = config.redeemPoints || '100';
             document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
             document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
             
             document.getElementById('input-portal-success-title').value = config.successTitle || '';
             document.getElementById('input-portal-success-sub').value = config.successSub || '';
             document.getElementById('input-portal-success-btn').value = config.successBtn || '';
+            
+            // Backup legacy threshold element check handling if still rendering inside the parent form element workspace
+            const thresholdEl = document.getElementById('input-portal-redeem-threshold');
+            if (thresholdEl) {
+                thresholdEl.value = config.redeemPoints || '100';
+            }
+
+            // Clean list workspace container before generating tier component elements
+            const listContainer = document.getElementById('reward-tiers-list-container');
+            if (listContainer) {
+                listContainer.innerHTML = '';
+                if (config.rewardTiers && Array.isArray(config.rewardTiers) && config.rewardTiers.length > 0) {
+                    config.rewardTiers.forEach(tier => {
+                        addRewardTierRow(tier.pointsRequired, tier.mikrotikProfile, tier.displayName);
+                    });
+                } else {
+                    // Reverts cleanly to legacy fallback config values or defaults if collection array yields unpopulated states
+                    const legacyThreshold = parseInt(config.redeemPoints) || 100;
+                    addRewardTierRow(legacyThreshold, '24_Hour_Plan', '24 Hours Pass');
+                }
+            }
             
             updateLivePortalPreview();
         }
@@ -2175,6 +2271,10 @@ async function savePortalDesignSettings(e) {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
+    // Safety collection capture parameters logic for legacy variable configurations setup options
+    const thresholdEl = document.getElementById('input-portal-redeem-threshold');
+    const legacyThresholdVal = thresholdEl ? parseInt(thresholdEl.value) : (rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : 100);
+
     const payload = {
         ispId: targetTenant,
         brandName: document.getElementById('input-portal-brand').value,
@@ -2183,7 +2283,9 @@ async function savePortalDesignSettings(e) {
         accentColor: document.getElementById('input-portal-color').value,
         
         earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value),
-        redeemPoints: parseInt(document.getElementById('input-portal-redeem-threshold').value),
+        redeemPoints: legacyThresholdVal, // Preserved backward compatibility hook
+        rewardTiers: rewardTiersState,   // Dynamically appends managed collection objects array
+        
         reconnectMsg: document.getElementById('input-portal-reconnect-msg').value,
         tvSetup: document.getElementById('input-portal-tv-setup').value,
         
