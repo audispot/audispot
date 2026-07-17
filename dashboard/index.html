@@ -576,7 +576,7 @@
                                 <i class="fa-solid fa-star text-amber-500 text-xs"></i>
                                 <span class="text-[9px] font-bold text-slate-800">Hotspot Loyalty Rewards</span>
                             </div>
-                            <p class="text-[9px] text-slate-500 leading-normal">
+                            <p id="sim-loyalty-desc-text" class="text-[9px] text-slate-500 leading-normal">
                                 Earn +<span id="sim-text-earn" class="font-bold text-indigo-600">10</span> points on every checkout! Reach <span id="sim-text-redeem" class="font-bold text-indigo-600">100</span> points to redeem an instant free daily pass.
                             </p>
                             <div class="flex gap-1.5 pt-1">
@@ -2174,8 +2174,8 @@ function updateLivePortalPreview() {
         legacyRedeemNode.innerText = rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : '100';
     }
 
-    // Dynamic text rendering loop updates for smartphone preview block
-    const rewardWidgetParagraph = document.querySelector('#sim-scrollable-flow .bg-white.border.border-slate-200.p-2.5 p');
+    // Fixed safe target reference to clear execution selector errors entirely
+    const rewardWidgetParagraph = document.getElementById('sim-loyalty-desc-text');
     if (rewardWidgetParagraph) {
         if (rewardTiersState.length > 0) {
             const lowTier = rewardTiersState[0];
