@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hotspot Gateway Connect</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link class="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans selection:bg-indigo-500/30">
 
@@ -204,6 +204,125 @@
         }
 
         // =======================================================
+        // NEW: DIRECT PURCHASE ENGINE BUTTON & STK POLLING LOOPS
+        // =======================================================
+        document.getElementById('portal-connect-btn').addEventListener('click', async () => {
+            const phoneInput = document.getElementById('buyer-phone').value.trim();
+            const selectedPlanNode = document.querySelector('input[name="selectedPlan"]:checked');
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+
+            if (!phoneInput) {
+                triggerUINotifier("Please input your M-Pesa phone number.", "error");
+                return;
+            }
+            if (!selectedPlanNode) {
+                triggerUINotifier("Please choose an internet package layout plan.", "error");
+                return;
+            }
+
+            // Extract values bound safely inside the dynamically generated data targets
+            const billingAmount = selectedPlanNode.getAttribute('data-price');
+            const selectedProfile = selectedPlanNode.getAttribute('data-profile');
+
+            const purchaseBtn = document.getElementById('portal-connect-btn');
+            purchaseBtn.disabled = true;
+            purchaseBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Sending STK Push...`;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phoneInput,
+                        amount: billingAmount,
+                        routerId: ispId,
+                        macAddress: capturedMacAddress, 
+                        planProfile: selectedProfile
+                    })
+                });
+
+                const outcome = await response.json();
+
+                if (response.ok && outcome.success) {
+                    triggerUINotifier("STK Push initiated! Complete PIN entry on your phone.", "success");
+                    // Fire real-time transactional monitoring loops immediately
+                    initializePaymentTracker(outcome.CheckoutRequestID, phoneInput);
+                } else {
+                    throw new Error(outcome.error || "Payment routing delivery rejected.");
+                }
+            } catch (err) {
+                triggerUINotifier(err.message, "error");
+                purchaseBtn.disabled = false;
+                purchaseBtn.innerText = "Purchase Internet Pass";
+            }
+        });
+
+        function initializePaymentTracker(checkoutId, userPhone) {
+            const purchaseBtn = document.getElementById('portal-connect-btn');
+            let loopAttempts = 0;
+            const maximumTimeoutLimit = 20; // 20 * 3 seconds = 60 Seconds Total Limit
+
+            const trackerInterval = setInterval(async () => {
+                loopAttempts++;
+                purchaseBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Verifying Payment (${loopAttempts})...`;
+                
+                if (loopAttempts > maximumTimeoutLimit) {
+                    clearInterval(trackerInterval);
+                    triggerUINotifier("Payment authorization timed out. If debited, tap Reconnect Device.", "error");
+                    purchaseBtn.disabled = false;
+                    purchaseBtn.innerText = "Purchase Internet Pass";
+                    return;
+                }
+
+                try {
+                    const check = await fetch(`${API_BASE_URL}/api/hotspot/check-payment/${checkoutId}`);
+                    const report = await check.json();
+
+                    if (report.success) {
+                        if (report.status === 'PAID') {
+                            clearInterval(trackerInterval);
+                            triggerUINotifier("Payment verified successfully! Authorizing appliance...", "success");
+                            
+                            purchaseBtn.innerText = "Device Authorized!";
+                            
+                            // Native Hotspot login redirection fallback implementation
+                            setTimeout(() => {
+                                const loginForm = document.createElement('form');
+                                loginForm.method = 'POST';
+                                loginForm.action = window.location.origin + '/login'; 
+                                
+                                const inputUser = document.createElement('input');
+                                inputUser.type = 'hidden';
+                                inputUser.name = 'username';
+                                inputUser.value = userPhone.startsWith('0') ? '254' + userPhone.slice(1) : userPhone;
+                                
+                                const inputPass = document.createElement('input');
+                                inputPass.type = 'hidden';
+                                inputPass.name = 'password';
+                                inputPass.value = inputUser.value;
+
+                                loginForm.appendChild(inputUser);
+                                loginForm.appendChild(inputPass);
+                                document.body.appendChild(loginForm);
+                                loginForm.submit();
+                            }, 1500);
+
+                        } else if (report.status === 'FAILED') {
+                            clearInterval(trackerInterval);
+                            triggerUINotifier("Transaction canceled or PIN entry failed.", "error");
+                            purchaseBtn.disabled = false;
+                            purchaseBtn.innerText = "Purchase Internet Pass";
+                        }
+                    }
+                } catch (e) {
+                    console.error("Polling validation pipeline connection dropped.", e);
+                }
+            }, 3000);
+        }
+
+        // =======================================================
         // INTEGRATED AUTOMATIC / CODE DRIVEN RECONNECT PIPELINE
         // =======================================================
         async function handleInitialDeviceReconnect() {
@@ -223,7 +342,6 @@
                 if (response.ok && data.success) {
                     triggerUINotifier(data.message, 'success');
                 } else {
-                    // Fall back to opening the M-Pesa manual tracking modal frame if session isn't found
                     openPortalModal('modal-reconnect');
                 }
             } catch (err) {
@@ -290,44 +408,42 @@
         }
 
         async function loadAndOpenRedeemModal() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const ispId = urlParams.get('ispId');
-    const optionsWrapper = document.getElementById('portal-redeem-options');
-    const actionBtn = document.getElementById('submit-redemption-btn');
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+            const optionsWrapper = document.getElementById('portal-redeem-options');
+            const actionBtn = document.getElementById('submit-redemption-btn');
 
-    openPortalModal('modal-redeem');
+            openPortalModal('modal-redeem');
 
-    try {
-        // HIT THE CONSOLIDATED PORTAL DESIGN API TO READ THE TIERS ARRAY
-        const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
-        if (!res.ok) throw new Error("Failed to pull configuration parameters.");
-        
-        const config = await res.json();
-        const tiers = config.rewardTiers || [];
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
+                if (!res.ok) throw new Error("Failed to pull configuration parameters.");
+                
+                const config = await res.json();
+                const tiers = config.rewardTiers || [];
 
-        if (tiers.length === 0) {
-            optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
-            actionBtn.classList.add('hidden');
-            return;
+                if (tiers.length === 0) {
+                    optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
+                    actionBtn.classList.add('hidden');
+                    return;
+                }
+
+                optionsWrapper.innerHTML = tiers.map((tier, idx) => `
+                    <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
+                            <span class="text-xs text-white font-bold">${tier.displayName || 'Premium Pass'}</span>
+                        </div>
+                        <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
+                    </label>
+                `).join('');
+                
+                actionBtn.classList.remove('hidden');
+            } catch (err) {
+                console.error("Redemption loading loop exception:", err);
+                optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
+            }
         }
-
-        // Render the active configurations stored in your Firestore document array
-        optionsWrapper.innerHTML = tiers.map((tier, idx) => `
-            <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
-                    <span class="text-xs text-white font-bold">${tier.displayName || 'Premium Pass'}</span>
-                </div>
-                <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
-            </label>
-        `).join('');
-        
-        actionBtn.classList.remove('hidden');
-    } catch (err) {
-        console.error("Redemption loading loop exception:", err);
-        optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
-    }
-}
 
         async function executePointsRedeemExchange() {
             triggerUINotifier("Processing reward network allocation pass...");
@@ -339,7 +455,6 @@
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
             
-            // Extract raw device MAC tracking reference addresses if broadcasted by the router gateway
             if(urlParams.get('mac')) capturedMacAddress = urlParams.get('mac');
 
             if (!ispId) {
@@ -383,12 +498,14 @@
                             const pkgId = pkg.id || pkg.docId || '';
                             const readableDuration = formatPackageDuration(pkg.duration);
                             const displayDetails = `${readableDuration} Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+                            const matchedProfileName = pkg.mikrotikProfile || pkg.profileName || '';
                             
                             return `
                                 <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
                                        style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
                                     <div class="flex items-center gap-3">
-                                        <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
+                                        <!-- UPDATED: Injecting pricing metadata and profile parameters cleanly directly onto input targets -->
+                                        <input type="radio" name="selectedPlan" value="${pkgId}" data-price="${pkg.price || 0}" data-profile="${matchedProfileName}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
                                         <div class="space-y-0.5">
                                             <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
                                             <p class="text-[10px] text-slate-400 font-medium">${displayDetails}</p>
