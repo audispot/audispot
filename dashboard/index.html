@@ -965,39 +965,56 @@
     </div>
 
     <div id="package-creation-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-        <div class="bg-gray-900 border border-gray-800 rounded-xl max-w-md w-full overflow-hidden shadow-2xl">
-            <div class="px-5 py-4 border-b border-gray-800 bg-gray-950 flex justify-between items-center">
-                <h4 class="text-xs font-bold uppercase tracking-widest text-white">Construct Network Billing Profile</h4>
-                <button type="button" onclick="togglePackageCreationModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <form id="package-creation-form" class="p-5 space-y-4 text-xs" onsubmit="handlePackageSubmission(event)">
-                <div class="space-y-1">
-                    <label class="text-slate-400">Package Designator Name *</label>
-                    <input type="text" name="packageName" placeholder="e.g., Ultra 24 Hours Highspeed" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="space-y-1">
-                        <label class="text-slate-400">Price (KES) *</label>
-                        <input type="number" name="price" placeholder="e.g., 20" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-slate-400">Duration Limit (Hours) *</label>
-                        <input type="number" name="duration" placeholder="e.g., 24" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-slate-400">Mikrotik Queue Profile Target Rule *</label>
-                    <input type="text" name="bandwidthProfile" placeholder="e.g., 5Mbps_Profile" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
-                </div>
-                <div class="pt-3 border-t border-gray-800 flex justify-end gap-2 bg-gray-950 -mx-5 -mb-5 p-4">
-                    <button type="button" onclick="togglePackageCreationModal(false)" class="px-4 py-2 bg-gray-800 text-white font-medium rounded-md hover:bg-gray-700 transition">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-500 transition">Publish Live Package</button>
-                </div>
-            </form>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl max-w-md w-full overflow-hidden shadow-2xl">
+        <div class="px-5 py-4 border-b border-gray-800 bg-gray-950 flex justify-between items-center">
+            <h4 class="text-xs font-bold uppercase tracking-widest text-white">Construct Network Billing Profile</h4>
+            <button type="button" onclick="togglePackageCreationModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
         </div>
+        <form id="package-creation-form" class="p-5 space-y-4 text-xs" onsubmit="handlePackageSubmission(event)">
+            
+            <!-- Package Name -->
+            <div class="space-y-1">
+                <label class="text-slate-400">Package Name *</label>
+                <input type="text" name="packageName" id="input-pkg-name" placeholder="e.g., Ultra 24 Hours Highspeed" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+            </div>
+
+            <!-- Package Plan Cycle Type & Price Grid -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-400">Billing Cycle Period *</label>
+                    <select name="packageType" id="package-type-select" onchange="updateDurationInputLabel()" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white font-medium cursor-pointer">
+                        <option value="hourly" selected>Hourly / Daily</option>
+                        <option value="weekly">Weekly Plan</option>
+                        <option value="monthly">Monthly Plan</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Price (KES) *</label>
+                    <input type="number" name="price" placeholder="e.g., 20" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+                </div>
+            </div>
+
+            <!-- Dynamic Duration Field Selector Group -->
+            <div class="space-y-1">
+                <label class="text-slate-400" id="duration-field-label">Duration Limit (Hours) *</label>
+                <input type="number" name="duration" id="input-pkg-duration" placeholder="e.g., 24" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+            </div>
+
+            <!-- Queue Rule Profile -->
+            <div class="space-y-1">
+                <label class="text-slate-400">Mikrotik Queue Profile Target Rule *</label>
+                <input type="text" name="bandwidthProfile" placeholder="e.g., 5Mbps_Profile" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white" required>
+            </div>
+
+            <!-- Action Form Footer Buttons -->
+            <div class="pt-3 border-t border-gray-800 flex justify-end gap-2 bg-gray-950 -mx-5 -mb-5 p-4">
+                <button type="button" onclick="togglePackageCreationModal(false)" class="px-4 py-2 bg-gray-800 text-white font-medium rounded-md hover:bg-gray-700 transition">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-500 transition">Publish Package</button>
+            </div>
+        </form>
     </div>
 </div>
-
+    
 <div id="viewframe-expenses" class="hidden space-y-6 viewframe">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -1346,9 +1363,19 @@ async function handlePackageSubmission(e) {
     // Ensure we send the correct active ISP ID
     payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
 
-    // Convert inputs to numbers so they match expected database types
+    // Convert price to number
     if (payload.price) payload.price = Number(payload.price);
-    if (payload.duration) payload.duration = Number(payload.duration);
+
+    // Normalize multi-period selections into standard hour units for db structural compliance
+    let finalHours = Number(payload.duration || 0);
+    
+    if (payload.packageType === 'weekly') {
+        finalHours = finalHours * 7 * 24; // Convert weeks to hours
+    } else if (payload.packageType === 'monthly') {
+        finalHours = finalHours * 30 * 24; // Convert average months to hours
+    }
+    
+    payload.duration = finalHours;
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/packages/create`, { 
@@ -3051,6 +3078,27 @@ function toggleMobileSidebarMenu() {
             icon.classList.remove('fa-xmark');
             icon.classList.add('fa-bars');
         }
+    }
+}
+
+function updateDurationInputLabel() {
+    const type = document.getElementById('package-type-select').value;
+    const label = document.getElementById('duration-field-label');
+    const input = document.getElementById('input-pkg-duration');
+    const nameInput = document.getElementById('input-pkg-name');
+
+    if (type === 'hourly') {
+        label.innerText = "Duration Limit (Hours) *";
+        input.placeholder = "e.g., 24";
+        nameInput.placeholder = "e.g., Ultra 24 Hours Highspeed";
+    } else if (type === 'weekly') {
+        label.innerText = "Duration Limit (Weeks) *";
+        input.placeholder = "e.g., 1";
+        nameInput.placeholder = "e.g., Premium Weekly Pass";
+    } else if (type === 'monthly') {
+        label.innerText = "Duration Limit (Months) *";
+        input.placeholder = "e.g., 1";
+        nameInput.placeholder = "e.g., Ultimate Unlimited Monthly";
     }
 }
 
