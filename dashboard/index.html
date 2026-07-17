@@ -111,14 +111,20 @@
                 </div>
             </div>
 
-            <!-- Account Metadata Identity Node Footer -->
-<div class="p-3 border-t border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/40 flex items-center gap-3">
-    <!-- Circle initials updated dynamically -->
-    <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs" id="lbl-side-initials">--</div>
-    <div class="overflow-hidden min-w-0">
-        <div class="font-bold text-slate-900 dark:text-white truncate text-xs" id="lbl-side-username">Loading...</div>
-        <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" id="lbl-side-email">Loading...</div>
+            <<!-- Account Metadata Identity Node Footer -->
+<div class="p-3 border-t border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between gap-2">
+    <div class="flex items-center gap-3 overflow-hidden min-w-0">
+        <!-- Circle initials updated dynamically -->
+        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0" id="lbl-side-initials">--</div>
+        <div class="overflow-hidden min-w-0">
+            <div class="font-bold text-slate-900 dark:text-white truncate text-xs" id="lbl-side-username">Loading...</div>
+            <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" id="lbl-side-email">Loading...</div>
+        </div>
     </div>
+    <!-- Clean, interactive Logout Button Action Component -->
+    <button onclick="handleUserLogout()" class="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition shrink-0" title="Sign Out">
+        <i class="fa-solid fa-right-from-bracket text-sm"></i>
+    </button>
 </div>
 </aside>
 
@@ -135,7 +141,7 @@
     <!-- Dynamic Workspace Content Injector -->
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
 
-        <!-- VIEW 1: PREMIUM VUNAFLOW DASHBOARD -->
+        <!-- VIEW 1: PREMIUM DASHBOARD -->
         <div id="viewframe-dashboard" class="space-y-6 block viewframe">
             
             <div id="subscription-expiry-banner" class="hidden bg-amber-500/10 text-amber-500 border border-amber-500/20 p-4 rounded-xl mb-6 text-sm flex items-center justify-between">
@@ -2532,9 +2538,14 @@ async function fetchAndRenderDashboard() {
 async function fetchAndRenderSystemSettings() {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    
+    // Dynamically retrieve real user details from local storage to seed new documents if needed
+    const loggedInEmail = localStorage.getItem('user_email') || '';
+    const loggedInName = localStorage.getItem('user_name') || '';
 
     try {
-        const response = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}`);
+        // Appended email and name parameters to dynamically seed backend defaults
+        const response = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}&email=${encodeURIComponent(loggedInEmail)}&name=${encodeURIComponent(loggedInName)}`);
         if (!response.ok) {
             throw new Error("Could not pull active hardware configurations.");
         }
@@ -2852,6 +2863,15 @@ function checkSubscriptionTrial() {
             bannerText.innerHTML = `<strong>Trial Expired:</strong> Your 5-day free trial has expired. Please clear your subscription dues to re-enable dashboard actions.`;
         }
     }
+}
+
+// Global logout handler triggered by footer action node
+function handleUserLogout() {
+    localStorage.removeItem('isp_id');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_name');
+    localStorage.removeItem('created_at');
+    window.location.href = '/login.html'; 
 }
 
 // =========================================================================
