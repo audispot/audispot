@@ -1964,7 +1964,7 @@ async function loadPortalPreviewPackages() {
 
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
-        const response = await fetch(`/api/packages?ispId=${targetTenant}`);
+        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
         if (!response.ok) throw new Error();
         
         let packages = await response.json();
