@@ -290,38 +290,44 @@
         }
 
         async function loadAndOpenRedeemModal() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const ispId = urlParams.get('ispId');
-            const optionsWrapper = document.getElementById('portal-redeem-options');
-            const actionBtn = document.getElementById('submit-redemption-btn');
+    const urlParams = new URLSearchParams(window.location.search);
+    const ispId = urlParams.get('ispId');
+    const optionsWrapper = document.getElementById('portal-redeem-options');
+    const actionBtn = document.getElementById('submit-redemption-btn');
 
-            openPortalModal('modal-redeem');
+    openPortalModal('modal-redeem');
 
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/portal/rewards-tiers?ispId=${ispId}`);
-                const tiers = await res.json();
+    try {
+        // HIT THE CONSOLIDATED PORTAL DESIGN API TO READ THE TIERS ARRAY
+        const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
+        if (!res.ok) throw new Error("Failed to pull configuration parameters.");
+        
+        const config = await res.json();
+        const tiers = config.rewardTiers || [];
 
-                if (!res.ok || tiers.length === 0) {
-                    optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
-                    actionBtn.classList.add('hidden');
-                    return;
-                }
-
-                optionsWrapper.innerHTML = tiers.map((tier, idx) => `
-                    <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                        <div class="flex items-center gap-2">
-                            <input type="radio" name="redeemTier" value="${tier.id}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
-                            <span class="text-xs text-white font-bold">${formatPackageDuration(tier.durationHours)} Premium Pass</span>
-                        </div>
-                        <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
-                    </label>
-                `).join('');
-                
-                actionBtn.classList.remove('hidden');
-            } catch (err) {
-                optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
-            }
+        if (tiers.length === 0) {
+            optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
+            actionBtn.classList.add('hidden');
+            return;
         }
+
+        // Render the active configurations stored in your Firestore document array
+        optionsWrapper.innerHTML = tiers.map((tier, idx) => `
+            <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
+                    <span class="text-xs text-white font-bold">${tier.displayName || 'Premium Pass'}</span>
+                </div>
+                <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
+            </label>
+        `).join('');
+        
+        actionBtn.classList.remove('hidden');
+    } catch (err) {
+        console.error("Redemption loading loop exception:", err);
+        optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
+    }
+}
 
         async function executePointsRedeemExchange() {
             triggerUINotifier("Processing reward network allocation pass...");
