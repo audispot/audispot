@@ -55,7 +55,7 @@
     <div class="flex h-screen overflow-hidden">
         
         <!-- SIDEBAR LEFT NAVIGATION PANEL (Exact VunaFlow Matching Groups) -->
-        <aside class="w-60 bg-white dark:bg-vunacard border-r border-slate-200 dark:border-vunaborder flex flex-col shrink-0 z-20">
+        <aside class="fixed inset-y-0 left-0 z-40 w-64 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out bg-slate-900 border-r border-slate-800 flex flex-col hidden md:flex" id="sidebar-navigation-panel">
             <!-- Brand Space -->
             <div class="h-16 px-5 border-b border-slate-200 dark:border-vunaborder flex items-center justify-between">
                 <div class="flex items-center gap-2.5 font-bold text-base text-slate-900 dark:text-white tracking-tight">
@@ -871,6 +871,62 @@
                     <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical static leases map records allocated to system.</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Dynamic Subscription Renewal Modal -->
+<div id="subscription-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl w-full max-w-md p-6 relative shadow-2xl">
+        <!-- Close Button -->
+        <button onclick="toggleSubscriptionModal(false)" class="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition">
+            <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">⚡</div>
+                <span class="text-white font-bold text-lg tracking-tight">AudiSpot Pay</span>
+            </div>
+            <!-- Status Badge -->
+            <span id="modal-status-badge" class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full"></span>
+        </div>
+
+        <h3 class="text-xl font-bold text-white mb-2 tracking-tight">Renew to continue managing your network</h3>
+        <p class="text-xs text-slate-400 leading-relaxed mb-6">Access returns the moment your M-Pesa payment completes. Your customers stay connected — nothing on your routers is touched.</p>
+
+        <!-- Pricing Breakdowns Box -->
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 mb-6 space-y-3 text-xs">
+            <div class="flex justify-between text-slate-400">
+                <span>Base Platform Fee</span>
+                <span class="text-slate-200 font-medium">KSh 0.00</span>
+            </div>
+            <div class="flex justify-between text-slate-400 pb-3 border-b border-slate-800">
+                <span>Connected Routers (<span id="modal-router-count">0</span>)</span>
+                <span class="text-slate-200 font-medium" id="modal-router-cost">KSh 0.00</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-1">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Due</span>
+                <div class="text-right">
+                    <span class="text-2xl font-black text-amber-400" id="modal-total-due">KSh 0</span>
+                    <span class="text-[10px] text-slate-500 ml-1">/ 30 days</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Trigger Buttons -->
+        <button class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/10 mb-3 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-bolt text-xs"></i> <span id="modal-action-btn-text">Pay Now</span>
+        </button>
+        <button class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold rounded-xl text-xs border border-slate-800 transition">
+            I've paid — check again
+        </button>
+
+        <!-- Footer Meta Info -->
+        <div class="mt-6 pt-4 border-t border-slate-900 flex items-center justify-between text-[10px] text-slate-500">
+            <span class="truncate">Signed in as <strong id="modal-user-email" class="text-slate-400">...</strong></span>
+            <span class="flex items-center gap-1 text-emerald-500 font-medium"><i class="fa-solid fa-shield-halved"></i> Secure Payment</span>
         </div>
     </div>
 </div>
@@ -2826,41 +2882,76 @@ async function removeTechnician(techId) {
     }
 }
 
+// Function to Open or Close the Modal with full dynamic calculations
+function toggleSubscriptionModal(show = true) {
+    const modal = document.getElementById('subscription-modal');
+    if (!modal) return;
+
+    if (show) {
+        // 1. Fetch live router metric count directly from the UI state element
+        const routerCountEl = document.getElementById('lbl-count-routers');
+        const routerCount = routerCountEl ? parseInt(routerCountEl.innerText) || 0 : 0;
+        
+        // 2. Compute cost parameters (KSh 500 per router)
+        const totalCost = routerCount * 500;
+
+        // 3. Update Modal dynamic inputs
+        document.getElementById('modal-router-count').innerText = routerCount;
+        document.getElementById('modal-router-cost').innerText = `KSh ${totalCost.toLocaleString('en-KE', {minimumFractionDigits: 2})}`;
+        document.getElementById('modal-total-due').innerText = `KSh ${totalCost.toLocaleString('en-KE')}`;
+        document.getElementById('modal-action-btn-text').innerText = `Renew now — KSh ${totalCost.toLocaleString('en-KE')}`;
+        document.getElementById('modal-user-email').innerText = localStorage.getItem('user_email') || 'owner@isp.com';
+
+        // 4. Set Badge layout depending on active trial lifecycle state
+        const createdAtStr = localStorage.getItem('created_at');
+        const badge = document.getElementById('modal-status-badge');
+        
+        let isExpired = true;
+        if (createdAtStr) {
+            const daysElapsed = Math.floor((new Date() - new Date(createdAtStr)) / (24 * 60 * 60 * 1000));
+            if (5 - daysElapsed > 0) isExpired = false;
+        }
+
+        if (isExpired) {
+            badge.innerText = "Expired";
+            badge.className = "text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        } else {
+            badge.innerText = "Trial Active";
+            badge.className = "text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        }
+
+        modal.classList.remove('hidden');
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+// Updated banner configuration wrapper
 function checkSubscriptionTrial() {
     const createdAtStr = localStorage.getItem('created_at');
     const banner = document.getElementById('subscription-expiry-banner');
     const bannerText = document.getElementById('subscription-expiry-text');
 
-    if (!banner) {
-        console.error("Banner element #subscription-expiry-banner not found in DOM");
-        return;
-    }
+    if (!banner) return;
 
     if (!createdAtStr) {
-        console.warn("created_at not found in localStorage. Try logging in again.");
+        banner.classList.remove('hidden');
+        if (bannerText) bannerText.innerHTML = `<strong>Account Trial Setup:</strong> Log in again to initialize status tracking.`;
         return;
     }
 
-    const createdAt = new Date(createdAtStr);
-    const now = new Date();
-    
-    // Difference calculation in days
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const daysElapsed = Math.floor((now - createdAt) / msPerDay);
+    const daysElapsed = Math.floor((new Date() - new Date(createdAtStr)) / (24 * 60 * 60 * 1000));
     const daysRemaining = 5 - daysElapsed;
 
+    banner.classList.remove('hidden');
     if (daysRemaining > 0) {
-        // Show Active Trial Notification
-        banner.classList.remove('hidden');
         if (bannerText) {
-            bannerText.innerHTML = `<strong>Free Trial Active:</strong> You have <strong>${daysRemaining} day(s)</strong> remaining on your free trial. <a href="#settings" class="underline font-bold hover:text-amber-400 ml-1">Activate your router subscription now</a> to avoid service interruption (KSh 500/router).`;
+            bannerText.innerHTML = `Free Trial Active: You have <strong>${daysRemaining} day(s)</strong> remaining on your free trial. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-amber-400 ml-1">Activate your router subscription now</button> to avoid service interruption (KSh 500/router).`;
         }
     } else {
-        // Show Blocked/Expired Notification
-        banner.classList.remove('hidden');
         banner.className = "p-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
         if (bannerText) {
-            bannerText.innerHTML = `<strong>Trial Expired:</strong> Your 5-day free trial has expired. Please clear your subscription dues to re-enable dashboard actions.`;
+            bannerText.innerHTML = `<strong>Trial Expired:</strong> Your free trial has reached its limit. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-rose-400 ml-1">Activate subscription nodes</button> to preserve routing controls.`;
         }
     }
 }
@@ -2872,6 +2963,31 @@ function handleUserLogout() {
     localStorage.removeItem('user_name');
     localStorage.removeItem('created_at');
     window.location.href = '/login/'; 
+}
+
+function toggleMobileSidebarMenu() {
+    const sidebar = document.getElementById('sidebar-navigation-panel');
+    const icon = document.getElementById('hamburger-icon-node');
+    
+    if (!sidebar) return;
+
+    if (sidebar.classList.contains('hidden')) {
+        // Open Mobile Sidebar Overlay
+        sidebar.classList.remove('hidden');
+        sidebar.classList.remove('-translate-x-full');
+        if (icon) {
+            icon.classList.remove('fa-bars');
+            icon.classList.add('fa-xmark');
+        }
+    } else {
+        // Close Mobile Sidebar Overlay
+        sidebar.classList.add('hidden');
+        sidebar.classList.add('-translate-x-full');
+        if (icon) {
+            icon.classList.remove('fa-xmark');
+            icon.classList.add('fa-bars');
+        }
+    }
 }
 
 // =========================================================================
