@@ -1362,7 +1362,7 @@ async function handlePackageSubmission(e) {
             e.target.reset(); 
             
             if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay("Billing package created successfully! ");
+                triggerToastDisplay("Billing package created successfully! 🚀");
             }
             
             // Give Firestore 500ms to commit the write, then fetch the updated catalog
@@ -1469,14 +1469,15 @@ function promptInlineDelete(packageId) {
         <div class="w-full flex items-center justify-between bg-rose-500/5 p-1 rounded border border-rose-500/20 animate-fade-in gap-1">
             <span class="text-[9px] text-rose-400 font-bold px-1">Shred config?</span>
             <div class="flex gap-1">
-                <button onclick="executePackageItemShred('${packageId}')" class="px-2 py-1 bg-rose-600 text-white rounded text-[9px] font-bold hover:bg-rose-700 transition">Yes</button>
+                <button onclick="window.executePackageItemShred('${packageId}')" class="px-2 py-1 bg-rose-600 text-white rounded text-[9px] font-bold hover:bg-rose-700 transition">Yes</button>
                 <button onclick="fetchActiveBillingCatalog()" class="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-bold hover:bg-slate-600 transition">No</button>
             </div>
         </div>
     `;
 }
 
-async function DeletePackageItem(packageId) {
+// Binding to the window global scope explicitly fixes the ReferenceError context drops inside HTML onclick listeners
+window.executePackageItemShred = async function(packageId) {
     if (!packageId) {
         if (typeof triggerToastDisplay === 'function') {
             triggerToastDisplay("Cannot delete package: Invalid ID token reference.", true);
@@ -1494,7 +1495,7 @@ async function DeletePackageItem(packageId) {
         
         if (res.ok) {
             if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay("Package configuration tier shredded successfully! ");
+                triggerToastDisplay("Package configuration tier shredded successfully! 💥");
             }
             await delay(500); // Small Firestore sync buffer
             fetchActiveBillingCatalog();
@@ -2114,8 +2115,10 @@ function toggleSimulatorSuccessState(showSuccess) {
 
 async function fetchCurrentPortalDesign() {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     try {
-        const response = await fetch(`/api/portal/design?ispId=${targetTenant}`);
+        // Appended baseEndpoint here to fix the 404 route error
+        const response = await fetch(`${baseEndpoint}/api/portal/design?ispId=${targetTenant}`);
         if (response.ok) {
             const config = await response.json();
             
@@ -2143,6 +2146,7 @@ async function fetchCurrentPortalDesign() {
 async function savePortalDesignSettings(e) {
     e.preventDefault();
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
     const payload = {
         ispId: targetTenant,
@@ -2162,19 +2166,21 @@ async function savePortalDesignSettings(e) {
     };
 
     try {
-        const response = await fetch('/api/portal/design/save', {
+        // Appended baseEndpoint here to fix the save path routing
+        const response = await fetch(`${baseEndpoint}/api/portal/design/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
-            triggerToastDisplay("Portal brand elements updated successfully! 🎨");
+            triggerToastDisplay("Portal brand elements updated successfully! ");
         }
     } catch(err) {
-        triggerToastDisplay("Failed persisting changes to Firebase.", true);
+        triggerToastDisplay("Failed persisting changes to backend server.", true);
     }
 }
+        
 // Global navigation control additions
 function navigateToView(viewId) {
     // Hide all view panels safely
