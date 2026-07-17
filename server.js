@@ -1207,6 +1207,7 @@ app.get('/api/portal/design', async (req, res) => {
                 accentColor: "#4f46e5",
                 earnPoints: 10,
                 redeemPoints: 100,
+                rewardTiers: [], // Default fallback empty collection array
                 reconnectMsg: "Click button below to search active sessions.",
                 tvSetup: "1. Locate MAC address of TV\n2. Submit register address\n3. TV is authorized automatically.",
                 successTitle: "Welcome Online!",
@@ -1223,12 +1224,20 @@ app.get('/api/portal/design', async (req, res) => {
 app.post('/api/portal/design/save', async (req, res) => {
     const { 
         ispId, brandName, welcomeGreeting, supportContact, accentColor,
-        earnPoints, redeemPoints, reconnectMsg, tvSetup,
+        earnPoints, redeemPoints, rewardTiers, reconnectMsg, tvSetup,
         successTitle, successSub, successBtn
     } = req.body;
 
     try {
         const targetTenant = ispId || 'default_isp';
+        
+        // Safely validate and map the incoming array elements to prevent database corruption
+        const sanitizedTiers = Array.isArray(rewardTiers) ? rewardTiers.map(tier => ({
+            pointsRequired: parseInt(tier.pointsRequired) || 0,
+            mikrotikProfile: String(tier.mikrotikProfile || '').trim(),
+            displayName: String(tier.displayName || '').trim()
+        })) : [];
+
         await db.collection('isp_portals').doc(targetTenant).set({
             brandName,
             welcomeGreeting,
@@ -1236,6 +1245,7 @@ app.post('/api/portal/design/save', async (req, res) => {
             accentColor,
             earnPoints: parseInt(earnPoints) || 10,
             redeemPoints: parseInt(redeemPoints) || 100,
+            rewardTiers: sanitizedTiers, // Added to persistence profile write payload
             reconnectMsg,
             tvSetup,
             successTitle,
