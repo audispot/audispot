@@ -2140,41 +2140,58 @@ function syncRewardTiersFromUI() {
 }
 
 function updateLivePortalPreview() {
-    const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
-    const welcomeInput = document.getElementById('input-portal-welcome').value || 'Enter connection credentials.';
-    const supportInput = document.getElementById('input-portal-support').value || '0700000000';
-    const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+    // Collect settings safely with dynamic fallbacks if input fields are missing
+    const brandInput = document.getElementById('input-portal-brand')?.value || 'My Hotspot Network';
+    const welcomeInput = document.getElementById('input-portal-welcome')?.value || 'Enter connection credentials.';
+    const supportInput = document.getElementById('input-portal-support')?.value || '0700000000';
+    const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
     
-    // Loyalty and instructions fields
-    const earnPoints = document.getElementById('input-portal-earn-pts').value || '10';
-    const reconnectMsg = document.getElementById('input-portal-reconnect-msg').value || 'Checking matching active session links...';
-    const tvSetupText = document.getElementById('input-portal-tv-setup').value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
+    const earnPoints = document.getElementById('input-portal-earn-pts')?.value || '10';
+    const reconnectMsg = document.getElementById('input-portal-reconnect-msg')?.value || 'Checking matching active session links...';
+    const tvSetupText = document.getElementById('input-portal-tv-setup')?.value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
     
-    // Success fields
-    const successTitle = document.getElementById('input-portal-success-title').value || 'Welcome Online!';
-    const successSub = document.getElementById('input-portal-success-sub').value || 'Your account connection rules are fully operational.';
-    const successBtn = document.getElementById('input-portal-success-btn').value || 'Proceed to Browsing';
+    const successTitle = document.getElementById('input-portal-success-title')?.value || 'Welcome Online!';
+    const successSub = document.getElementById('input-portal-success-sub')?.value || 'Your account connection rules are fully operational.';
+    const successBtn = document.getElementById('input-portal-success-btn')?.value || 'Proceed to Browsing';
 
-    // Text bindings
-    document.getElementById('sim-text-brand').innerText = brandInput;
-    document.getElementById('sim-text-welcome').innerText = welcomeInput;
-    document.getElementById('sim-text-support').innerText = supportInput;
-    document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
-    
-    document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
-    document.getElementById('sim-text-earn').innerText = earnPoints;
-    document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
-    document.getElementById('sim-text-success-title').innerText = successTitle;
-    document.getElementById('sim-text-success-sub').innerText = successSub;
-    document.getElementById('sim-success-btn-node').innerText = successBtn;
+    // Safe Text Bindings (Checks node existence explicitly before assigning value)
+    const elBrand = document.getElementById('sim-text-brand');
+    if (elBrand) elBrand.innerText = brandInput;
 
-    // Backward-compatible sync check for legacy text node reference fallback if present
+    const elWelcome = document.getElementById('sim-text-welcome');
+    if (elWelcome) elWelcome.innerText = welcomeInput;
+
+    const elSupport = document.getElementById('sim-text-support');
+    if (elSupport) elSupport.innerText = supportInput;
+
+    const elHex = document.getElementById('input-portal-color-hex');
+    if (elHex) elHex.value = accentColor.toUpperCase();
+    
+    const elReconnect = document.getElementById('sim-text-reconnect');
+    if (elReconnect) elReconnect.innerText = reconnectMsg;
+
+    const elEarn = document.getElementById('sim-text-earn');
+    if (elEarn) elEarn.innerText = earnPoints;
+
+    const elTv = document.getElementById('sim-text-tv-instructions');
+    if (elTv) elTv.innerText = tvSetupText;
+
+    const elSucTitle = document.getElementById('sim-text-success-title');
+    if (elSucTitle) elSucTitle.innerText = successTitle;
+
+    const elSucSub = document.getElementById('sim-text-success-sub');
+    if (elSucSub) elSucSub.innerText = successSub;
+
+    const elSucBtn = document.getElementById('sim-success-btn-node');
+    if (elSucBtn) elSucBtn.innerText = successBtn;
+
+    // Backward-compatible check for legacy text node reference
     const legacyRedeemNode = document.getElementById('sim-text-redeem');
     if (legacyRedeemNode) {
         legacyRedeemNode.innerText = rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : '100';
     }
 
-    // Fixed safe target reference to clear execution selector errors entirely
+    // Dynamic text rendering container updates for smartphone preview layout block
     const rewardWidgetParagraph = document.getElementById('sim-loyalty-desc-text');
     if (rewardWidgetParagraph) {
         if (rewardTiersState.length > 0) {
@@ -2185,11 +2202,14 @@ function updateLivePortalPreview() {
         }
     }
 
-    // Apply colors to controls
-    document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
-    document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
+    // Safe color applications
+    const elLogoBox = document.getElementById('sim-preview-logo-box');
+    if (elLogoBox) elLogoBox.style.backgroundColor = accentColor;
 
-    // Reload package lists to ensure border outline matches current selected color
+    const elAccentBtn = document.getElementById('sim-preview-accent-btn');
+    if (elAccentBtn) elAccentBtn.style.backgroundColor = accentColor;
+
+    // Reload package lists frame
     loadPortalPreviewPackages();
 }
 
@@ -2200,6 +2220,8 @@ function toggleSimulatorSuccessState(showSuccess) {
     
     const btnMain = document.getElementById('sim-toggle-main');
     const btnSuccess = document.getElementById('sim-toggle-success');
+
+    if (!mainView || !successView || !btnMain || !btnSuccess) return;
 
     if (showSuccess) {
         mainView.classList.add('hidden');
@@ -2220,31 +2242,29 @@ async function fetchCurrentPortalDesign() {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     try {
-        // Appended baseEndpoint here to fix the 404 route error
         const response = await fetch(`${baseEndpoint}/api/portal/design?ispId=${targetTenant}`);
         if (response.ok) {
             const config = await response.json();
             
-            document.getElementById('input-portal-brand').value = config.brandName || '';
-            document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
-            document.getElementById('input-portal-support').value = config.supportContact || '';
-            document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
+            if (document.getElementById('input-portal-brand')) document.getElementById('input-portal-brand').value = config.brandName || '';
+            if (document.getElementById('input-portal-welcome')) document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
+            if (document.getElementById('input-portal-support')) document.getElementById('input-portal-support').value = config.supportContact || '';
+            if (document.getElementById('input-portal-color')) document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
             
-            document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
-            document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
-            document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
+            if (document.getElementById('input-portal-earn-pts')) document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
+            if (document.getElementById('input-portal-reconnect-msg')) document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
+            if (document.getElementById('input-portal-tv-setup')) document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
             
-            document.getElementById('input-portal-success-title').value = config.successTitle || '';
-            document.getElementById('input-portal-success-sub').value = config.successSub || '';
-            document.getElementById('input-portal-success-btn').value = config.successBtn || '';
+            if (document.getElementById('input-portal-success-title')) document.getElementById('input-portal-success-title').value = config.successTitle || '';
+            if (document.getElementById('input-portal-success-sub')) document.getElementById('input-portal-success-sub').value = config.successSub || '';
+            if (document.getElementById('input-portal-success-btn')) document.getElementById('input-portal-success-btn').value = config.successBtn || '';
             
-            // Backup legacy threshold element check handling if still rendering inside the parent form element workspace
             const thresholdEl = document.getElementById('input-portal-redeem-threshold');
             if (thresholdEl) {
                 thresholdEl.value = config.redeemPoints || '100';
             }
 
-            // Clean list workspace container before generating tier component elements
+            // Clean list container before generating tier components
             const listContainer = document.getElementById('reward-tiers-list-container');
             if (listContainer) {
                 listContainer.innerHTML = '';
@@ -2253,7 +2273,6 @@ async function fetchCurrentPortalDesign() {
                         addRewardTierRow(tier.pointsRequired, tier.mikrotikProfile, tier.displayName);
                     });
                 } else {
-                    // Reverts cleanly to legacy fallback config values or defaults if collection array yields unpopulated states
                     const legacyThreshold = parseInt(config.redeemPoints) || 100;
                     addRewardTierRow(legacyThreshold, '24_Hour_Plan', '24 Hours Pass');
                 }
@@ -2271,31 +2290,29 @@ async function savePortalDesignSettings(e) {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
-    // Safety collection capture parameters logic for legacy variable configurations setup options
     const thresholdEl = document.getElementById('input-portal-redeem-threshold');
     const legacyThresholdVal = thresholdEl ? parseInt(thresholdEl.value) : (rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : 100);
 
     const payload = {
         ispId: targetTenant,
-        brandName: document.getElementById('input-portal-brand').value,
-        welcomeGreeting: document.getElementById('input-portal-welcome').value,
-        supportContact: document.getElementById('input-portal-support').value,
-        accentColor: document.getElementById('input-portal-color').value,
+        brandName: document.getElementById('input-portal-brand')?.value || '',
+        welcomeGreeting: document.getElementById('input-portal-welcome')?.value || '',
+        supportContact: document.getElementById('input-portal-support')?.value || '',
+        accentColor: document.getElementById('input-portal-color')?.value || '#4f46e5',
         
-        earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value),
-        redeemPoints: legacyThresholdVal, // Preserved backward compatibility hook
-        rewardTiers: rewardTiersState,   // Dynamically appends managed collection objects array
+        earnPoints: parseInt(document.getElementById('input-portal-earn-pts')?.value || 0),
+        redeemPoints: legacyThresholdVal,
+        rewardTiers: rewardTiersState,
         
-        reconnectMsg: document.getElementById('input-portal-reconnect-msg').value,
-        tvSetup: document.getElementById('input-portal-tv-setup').value,
+        reconnectMsg: document.getElementById('input-portal-reconnect-msg')?.value || '',
+        tvSetup: document.getElementById('input-portal-tv-setup')?.value || '',
         
-        successTitle: document.getElementById('input-portal-success-title').value,
-        successSub: document.getElementById('input-portal-success-sub').value,
-        successBtn: document.getElementById('input-portal-success-btn').value
+        successTitle: document.getElementById('input-portal-success-title')?.value || '',
+        successSub: document.getElementById('input-portal-success-sub')?.value || '',
+        successBtn: document.getElementById('input-portal-success-btn')?.value || ''
     };
 
     try {
-        // Appended baseEndpoint here to fix the save path routing
         const response = await fetch(`${baseEndpoint}/api/portal/design/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
