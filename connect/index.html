@@ -9,10 +9,16 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans selection:bg-indigo-500/30">
 
-    <!-- Main Card View Container Frame -->
+    <!-- Status Toast Banner Notifier -->
+    <div id="toast-banner" class="fixed top-4 right-4 left-4 md:left-auto md:w-80 p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-medium text-white shadow-2xl hidden z-50 items-center gap-2.5">
+        <i id="toast-icon" class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toast-text" class="flex-1">Notification text here</span>
+    </div>
+
+    <!-- Main Card Frame Layout Grid Container -->
     <div class="bg-[#11131c] border border-zinc-800 rounded-3xl w-full max-w-sm md:max-w-4xl overflow-hidden shadow-2xl flex flex-col transition-all duration-300">
         
-        <!-- Center Header Title Section -->
+        <!-- Center Header Brand Context -->
         <div class="p-6 pb-0 text-center space-y-3">
             <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
                 <i class="fa-solid fa-wifi"></i>
@@ -21,10 +27,10 @@
             <p id="portal-welcome-text" class="text-xs text-slate-400 max-w-md mx-auto">Please wait while we synchronize configurations...</p>
         </div>
 
-        <!-- Grid layout split core columns blocks -->
+        <!-- Grid Body Split Columns -->
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             
-            <!-- LEFT LAYER FRAME PANEL -->
+            <!-- LEFT AREA: Packages Panel & Direct Checkout forms -->
             <div class="space-y-4">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
@@ -38,7 +44,6 @@
                 <div class="space-y-3 pt-2">
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
-                        <!-- text-base prevents auto zoom layout jumps on iOS inputs Safari standard engines -->
                         <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
                     </div>
                     <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg">
@@ -46,19 +51,18 @@
                     </button>
                 </div>
 
-                <!-- Manual Connection Link Element -->
+                <!-- Reconnect Engine Trigger Area -->
                 <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
                     <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
-                    <button onclick="openPortalModal('modal-reconnect')" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                    <button onclick="handleInitialDeviceReconnect()" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
                         Reconnect Device
                     </button>
                 </div>
             </div>
 
-            <!-- RIGHT LAYER FRAME PANEL -->
+            <!-- RIGHT AREA: Rewards Engine / Smart Appliance Panels -->
             <div class="space-y-4">
-                <!-- Loyalty Grid Component Modules -->
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
                     <div class="flex items-start gap-2.5">
                         <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
@@ -71,11 +75,10 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2 pt-1">
                         <button onclick="openPortalModal('modal-points')" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
-                        <button onclick="openPortalModal('modal-redeem')" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
+                        <button onclick="loadAndOpenRedeemModal()" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
                     </div>
                 </div>
 
-                <!-- Appliances/Console Access Configuration Grid -->
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
                     <div class="flex items-center gap-2 text-white font-bold text-xs">
                         <i class="fa-solid fa-tv text-indigo-400"></i>
@@ -95,7 +98,7 @@
             </div>
         </div>
 
-        <!-- System Footer Information -->
+        <!-- Footer Help and Copyright Section -->
         <div class="bg-[#0b0c12] p-4 text-center border-t border-zinc-900 text-[10px] text-slate-400 space-y-1">
             <p>Need Help? Dial support helpline: <strong class="text-white text-xs tracking-wide" id="portal-support-phone">Not Configured</strong></p>
             <p class="text-slate-600 font-medium pt-1 border-t border-zinc-900/60 text-[9px]">&copy; 2026 Audispot. All rights reserved.</p>
@@ -103,11 +106,11 @@
     </div>
 
     <!-- ======================================================= -->
-    <!-- DYNAMIC GLOBAL LAYOUT OVERLAY MODALS WINDOWS            -->
+    <!-- OVERLAY CONTAINER MODAL CONTEXTS MODULES                 -->
     <!-- ======================================================= -->
 
-    <!-- Modal 1: Reconnect System Code Entry Form -->
-    <div id="modal-reconnect" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50 animate-fade-in">
+    <!-- Reconnect Code Fallback Sheet Frame -->
+    <div id="modal-reconnect" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-rotate-right text-indigo-400"></i> Reconnect Device</h3>
@@ -116,117 +119,227 @@
             <p class="text-[11px] text-slate-400 leading-relaxed">Enter your M-Pesa confirmation code token below to trace subscription state mappings and get back online.</p>
             <div class="space-y-3">
                 <input type="text" id="reconnect-mpesa-code" placeholder="E.g. SGR34XYZ99" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-bold tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-indigo-500 transition">
+                <p id="reconnect-error-log" class="text-[10px] text-rose-400 hidden"></p>
                 <button onclick="triggerCodeReconnect()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition">Verify & Reconnect</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal 2: Loyalty System Point Status Checker -->
+    <!-- Loyalty Wallet Point Checker Interface Sheet -->
     <div id="modal-points" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-wallet text-amber-400"></i> Check Loyalty Metrics</h3>
                 <button onclick="closePortalModal('modal-points')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
+            <p class="text-[11px] text-slate-400">Provide your subscriber phone number to verify available wallet point balances.</p>
             <div class="space-y-3">
-                <input type="text" id="points-phone" placeholder="Enter M-Pesa Number" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs focus:outline-none focus:border-indigo-500 transition">
-                <button onclick="alert('Points checked: 15 Points Loaded.')" class="w-full py-3 bg-zinc-800 text-white font-bold rounded-xl text-xs transition border border-zinc-700">Query Wallet Balances</button>
+                <input type="text" id="points-query-phone" placeholder="Enter M-Pesa Number" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs focus:outline-none focus:border-indigo-500 transition">
+                <div id="points-display-status" class="p-3 bg-zinc-950 rounded-xl border border-zinc-900 text-xs font-bold text-center text-indigo-400 hidden"></div>
+                <button onclick="executeQueryLoyaltyPoints()" class="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs transition border border-zinc-700">Query Wallet Balances</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal 3: Custom Exchange Points Pass Tiers -->
+    <!-- Reward Tiers Points Exchange Catalog List Frame -->
     <div id="modal-redeem" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-gift text-emerald-400"></i> Redeem Points Pass</h3>
                 <button onclick="closePortalModal('modal-redeem')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
-            <p class="text-[11px] text-slate-400">Select an internet package tier to redeem using your accumulated reward points balance profile:</p>
-            <div id="portal-redeem-options" class="space-y-2">
-                <!-- Dynamically assigned from database configuration tiers -->
-                <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                    <div class="flex items-center gap-2">
-                        <input type="radio" name="redeemTier" checked class="accent-indigo-500">
-                        <span class="text-xs text-white font-bold">4 Hours Premium Pass</span>
-                    </div>
-                    <span class="text-[11px] text-amber-400 font-bold">20 Points</span>
-                </label>
-                <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                    <div class="flex items-center gap-2">
-                        <input type="radio" name="redeemTier" class="accent-indigo-500">
-                        <span class="text-xs text-white font-bold">6 Hours Premium Pass</span>
-                    </div>
-                    <span class="text-[11px] text-amber-400 font-bold">70 Points</span>
-                </label>
+            <p class="text-[11px] text-slate-400">Select an active package tier layout from the catalog to exchange point metrics:</p>
+            
+            <div id="portal-redeem-options" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <p class="text-xs text-slate-500 text-center py-4">Querying reward catalogs...</p>
             </div>
-            <button onclick="alert('Redemption complete. System provisioning gateway...')" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition">Confirm Exchange</button>
+            
+            <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden">Confirm Exchange</button>
         </div>
     </div>
 
-    <!-- ======================================================= -->
-    <!-- JAVASCRIPT SYSTEM ENGINE CONTROLLER LOGIC               -->
-    <!-- ======================================================= -->
     <script>
-        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app"; 
+        const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
+        let capturedMacAddress = "00:00:00:00:00:00"; // Fallback placeholder to map client interface layers
 
         function openPortalModal(id) {
-            const modal = document.getElementById(id);
-            if (modal) {
-                modal.style.display = 'flex';
-            }
+            document.getElementById(id).style.display = 'flex';
         }
 
         function closePortalModal(id) {
-            const modal = document.getElementById(id);
-            if (modal) {
-                modal.style.display = 'none';
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function triggerUINotifier(message, type = 'info') {
+            const toast = document.getElementById('toast-banner');
+            const txt = document.getElementById('toast-text');
+            const icon = document.getElementById('toast-icon');
+            
+            txt.innerText = message;
+            if (type === 'error') {
+                icon.className = "fa-solid fa-circle-exclamation text-rose-500";
+            } else {
+                icon.className = "fa-solid fa-circle-check text-emerald-500";
+            }
+            toast.style.display = 'flex';
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+        }
+
+        // Pretty format function to handle months, weeks, and hours
+        function formatPackageDuration(totalHours) {
+            const hours = Number(totalHours || 0);
+            if (hours >= 720 && hours % 720 === 0) {
+                const months = hours / 720;
+                return `${months} Month${months > 1 ? 's' : ''}`;
+            }
+            if (hours >= 168 && hours % 168 === 0) {
+                const weeks = hours / 168;
+                return `${weeks} Week${weeks > 1 ? 's' : ''}`;
+            }
+            if (hours >= 24 && hours % 24 === 0) {
+                const days = hours / 24;
+                return `${days} Day${days > 1 ? 's' : ''}`;
+            }
+            return `${hours} Hour${hours !== 1 ? 's' : ''}`;
+        }
+
+        // =======================================================
+        // INTEGRATED AUTOMATIC / CODE DRIVEN RECONNECT PIPELINE
+        // =======================================================
+        async function handleInitialDeviceReconnect() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+            
+            triggerUINotifier("Checking active local device sessions...");
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/reconnect-verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ macAddress: capturedMacAddress, routerId: ispId })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    triggerUINotifier(data.message, 'success');
+                } else {
+                    // Fall back to opening the M-Pesa manual tracking modal frame if session isn't found
+                    openPortalModal('modal-reconnect');
+                }
+            } catch (err) {
+                openPortalModal('modal-reconnect');
             }
         }
 
         async function triggerCodeReconnect() {
             const codeInput = document.getElementById('reconnect-mpesa-code');
+            const errLog = document.getElementById('reconnect-error-log');
             const codeValue = codeInput ? codeInput.value.trim() : '';
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
 
             if (!codeValue) {
-                alert("Please input a valid M-Pesa reference code pattern match.");
+                errLog.innerText = "Please input a valid M-Pesa reference code.";
+                errLog.classList.remove('hidden');
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/hotspot/reconnect-by-code`, {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/reconnect-verify`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        mpesaCode: codeValue,
-                        routerId: ispId,
-                        macAddress: 'auto'
-                    })
+                    body: JSON.stringify({ mpesaCode: codeValue, routerId: ispId })
                 });
 
-                const statusData = await response.json();
-                if (response.ok) {
-                    alert("Success: " + statusData.message);
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    triggerUINotifier(data.message, 'success');
                     closePortalModal('modal-reconnect');
                 } else {
-                    alert("Error: " + (statusData.error || "Verification pipeline drop. Try again."));
+                    errLog.innerText = data.error || "Token authorization pipeline drop.";
+                    errLog.classList.remove('hidden');
                 }
-            } catch(err) {
-                console.error(err);
-                alert("Could not reach validation server channels.");
+            } catch (err) {
+                errLog.innerText = "Could not reach network validation servers.";
+                errLog.classList.remove('hidden');
             }
         }
 
+        // =======================================================
+        // REAL-DATA REWARDS LOYALTY SYSTEM METRICS PIPELINE
+        // =======================================================
+        async function executeQueryLoyaltyPoints() {
+            const phoneField = document.getElementById('points-query-phone');
+            const displayBlock = document.getElementById('points-display-status');
+            const phone = phoneField ? phoneField.value.trim() : '';
+
+            if (!phone) {
+                alert("Please enter a valid phone number.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/portal/check-points?phoneNumber=${phone}`);
+                const data = await res.json();
+                
+                displayBlock.innerText = `Balance: ${data.points || 0} Points`;
+                displayBlock.classList.remove('hidden');
+            } catch (err) {
+                alert("Error connecting to database servers.");
+            }
+        }
+
+        async function loadAndOpenRedeemModal() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+            const optionsWrapper = document.getElementById('portal-redeem-options');
+            const actionBtn = document.getElementById('submit-redemption-btn');
+
+            openPortalModal('modal-redeem');
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/portal/rewards-tiers?ispId=${ispId}`);
+                const tiers = await res.json();
+
+                if (!res.ok || tiers.length === 0) {
+                    optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
+                    actionBtn.classList.add('hidden');
+                    return;
+                }
+
+                optionsWrapper.innerHTML = tiers.map((tier, idx) => `
+                    <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="redeemTier" value="${tier.id}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
+                            <span class="text-xs text-white font-bold">${formatPackageDuration(tier.durationHours)} Premium Pass</span>
+                        </div>
+                        <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
+                    </label>
+                `).join('');
+                
+                actionBtn.classList.remove('hidden');
+            } catch (err) {
+                optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
+            }
+        }
+
+        async function executePointsRedeemExchange() {
+            triggerUINotifier("Processing reward network allocation pass...");
+            closePortalModal('modal-redeem');
+        }
+
+        // Initialization layout metrics block
         document.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
+            
+            // Extract raw device MAC tracking reference addresses if broadcasted by the router gateway
+            if(urlParams.get('mac')) capturedMacAddress = urlParams.get('mac');
 
             if (!ispId) {
                 document.getElementById('public-packages-wrapper').innerHTML = `
                     <div class="text-center py-4 text-rose-400 border border-rose-500/10 bg-rose-500/5 rounded-xl font-medium text-xs">
-                        Missing valid configuration tenant identification token.
+                        Missing routing credentials.
                     </div>`;
                 return;
             }
@@ -237,11 +350,11 @@
                     fetch(`${API_BASE_URL}/api/packages?ispId=${ispId}`)
                 ]);
 
-                if (!designRes.ok) throw new Error("Faulty configuration maps.");
+                if (!designRes.ok) throw new Error("Faulty network response maps.");
                 const config = await designRes.json();
                 
                 document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
-                document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter verification details to connect.';
+                document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter validation details to connect.';
                 document.getElementById('portal-support-phone').innerText = config.supportContact || 'Not Configured';
                 
                 if (config.reconnectMsg) document.getElementById('portal-reconnect-msg').innerText = config.reconnectMsg;
@@ -262,7 +375,9 @@
                     if (wrapper && packages.length > 0) {
                         wrapper.innerHTML = packages.map((pkg, idx) => {
                             const pkgId = pkg.id || pkg.docId || '';
-                            const displayDuration = `${pkg.duration} Hour Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+                            const readableDuration = formatPackageDuration(pkg.duration);
+                            const displayDetails = `${readableDuration} Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+                            
                             return `
                                 <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
                                        style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
@@ -270,7 +385,7 @@
                                         <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
                                         <div class="space-y-0.5">
                                             <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
-                                            <p class="text-[10px] text-slate-400 font-medium">${displayDuration}</p>
+                                            <p class="text-[10px] text-slate-400 font-medium">${displayDetails}</p>
                                         </div>
                                     </div>
                                     <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
@@ -280,7 +395,7 @@
                     }
                 }
             } catch (err) {
-                console.error("Critical rendering pipeline drop:", err);
+                console.error("Critical rendering exception pipeline maps:", err);
             }
         });
     </script>
