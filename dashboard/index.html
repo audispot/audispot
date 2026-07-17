@@ -1328,6 +1328,8 @@ async function fetchStaticDHCPLeases() {
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
 // ==========================================
 
+// Custom utility to replace the missing delay reference smoothly
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function togglePackageCreationModal(show) {
     const modal = document.getElementById("package-creation-modal");
@@ -1359,16 +1361,24 @@ async function handlePackageSubmission(e) {
             togglePackageCreationModal(false); 
             e.target.reset(); 
             
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Billing package created successfully! ");
+            }
+            
             // Give Firestore 500ms to commit the write, then fetch the updated catalog
             await delay(500);
             fetchActiveBillingCatalog(); 
         } else {
             const errText = await res.text();
-            alert(`Failed to save package: ${errText || 'Server responded with an error.'}`);
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(`Failed to save package: ${errText || 'Server Error'}`, true);
+            }
         }
     } catch(err) { 
         console.error("Submission error:", err);
-        alert("Failed to append configuration block to product catalog framework."); 
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Failed to append configuration block to product catalog framework.", true);
+        }
     }
 }
 
@@ -1415,10 +1425,9 @@ async function fetchActiveBillingCatalog() {
 
         // 3. Render items smoothly into the grid layout
         gridMount.innerHTML = packages.map(pkg => {
-            // Support multiple formats for package ID (id vs docId)
             const pkgId = pkg.id || pkg.docId || '';
             return `
-                <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
+                <div id="pkg-card-${pkgId}" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
                     <div>
                         <div class="flex justify-between items-start">
                             <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || 'Unnamed Tier'}</h4>
@@ -1429,8 +1438,9 @@ async function fetchActiveBillingCatalog() {
                             <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile || 'Default'}</span></div>
                         </div>
                     </div>
-                    <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2">
-                        <button onclick="deletePackageItem('${pkgId}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
+                    <!-- Inline Confirmation Action Area -->
+                    <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2" id="action-wrapper-${pkgId}">
+                        <button onclick="promptInlineDelete('${pkgId}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
                     </div>
                 </div>
             `;
@@ -1450,12 +1460,29 @@ async function fetchActiveBillingCatalog() {
     }
 }
 
-async function deletePackageItem(packageId) {
+// Replaces the old window.confirm popup with an inline secure interface change
+function promptInlineDelete(packageId) {
+    const wrapper = document.getElementById(`action-wrapper-${packageId}`);
+    if (!wrapper) return;
+
+    wrapper.innerHTML = `
+        <div class="w-full flex items-center justify-between bg-rose-500/5 p-1 rounded border border-rose-500/20 animate-fade-in gap-1">
+            <span class="text-[9px] text-rose-400 font-bold px-1">Shred config?</span>
+            <div class="flex gap-1">
+                <button onclick="executePackageItemShred('${packageId}')" class="px-2 py-1 bg-rose-600 text-white rounded text-[9px] font-bold hover:bg-rose-700 transition">Yes</button>
+                <button onclick="fetchActiveBillingCatalog()" class="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-bold hover:bg-slate-600 transition">No</button>
+            </div>
+        </div>
+    `;
+}
+
+async function DeketePackageItem(packageId) {
     if (!packageId) {
-        alert("Cannot delete package: Invalid package ID.");
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Cannot delete package: Invalid ID token reference.", true);
+        }
         return;
     }
-    if (!confirm("Permit system to clean out and permanently shred this access product configuration package?")) return;
     
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
@@ -1466,16 +1493,23 @@ async function deletePackageItem(packageId) {
         });
         
         if (res.ok) {
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Package configuration tier shredded successfully! ");
+            }
             await delay(500); // Small Firestore sync buffer
             fetchActiveBillingCatalog();
         } else {
-            alert("Failed to delete the package on the server.");
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Failed to delete the package on the server database layer.", true);
+            }
         }
     } catch(err) { 
-        alert("Transaction command transmission failure."); 
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Transaction transmission channel connection failure.", true);
+        }
     }
 }
-
+        
 async function syncDashboardFleetTable() {
     const tbody = document.getElementById("fleet-table-body");
     if (!tbody) return;
