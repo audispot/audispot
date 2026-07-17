@@ -46,6 +46,18 @@
 </head>
 <body class="bg-[#f9fafb] dark:bg-vunadarkbg text-slate-900 dark:text-slate-200 antialiased selection:bg-indigo-500/30 transition-colors duration-150">
 
+    <!-- Mobile Top Navigation Header Bar Component (ADDED HERE) -->
+    <div class="w-full bg-[#0b0f19] border-b border-slate-800 p-4 flex items-center justify-between md:hidden sticky top-0 z-30">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">⚡</div>
+            <span class="text-white font-bold text-base">AudiSpot</span>
+        </div>
+        <!-- Mobile Hamburger Switch Trigger Button -->
+        <button onclick="toggleMobileSidebarMenu()" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition">
+            <i class="fa-solid fa-bars text-xl" id="hamburger-icon-node"></i>
+        </button>
+    </div>
+
     <!-- NOTIFICATION BOX (Replaces all native browser popups) -->
     <div id="inline-toast" class="fixed top-5 right-5 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 dark:bg-vunacard border border-emerald-500/30 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs font-medium">
         <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
