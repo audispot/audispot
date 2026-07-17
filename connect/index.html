@@ -4,57 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hotspot Gateway Connect</title>
-    <!-- Tailwind CSS for modern dashboard looks -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome for layout icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-slate-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
 
-    <!-- Main Dynamic Interface Container -->
-    <div class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-6">
+    <!-- Main Container matching dashboard template styling -->
+    <div class="bg-[#11131c] border border-zinc-800 rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl flex flex-col">
         
-        <!-- Header Brand Section -->
-        <div class="text-center space-y-2">
-            <div class="w-12 h-12 bg-indigo-600/10 text-indigo-500 rounded-full flex items-center justify-center mx-auto text-xl">
-                <i class="fa-solid fa-wifi"></i>
+        <div class="p-6 space-y-6 flex-1">
+            <!-- Header Brand Section -->
+            <div class="text-center space-y-3">
+                <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
+                    <i class="fa-solid fa-wifi"></i>
+                </div>
+                <h1 id="portal-brand-title" class="text-base font-black tracking-tight text-white">
+                    Loading Gateway...
+                </h1>
+                <p id="portal-welcome-text" class="text-xs text-slate-400 px-4">
+                    Please wait while we synchronize configuration metrics...
+                </p>
             </div>
-            <h1 id="portal-brand-title" class="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                Loading...
-            </h1>
-            <p id="portal-welcome-text" class="text-xs text-slate-400">
-                Please wait while we synchronize configuration metrics...
-            </p>
-        </div>
 
-        <hr class="border-slate-100 dark:border-zinc-800/80">
-
-        <!-- Dynamic Access Packages Target Mount Grid -->
-        <div class="space-y-2">
-            <label class="text-[11px] font-bold tracking-wider uppercase text-slate-400 block mb-3">Select Internet Pass</label>
-            <div id="public-packages-wrapper" class="space-y-2">
-                <!-- JavaScript loads dynamic inputs smoothly here -->
-                <div class="text-center py-6 text-slate-500 animate-pulse text-xs">
-                    <i class="fa-solid fa-circle-notch fa-spin text-base mb-2 text-indigo-500"></i>
-                    <p>Fetching billing catalogue profiles...</p>
+            <!-- Packages Section -->
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
+                <div id="public-packages-wrapper" class="space-y-2">
+                    <div class="text-center py-4 text-slate-500 text-xs animate-pulse">
+                        <i class="fa-solid fa-circle-notch fa-spin mb-1"></i> Loading plans...
+                    </div>
                 </div>
             </div>
+
+            <!-- M-Pesa Input Form Block -->
+            <div class="space-y-1.5">
+                <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
+                <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <!-- Action Trigger Button -->
+            <div class="pt-1">
+                <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg flex items-center justify-center gap-2">
+                    <span>Purchase Internet Pass</span>
+                </button>
+            </div>
+
+            <!-- Reconnect Session Area -->
+            <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
+                <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
+                <a href="#" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1">Reconnect Device</a>
+            </div>
+
+            <!-- Loyalty Rewards Section -->
+            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
+                <div class="flex items-start gap-2.5">
+                    <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
+                    <div class="space-y-0.5">
+                        <p class="text-xs font-bold text-white">Hotspot Loyalty Rewards</p>
+                        <p class="text-[10px] text-slate-400 leading-relaxed">
+                            Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">0</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">0</span> points to redeem an instant free daily pass.
+                        </p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
+                    <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
+                </div>
+            </div>
+
+            <!-- Smart TV / Console Module Setup -->
+            <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
+                <div class="flex items-center gap-2 text-white font-bold text-xs">
+                    <i class="fa-solid fa-tv text-indigo-400"></i>
+                    <span>Smart TV / Game Console Setup</span>
+                </div>
+                <ol id="portal-tv-setup-list" class="text-[10px] text-slate-400 list-decimal list-inside space-y-1 pl-0.5">
+                    <li>Locate MAC address of TV</li>
+                    <li>Submit register address</li>
+                    <li>TV is authorized automatically.</li>
+                </ol>
+                <div class="space-y-1.5 pt-1">
+                    <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
+                    <input type="text" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-[10px] focus:outline-none transition">
+                </div>
+                <button class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
+            </div>
         </div>
 
-        <!-- Submission Trigger Buttons -->
-        <div class="pt-2">
-            <button id="portal-connect-btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2">
-                <span>Proceed to Pay & Connect</span>
-                <i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i>
-            </button>
+        <!-- Support Footer Help Area -->
+        <div class="bg-[#0b0c12] p-4 text-center border-t border-zinc-900 text-[10px] text-slate-400">
+            <span>Need Help? Dial support helpline:</span>
+            <strong class="block text-white text-xs mt-0.5 tracking-wide" id="portal-support-phone">Not Configured</strong>
         </div>
     </div>
 
-    <!-- ========================================== -->
-    <!-- JAVASCRIPT EXECUTION LAYER                 -->
-    <!-- ========================================== -->
     <script>
-        // 1. Explicitly define your backend base URL so this independent folder page can locate it
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app"; 
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -62,51 +107,49 @@
         });
 
         async function renderConsumerPortalView() {
-            // 2. Extract the unique ISP ID from the URL browser query parameters
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
 
             if (!ispId) {
-                console.error("No ISP identification routing token provided in the URL.");
-                const wrapper = document.getElementById('public-packages-wrapper');
-                if (wrapper) {
-                    wrapper.innerHTML = `
-                        <div class="text-center py-4 text-rose-400 border border-rose-500/10 bg-rose-500/5 rounded-xl font-medium">
-                            <i class="fa-solid fa-triangle-exclamation block text-lg mb-1"></i>
-                            Invalid Hotspot Gateway Configuration (Missing ISP ID).
-                        </div>
-                    `;
-                }
+                document.getElementById('public-packages-wrapper').innerHTML = `
+                    <div class="text-center py-4 text-rose-400 border border-rose-500/10 bg-rose-500/5 rounded-xl font-medium text-xs">
+                        Missing ISP routing parameter query credentials.
+                    </div>`;
                 return;
             }
 
             try {
-                // 3. Query both the custom branding layout configuration and their exact package tiers concurrently
                 const [designRes, packagesRes] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`),
                     fetch(`${API_BASE_URL}/api/packages?ispId=${ispId}`)
                 ]);
 
-                if (!designRes.ok) throw new Error("Could not pull design layout rules.");
-
+                if (!designRes.ok) throw new Error("Could not pull design profile.");
                 const config = await designRes.json();
                 
-                // 4. Apply the custom branding variables dynamically to the DOM elements
-                if (document.getElementById('portal-brand-title')) {
-                    document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
-                }
-                if (document.getElementById('portal-welcome-text')) {
-                    document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Welcome Online.';
-                }
+                // 1. Dynamic Texts Configuration mapping
+                document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
+                document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter verification parameters to connect.';
+                document.getElementById('portal-support-phone').innerText = config.supportContact || 'None provided';
                 
-                // Apply custom accent colors across action elements
-                const accentColor = config.accentColor || '#4f46e5';
-                const primaryButton = document.getElementById('portal-connect-btn');
-                if (primaryButton) {
-                    primaryButton.style.backgroundColor = accentColor;
+                if (config.reconnectMsg) document.getElementById('portal-reconnect-msg').innerText = config.reconnectMsg;
+                document.getElementById('label-earn-pts').innerText = config.earnPoints || '1';
+                document.getElementById('label-redeem-threshold').innerText = config.redeemPoints || '20';
+
+                // 2. Parse Custom TV list parameters if separated by newlines
+                if (config.tvSetup) {
+                    const steps = config.tvSetup.split('\n').filter(s => s.trim() !== '');
+                    if (steps.length > 0) {
+                        document.getElementById('portal-tv-setup-list').innerHTML = steps.map(s => `<li>${s}</li>`).join('');
+                    }
                 }
 
-                // 5. Safely render the custom pricing package catalog grid
+                // 3. Apply custom colors variables dynamically
+                const accentColor = config.accentColor || '#4f46e5';
+                document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
+                document.getElementById('portal-icon-bg').style.backgroundColor = accentColor;
+
+                // 4. Load Packages Catalog Grid List
                 if (packagesRes.ok) {
                     let packages = await packagesRes.json();
                     if (packages && !Array.isArray(packages)) {
@@ -116,56 +159,46 @@
                 }
 
             } catch (err) {
-                console.error("Critical routing breakdown mapping portal tenant layout:", err);
-                const wrapper = document.getElementById('public-packages-wrapper');
-                if (wrapper) {
-                    wrapper.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Failed to initialize data synchronization channel.</p>`;
-                }
+                console.error("Layout assignment exception mapping:", err);
             }
         }
 
-        // Quick helper to translate raw hours into readable formats for buyers (e.g. 168 hours -> 7 Days)
+        // Clean formatting helper matching your requirements layout structure
         function formatPackageDuration(totalHours) {
             const hours = Number(totalHours || 0);
             if (hours >= 720 && hours % 720 === 0) {
                 const months = hours / 720;
-                return `${months} Month${months > 1 ? 's' : ''}`;
+                return `${months} Hour Access`; // Or return `${months} Month Access` depending on backend tracking string
             }
             if (hours >= 168 && hours % 168 === 0) {
-                const weeks = hours / 168;
-                return `${weeks} Week${weeks > 1 ? 's' : ''}`;
+                return `${hours} Hour Access`;
             }
-            if (hours >= 24 && hours % 24 === 0) {
-                const days = hours / 24;
-                return `${days} Day${days > 1 ? 's' : ''}`;
-            }
-            return `${hours} Hour${hours !== 1 ? 's' : ''}`;
+            return `${hours} Hour Access`;
         }
 
         function renderPortalPackagesGrid(packages, accentColor) {
             const wrapper = document.getElementById('public-packages-wrapper');
-            if (!wrapper) return;
-
-            if (!packages || packages.length === 0) {
-                wrapper.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No internet passes available right now.</p>`;
+            if (!wrapper || packages.length === 0) {
+                wrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-2">No active internet packages configured.</p>`;
                 return;
             }
 
             wrapper.innerHTML = packages.map((pkg, idx) => {
                 const pkgId = pkg.id || pkg.docId || '';
-                const readableDuration = formatPackageDuration(pkg.duration);
-                
+                // Checks whether to show "720 Hour Access" matching your dashboard's display exact strings
+                const displayDuration = `${pkg.duration} Hour Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+
                 return `
-                    <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer bg-slate-50 dark:bg-zinc-950/40 transition hover:bg-slate-100/50 dark:hover:bg-zinc-950/80" 
-                           style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #374151;'}">
+                    <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition" 
+                           style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px; bg-zinc-900/70` : 'border-color: #27272a; bg-zinc-900/20'}">
                         <div class="flex items-center gap-3">
                             <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
-                            <div>
-                                <p class="text-xs font-bold text-slate-900 dark:text-white">${pkg.packageName || 'Standard Plan'}</p>
-                                <p class="text-[10px] text-slate-400">${readableDuration} Access</p>
+                            <div class="space-y-0.5">
+                                <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
+                                <p class="text-[10px] text-slate-400 font-medium">${displayDuration}</p>
                             </div>
                         </div>
-                        <span class="text-xs font-black" style="color: ${accentColor}">KES ${pkg.price || 0}</span>
+                        <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
                     </label>
                 `;
             }).join('');
