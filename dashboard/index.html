@@ -1476,7 +1476,7 @@ function promptInlineDelete(packageId) {
     `;
 }
 
-async function DeketePackageItem(packageId) {
+async function DeletePackageItem(packageId) {
     if (!packageId) {
         if (typeof triggerToastDisplay === 'function') {
             triggerToastDisplay("Cannot delete package: Invalid ID token reference.", true);
