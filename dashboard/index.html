@@ -1967,9 +1967,14 @@ async function loadPortalPreviewPackages() {
         const response = await fetch(`/api/packages?ispId=${targetTenant}`);
         if (!response.ok) throw new Error();
         
-        const packages = await response.json();
+        let packages = await response.json();
         
-        if (packages.length === 0) {
+        // Safety Check: If backend returns an object wrapper like { packages: [...] } or { data: [...] }
+        if (packages && !Array.isArray(packages)) {
+            packages = packages.packages || packages.data || [];
+        }
+        
+        if (!packages || packages.length === 0) {
             container.innerHTML = `
                 <div class="p-3 bg-white border border-dashed border-slate-200 rounded-lg text-center text-slate-400 text-[9px]">
                     No billing packages defined yet. Add some in the Packages tab!
@@ -1977,7 +1982,7 @@ async function loadPortalPreviewPackages() {
             return;
         }
 
-        const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+        const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
 
         // Display packages, showing the first one as checked/active
         container.innerHTML = packages.map((pkg, idx) => {
@@ -1992,54 +1997,55 @@ async function loadPortalPreviewPackages() {
                             <div class="w-1.5 h-1.5 rounded-full" style="${dotColor}"></div>
                         </div>
                         <div>
-                            <p class="text-[10px] font-bold text-slate-900">${pkg.packageName}</p>
-                            <p class="text-[8px] text-slate-400">${pkg.duration} Hour Access • ${pkg.bandwidthLimit || 'Unlimited'} Mbps</p>
+                            <p class="text-[10px] font-bold text-slate-900">${pkg.packageName || 'Unnamed Package'}</p>
+                            <p class="text-[8px] text-slate-400">${pkg.duration || 0} Hour Access • ${pkg.bandwidthLimit || 'Unlimited'} Mbps</p>
                         </div>
                     </div>
-                    <span class="text-[10px] font-black" style="color: ${accentColor}">KSh ${pkg.price}</span>
+                    <span class="text-[10px] font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
                 </div>
             `;
         }).join('');
 
     } catch (err) {
+        console.error("Error loading packages for portal frame simulator:", err);
         container.innerHTML = `<div class="p-2 text-center text-[9px] text-rose-500">Error rendering package profiles.</div>`;
     }
 }
 
 function updateLivePortalPreview() {
-    const brandInput = document.getElementById('input-portal-brand').value || 'My Hotspot Network';
-    const welcomeInput = document.getElementById('input-portal-welcome').value || 'Enter connection credentials.';
-    const supportInput = document.getElementById('input-portal-support').value || '0700000000';
-    const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+    const brandInput = document.getElementById('input-portal-brand')?.value || 'My Hotspot Network';
+    const welcomeInput = document.getElementById('input-portal-welcome')?.value || 'Enter connection credentials.';
+    const supportInput = document.getElementById('input-portal-support')?.value || '0700000000';
+    const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
     
     // Loyalty and instructions fields
-    const earnPoints = document.getElementById('input-portal-earn-pts').value || '10';
-    const redeemPoints = document.getElementById('input-portal-redeem-threshold').value || '100';
-    const reconnectMsg = document.getElementById('input-portal-reconnect-msg').value || 'Checking matching active session links...';
-    const tvSetupText = document.getElementById('input-portal-tv-setup').value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
+    const earnPoints = document.getElementById('input-portal-earn-pts')?.value || '10';
+    const redeemPoints = document.getElementById('input-portal-redeem-threshold')?.value || '100';
+    const reconnectMsg = document.getElementById('input-portal-reconnect-msg')?.value || 'Checking matching active session links...';
+    const tvSetupText = document.getElementById('input-portal-tv-setup')?.value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
     
     // Success fields
-    const successTitle = document.getElementById('input-portal-success-title').value || 'Welcome Online!';
-    const successSub = document.getElementById('input-portal-success-sub').value || 'Your account connection rules are fully operational.';
-    const successBtn = document.getElementById('input-portal-success-btn').value || 'Proceed to Browsing';
+    const successTitle = document.getElementById('input-portal-success-title')?.value || 'Welcome Online!';
+    const successSub = document.getElementById('input-portal-success-sub')?.value || 'Your account connection rules are fully operational.';
+    const successBtn = document.getElementById('input-portal-success-btn')?.value || 'Proceed to Browsing';
 
     // Text bindings
-    document.getElementById('sim-text-brand').innerText = brandInput;
-    document.getElementById('sim-text-welcome').innerText = welcomeInput;
-    document.getElementById('sim-text-support').innerText = supportInput;
-    document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
+    if (document.getElementById('sim-text-brand')) document.getElementById('sim-text-brand').innerText = brandInput;
+    if (document.getElementById('sim-text-welcome')) document.getElementById('sim-text-welcome').innerText = welcomeInput;
+    if (document.getElementById('sim-text-support')) document.getElementById('sim-text-support').innerText = supportInput;
+    if (document.getElementById('input-portal-color-hex')) document.getElementById('input-portal-color-hex').value = accentColor.toUpperCase();
     
-    document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
-    document.getElementById('sim-text-earn').innerText = earnPoints;
-    document.getElementById('sim-text-redeem').innerText = redeemPoints;
-    document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
-    document.getElementById('sim-text-success-title').innerText = successTitle;
-    document.getElementById('sim-text-success-sub').innerText = successSub;
-    document.getElementById('sim-success-btn-node').innerText = successBtn;
+    if (document.getElementById('sim-text-reconnect')) document.getElementById('sim-text-reconnect').innerText = reconnectMsg;
+    if (document.getElementById('sim-text-earn')) document.getElementById('sim-text-earn').innerText = earnPoints;
+    if (document.getElementById('sim-text-redeem')) document.getElementById('sim-text-redeem').innerText = redeemPoints;
+    if (document.getElementById('sim-text-tv-instructions')) document.getElementById('sim-text-tv-instructions').innerText = tvSetupText;
+    if (document.getElementById('sim-text-success-title')) document.getElementById('sim-text-success-title').innerText = successTitle;
+    if (document.getElementById('sim-text-success-sub')) document.getElementById('sim-text-success-sub').innerText = successSub;
+    if (document.getElementById('sim-success-btn-node')) document.getElementById('sim-success-btn-node').innerText = successBtn;
 
     // Apply colors to controls
-    document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
-    document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
+    if (document.getElementById('sim-preview-logo-box')) document.getElementById('sim-preview-logo-box').style.backgroundColor = accentColor;
+    if (document.getElementById('sim-preview-accent-btn')) document.getElementById('sim-preview-accent-btn').style.backgroundColor = accentColor;
 
     // Reload package lists to ensure border outline matches current selected color
     loadPortalPreviewPackages();
@@ -2053,18 +2059,20 @@ function toggleSimulatorSuccessState(showSuccess) {
     const btnMain = document.getElementById('sim-toggle-main');
     const btnSuccess = document.getElementById('sim-toggle-success');
 
+    if (!mainView || !successView) return;
+
     if (showSuccess) {
         mainView.classList.add('hidden');
         successView.classList.remove('hidden');
         
-        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
-        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+        if (btnSuccess) btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        if (btnMain) btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     } else {
         mainView.classList.remove('hidden');
         successView.classList.add('hidden');
         
-        btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
-        btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
+        if (btnMain) btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
+        if (btnSuccess) btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     }
 }
 
@@ -2075,24 +2083,26 @@ async function fetchCurrentPortalDesign() {
         if (response.ok) {
             const config = await response.json();
             
-            document.getElementById('input-portal-brand').value = config.brandName || '';
-            document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
-            document.getElementById('input-portal-support').value = config.supportContact || '';
-            document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
+            if (document.getElementById('input-portal-brand')) document.getElementById('input-portal-brand').value = config.brandName || '';
+            if (document.getElementById('input-portal-welcome')) document.getElementById('input-portal-welcome').value = config.welcomeGreeting || '';
+            if (document.getElementById('input-portal-support')) document.getElementById('input-portal-support').value = config.supportContact || '';
+            if (document.getElementById('input-portal-color')) document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
             
-            document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
-            document.getElementById('input-portal-redeem-threshold').value = config.redeemPoints || '100';
-            document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
-            document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
+            if (document.getElementById('input-portal-earn-pts')) document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
+            if (document.getElementById('input-portal-redeem-threshold')) document.getElementById('input-portal-redeem-threshold').value = config.redeemPoints || '100';
+            if (document.getElementById('input-portal-reconnect-msg')) document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
+            if (document.getElementById('input-portal-tv-setup')) document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
             
-            document.getElementById('input-portal-success-title').value = config.successTitle || '';
-            document.getElementById('input-portal-success-sub').value = config.successSub || '';
-            document.getElementById('input-portal-success-btn').value = config.successBtn || '';
-            
-            updateLivePortalPreview();
+            if (document.getElementById('input-portal-success-title')) document.getElementById('input-portal-success-title').value = config.successTitle || '';
+            if (document.getElementById('input-portal-success-sub')) document.getElementById('input-portal-success-sub').value = config.successSub || '';
+            if (document.getElementById('input-portal-success-btn')) document.getElementById('input-portal-success-btn').value = config.successBtn || '';
         }
+        // Force rendering logic even if fetch drops fallback values
+        updateLivePortalPreview();
     } catch(err) {
         console.error("Failed loading current design profile setup", err);
+        // Ensure preview attempts to pull fallback inputs regardless of endpoint failures
+        updateLivePortalPreview();
     }
 }
 
@@ -2107,8 +2117,8 @@ async function savePortalDesignSettings(e) {
         supportContact: document.getElementById('input-portal-support').value,
         accentColor: document.getElementById('input-portal-color').value,
         
-        earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value),
-        redeemPoints: parseInt(document.getElementById('input-portal-redeem-threshold').value),
+        earnPoints: parseInt(document.getElementById('input-portal-earn-pts').value) || 10,
+        redeemPoints: parseInt(document.getElementById('input-portal-redeem-threshold').value) || 100,
         reconnectMsg: document.getElementById('input-portal-reconnect-msg').value,
         tvSetup: document.getElementById('input-portal-tv-setup').value,
         
@@ -2131,7 +2141,6 @@ async function savePortalDesignSettings(e) {
         triggerToastDisplay("Failed persisting changes to Firebase.", true);
     }
 }
-
 // Global navigation control additions
 function navigateToView(viewId) {
     // Hide all view panels safely
@@ -3015,6 +3024,7 @@ document.addEventListener("DOMContentLoaded", () => {
     syncDashboardFleetTable();
     fetchAndRenderSystemSettings();
     checkSubscriptionTrial();
+    fetchCurrentPortalDesign();
 });
         
         window.onload = () => {
