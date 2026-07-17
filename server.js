@@ -595,7 +595,8 @@ app.get('/api/hotspot/loyalty/balance', async (req, res) => {
 });
 
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
-    const { macAddress, routerId } = req.body;
+    // Expect selectedTierId from the frontend catalog choice
+    const { macAddress, routerId, selectedTierId } = req.body; 
     if (!macAddress || !routerId) {
         return res.status(400).json({ success: false, error: "Missing identity credentials." });
     }
@@ -606,46 +607,68 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router network not found." });
         const routerData = routerDoc.data();
-
         const ispId = routerData.ispId || "default_isp";
+
         let pointsRequired = 100; 
-        try {
-            const designDoc = await db.collection('isp_portals').doc(ispId).get();
-            if (designDoc.exists && designDoc.data().redeemPoints) {
-                pointsRequired = parseInt(designDoc.data().redeemPoints) || 100;
+        let targetProfile = "24_Hour_Plan"; // Fallback safety
+
+        // DYNAMIC LOOKUP: If a specific tier was selected, lookup its specific config
+        if (selectedTierId) {
+            const tierDoc = await db.collection('routers').doc(routerId).collection('rewardTiers').doc(selectedTierId).get();
+            if (tierDoc.exists) {
+                const tierData = tierDoc.data();
+                pointsRequired = parseInt(tierData.pointsRequired) || 100;
+                // Dynamically build or read profile name from your hours configuration
+                targetProfile = tierData.mikrotikProfile || `${tierData.durationHours}_Hour_Plan`;
             }
-        } catch (pe) {
-            console.error("Design fetch fail during loyalty logic:", pe.message);
+        } else {
+            // Fallback to legacy ISP portal master option if no individual catalog matches
+            try {
+                const designDoc = await db.collection('isp_portals').doc(ispId).get();
+                if (designDoc.exists && designDoc.data().redeemPoints) {
+                    pointsRequired = parseInt(designDoc.data().redeemPoints) || 100;
+                }
+            } catch (pe) {
+                console.error("Design fetch fail during loyalty logic:", pe.message);
+            }
         }
 
         const subRef = db.collection('subscribers').doc(cleanMac);
-        const subDoc = await subRef.get();
-        if (!subDoc.exists) return res.status(400).json({ success: false, error: "Subscriber profile not found." });
 
-        const currentPoints = subDoc.data().loyaltyPoints || 0;
-        if (currentPoints < pointsRequired) {
-            return res.status(400).json({ success: false, error: `Insufficient points. You need ${pointsRequired} points.` });
-        }
+        // Run the atomic transaction block correctly (Reads inside the write locks)
+        const outputResult = await db.runTransaction(async (ts) => {
+            const freshSubDoc = await ts.get(subRef);
+            if (!freshSubDoc.exists) {
+                throw new Error("Subscriber profile not found.");
+            }
 
-        await db.runTransaction(async (ts) => {
+            const freshPoints = freshSubDoc.data().loyaltyPoints || 0;
+            if (freshPoints < pointsRequired) {
+                throw new Error(`Insufficient points. You need ${pointsRequired} points.`);
+            }
+
             ts.update(subRef, { 
-                loyaltyPoints: currentPoints - pointsRequired,
+                loyaltyPoints: freshPoints - pointsRequired,
                 lastActiveTimestamp: new Date().toISOString()
             });
+
+            return freshSubDoc.data().phoneNumber || cleanMac;
         });
 
+        // Provision dynamic network allocation profiles on Mikrotik API RouterOS instance
         if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
             const client = getRouterClient(routerData);
-            const phoneUser = subDoc.data().phoneNumber || cleanMac;
-            
             const api = await client.connect();
             await api.write('/ip/hotspot/user/add', [
-                `=name=${phoneUser}`, `=password=${phoneUser}`, `=profile=24_Hour_Plan`, `=comment=LoyaltyRedeem_${cleanMac}`
+                `=name=${outputResult}`, 
+                `=password=${outputResult}`, 
+                `=profile=${targetProfile}`, // Bound dynamically now!
+                `=comment=LoyaltyRedeem_${cleanMac}`
             ]);
             await api.close();
         }
 
-        return res.status(200).json({ success: true, message: "Free daily pass activated! Enjoy browsing." });
+        return res.status(200).json({ success: true, message: "Free internet pass activated! Enjoy browsing." });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
