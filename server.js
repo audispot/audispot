@@ -51,10 +51,6 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
 async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
     const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
     
-    const MPESA_HOST = process.env.MPESA_ENV === 'production' 
-        ? 'https://api.safaricom.co.ke' 
-        : 'https://sandbox.safaricom.co.ke';
-
     try {
         const tokenResponse = await axios.get(
             `${MPESA_HOST}/oauth/v1/generate?grant_type=client_credentials`, 
@@ -258,11 +254,15 @@ app.post('/api/hotspot/register-router', async (req, res) => {
 
 // 5. Multi-Tenant Hotspot Login STK Push Engine
 app.post('/api/hotspot/login', async (req, res) => {
-    let { phoneNumber, amount, routerId } = req.body;
+    // CRITICAL ADDITION: Front-end must pass macAddress and option profile code variables
+    let { phoneNumber, amount, routerId, macAddress, planProfile } = req.body;
     if (!routerId || !phoneNumber || !amount) {
         return res.status(400).json({ success: false, error: "Missing checkout parameters." });
     }
     if (phoneNumber.startsWith('0')) phoneNumber = '254' + phoneNumber.slice(1);
+    
+    const targetMac = macAddress || 'nomac';
+    const profileRef = planProfile || 'default';
 
     try {
         const doc = await db.collection('routers').doc(routerId).get();
@@ -280,12 +280,22 @@ app.post('/api/hotspot/login', async (req, res) => {
             Password: password, Timestamp: timestamp,
             TransactionType: "CustomerPayBillOnline", Amount: parseInt(amount),
             PartyA: phoneNumber, PartyB: ispConfig.mpesaShortcode, PhoneNumber: phoneNumber,
-            CallBackURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}`,
+            // FIX: Pass routerId, macAddress, and profile structure dynamically inside the Callback parameters
+            CallBackURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}&macAddress=${encodeURIComponent(targetMac)}&profile=${encodeURIComponent(profileRef)}`,
             AccountReference: "AudiSpot WiFi", TransactionDesc: `WiFi Payment`
         };
 
         const mpesaResponse = await axios.post(`${MPESA_HOST}/mpesa/stkpush/v1/processrequest`, mpesaPayload, {
             headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // Add a pending checkout transaction tracking frame so our front-end can poll its status
+        await db.collection('stk_requests').doc(mpesaResponse.data.CheckoutRequestID).set({
+            status: 'PENDING',
+            routerId,
+            macAddress: targetMac,
+            amount: parseInt(amount),
+            timestamp: new Date().toISOString()
         });
 
         return res.status(200).json({ success: true, CheckoutRequestID: mpesaResponse.data.CheckoutRequestID });
@@ -296,8 +306,10 @@ app.post('/api/hotspot/login', async (req, res) => {
 
 // 6. Multi-Tenant M-Pesa Callback & Hardware Provisioning Hook
 app.post('/api/mpesa/callback', async (req, res) => {
-    const { routerId, macAddress } = req.query; 
+    // FIX: Extract the appended variables out of query maps safely
+    const { routerId, macAddress, profile } = req.query; 
     const callbackData = req.body.Body.stkCallback;
+    const checkoutId = callbackData.CheckoutRequestID;
     
     if (callbackData.ResultCode === 0) {
         try {
@@ -310,9 +322,14 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber').Value;
                 const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
 
+                // Update individual STK record for frontend tracking hooks
+                if (checkoutId) {
+                    await db.collection('stk_requests').doc(checkoutId).set({ status: 'PAID', receipt: mpesaReceipt }, { merge: true });
+                }
+
                 await db.collection('global_transactions').doc(mpesaReceipt).set({
                     routerId, 
-                    ispOwner: ispConfig.ispName, 
+                    ispOwner: ispConfig.ispName || "Unknown ISP", 
                     customerPhone: payingPhone, 
                     macAddress: cleanMac,
                     grossAmount: amountPaid, 
@@ -359,7 +376,9 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         const client = getRouterClient(ispConfig);
                         const api = await client.connect();
                         
-                        let dynamicPlanProfile = amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
+                        // FIX: If front-end pass matched profile exists, adopt it; else drop back to duration limits checks.
+                        let dynamicPlanProfile = profile && profile !== 'default' ? profile : (amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan");
+                        
                         await api.write('/ip/hotspot/user/add', [
                             `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
                         ]);
@@ -372,8 +391,24 @@ app.post('/api/mpesa/callback', async (req, res) => {
         } catch (dbError) {
             console.error("Callback ledger writing exception:", dbError);
         }
+    } else {
+        // Log transaction failures clearly to terminate frontend loading interfaces
+        if (checkoutId) {
+            await db.collection('stk_requests').doc(checkoutId).set({ status: 'FAILED' }, { merge: true });
+        }
     }
     res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
+});
+
+// NEW: Polling Route to check payment progress inside connect.html
+app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
+    try {
+        const doc = await db.collection('stk_requests').doc(req.params.checkoutId).get();
+        if (!doc.exists) return res.status(404).json({ success: false, status: 'NOT_FOUND' });
+        return res.status(200).json({ success: true, status: doc.data().status, receipt: doc.data().receipt || '' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // 7. Fetch Wallet Statistics & Router Counts
@@ -398,7 +433,6 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
 // 8a. Request Balance Withdrawal via Safaricom B2C
 app.post('/api/isp/withdraw', async (req, res) => {
     const { ispId, amount } = req.body;
-
     if (!ispId || !amount) {
         return res.status(400).json({ success: false, error: "Missing withdrawal parameters." });
     }
@@ -413,20 +447,15 @@ app.post('/api/isp/withdraw', async (req, res) => {
         
         const transactionResult = await db.runTransaction(async (transaction) => {
             const ispDoc = await transaction.get(ispRef);
-            if (!ispDoc.exists) {
-                throw new Error("Account missing.");
-            }
+            if (!ispDoc.exists) throw new Error("Account missing.");
 
             const currentBalance = ispDoc.data().walletBalance || 0;
             const phoneNumber = ispDoc.data().phoneNumber;
 
-            if (wAmount > currentBalance) {
-                throw new Error("Insufficient wallet balance.");
-            }
+            if (wAmount > currentBalance) throw new Error("Insufficient wallet balance.");
 
             transaction.update(ispRef, { walletBalance: currentBalance - wAmount });
 
-            // FIXED COLLECTION MATCH: Using 'withdrawals' explicitly everywhere
             const payoutRef = db.collection('withdrawals').doc();
             transaction.set(payoutRef, {
                 ispId,
@@ -449,14 +478,13 @@ app.post('/api/isp/withdraw', async (req, res) => {
                 payoutId: transactionResult.payoutId 
             });
         } else {
-            await ispRef.update({ walletBalance: Firestore.FieldValue.increment(wAmount) });
+            await ispRef.update({ walletBalance: admin.firestore.FieldValue.increment(wAmount) });
             await db.collection('withdrawals').doc(transactionResult.payoutId).update({ 
                 status: "Failed", 
                 error: b2cResponse.ResponseDescription || "Rejected by Safaricom" 
             });
             return res.status(500).json({ success: false, error: b2cResponse.ResponseDescription });
         }
-
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
