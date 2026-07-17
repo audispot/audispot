@@ -2040,17 +2040,14 @@ async function loadPortalPreviewPackages() {
     if (!container) return;
 
     try {
-        // Fall back gracefully if global variable configurations are missing
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
         const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
         
-        // Assembles identical path string logic matching the working vouchers view
         const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
         if (!response.ok) throw new Error('Failed to pull packages');
         
         let packages = await response.json();
         
-        // Structural safety check if your endpoint envelopes items inside an object wrapper
         if (packages && !Array.isArray(packages)) {
             packages = packages.packages || packages.data || [];
         }
@@ -2063,9 +2060,8 @@ async function loadPortalPreviewPackages() {
             return;
         }
 
-        const accentColor = document.getElementById('input-portal-color').value || '#4f46e5';
+        const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
 
-        // Display packages, showing the first one as checked/active
         container.innerHTML = packages.map((pkg, idx) => {
             const isSelected = idx === 0;
             const borderStyle = isSelected ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #e2e8f0;';
@@ -2140,7 +2136,6 @@ function syncRewardTiersFromUI() {
 }
 
 function updateLivePortalPreview() {
-    // Collect settings safely with dynamic fallbacks if input fields are missing
     const brandInput = document.getElementById('input-portal-brand')?.value || 'My Hotspot Network';
     const welcomeInput = document.getElementById('input-portal-welcome')?.value || 'Enter connection credentials.';
     const supportInput = document.getElementById('input-portal-support')?.value || '0700000000';
@@ -2154,7 +2149,7 @@ function updateLivePortalPreview() {
     const successSub = document.getElementById('input-portal-success-sub')?.value || 'Your account connection rules are fully operational.';
     const successBtn = document.getElementById('input-portal-success-btn')?.value || 'Proceed to Browsing';
 
-    // Safe Text Bindings (Checks node existence explicitly before assigning value)
+    // Safe Text Bindings
     const elBrand = document.getElementById('sim-text-brand');
     if (elBrand) elBrand.innerText = brandInput;
 
@@ -2209,15 +2204,12 @@ function updateLivePortalPreview() {
     const elAccentBtn = document.getElementById('sim-preview-accent-btn');
     if (elAccentBtn) elAccentBtn.style.backgroundColor = accentColor;
 
-    // Reload package lists frame
     loadPortalPreviewPackages();
 }
 
-// Switches preview state between Scroll Flow and Success View
 function toggleSimulatorSuccessState(showSuccess) {
     const mainView = document.getElementById('sim-scrollable-flow');
     const successView = document.getElementById('sim-view-success');
-    
     const btnMain = document.getElementById('sim-toggle-main');
     const btnSuccess = document.getElementById('sim-toggle-success');
 
@@ -2226,13 +2218,11 @@ function toggleSimulatorSuccessState(showSuccess) {
     if (showSuccess) {
         mainView.classList.add('hidden');
         successView.classList.remove('hidden');
-        
         btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
         btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     } else {
         mainView.classList.remove('hidden');
         successView.classList.add('hidden');
-        
         btnMain.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition bg-white dark:bg-vunacard text-indigo-400 shadow-sm";
         btnSuccess.className = "flex-1 py-1 px-2 text-center text-[11px] font-bold rounded-md transition text-slate-400 hover:text-slate-200";
     }
@@ -2264,15 +2254,37 @@ async function fetchCurrentPortalDesign() {
                 thresholdEl.value = config.redeemPoints || '100';
             }
 
-            // Clean list container before generating tier components
             const listContainer = document.getElementById('reward-tiers-list-container');
             if (listContainer) {
                 listContainer.innerHTML = '';
+                
+                // CRITICAL FIX: Set the variable state data upfront *before* building rows
                 if (config.rewardTiers && Array.isArray(config.rewardTiers) && config.rewardTiers.length > 0) {
-                    config.rewardTiers.forEach(tier => {
-                        addRewardTierRow(tier.pointsRequired, tier.mikrotikProfile, tier.displayName);
+                    rewardTiersState = config.rewardTiers;
+                    rewardTiersState.forEach(tier => {
+                        // Prevent inner row rendering functions from wiping out data arrays midway
+                        const rowId = 'tier-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
+                        listContainer.insertAdjacentHTML('beforeend', `
+                            <div id="${rowId}" class="tier-data-row grid grid-cols-12 gap-2 bg-white dark:bg-vunacard p-2 rounded-lg border border-slate-200 dark:border-vunaborder items-center shadow-sm">
+                                <div class="col-span-4">
+                                    <input type="number" placeholder="Points" value="${tier.pointsRequired}" oninput="syncRewardTiersFromUI()" class="tier-pts w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none">
+                                </div>
+                                <div class="col-span-4">
+                                    <input type="text" placeholder="Profile Name" value="${tier.mikrotikProfile}" oninput="syncRewardTiersFromUI()" class="tier-profile w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none font-mono text-[10px]">
+                                </div>
+                                <div class="col-span-3">
+                                    <input type="text" placeholder="Label (e.g. 1 Day)" value="${tier.displayName}" oninput="syncRewardTiersFromUI()" class="tier-label w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none">
+                                </div>
+                                <div class="col-span-1 text-right">
+                                    <button type="button" onclick="removeRewardTierRow('${rowId}')" class="text-rose-500 hover:text-rose-400 transition text-xs">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `);
                     });
                 } else {
+                    // Default fallback row
                     const legacyThreshold = parseInt(config.redeemPoints) || 100;
                     addRewardTierRow(legacyThreshold, '24_Hour_Plan', '24 Hours Pass');
                 }
@@ -2286,7 +2298,11 @@ async function fetchCurrentPortalDesign() {
 }
 
 async function savePortalDesignSettings(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    
+    // Explicitly make sure global UI array state variables are pulled fresh prior to network transit
+    syncRewardTiersFromUI();
+
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
@@ -2302,7 +2318,7 @@ async function savePortalDesignSettings(e) {
         
         earnPoints: parseInt(document.getElementById('input-portal-earn-pts')?.value || 0),
         redeemPoints: legacyThresholdVal,
-        rewardTiers: rewardTiersState,
+        rewardTiers: rewardTiersState, // This collection now array matches the saved structure
         
         reconnectMsg: document.getElementById('input-portal-reconnect-msg')?.value || '',
         tvSetup: document.getElementById('input-portal-tv-setup')?.value || '',
@@ -2320,7 +2336,9 @@ async function savePortalDesignSettings(e) {
         });
 
         if (response.ok) {
-            triggerToastDisplay("Portal brand elements updated successfully! ");
+            triggerToastDisplay("Portal brand elements updated successfully!");
+        } else {
+            triggerToastDisplay("Server rejected configuration adjustments.", true);
         }
     } catch(err) {
         triggerToastDisplay("Failed persisting changes to backend server.", true);
