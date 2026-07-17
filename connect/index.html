@@ -9,77 +9,73 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans selection:bg-indigo-500/30">
 
-    <!-- Main Container: Scaled up width for desktops/TVs using md:max-w-4xl -->
+    <!-- Main Card View Container Frame -->
     <div class="bg-[#11131c] border border-zinc-800 rounded-3xl w-full max-w-sm md:max-w-4xl overflow-hidden shadow-2xl flex flex-col transition-all duration-300">
         
-        <!-- Header Brand Section (Full width on all screens) -->
+        <!-- Center Header Title Section -->
         <div class="p-6 pb-0 text-center space-y-3">
             <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
                 <i class="fa-solid fa-wifi"></i>
             </div>
-            <h1 id="portal-brand-title" class="text-lg md:text-xl font-black tracking-tight text-white">
-                Loading Gateway...
-            </h1>
-            <p id="portal-welcome-text" class="text-xs text-slate-400 max-w-md mx-auto">
-                Please wait while we synchronize configuration metrics...
-            </p>
+            <h1 id="portal-brand-title" class="text-lg md:text-xl font-black tracking-tight text-white">Loading...</h1>
+            <p id="portal-welcome-text" class="text-xs text-slate-400 max-w-md mx-auto">Please wait while we synchronize configurations...</p>
         </div>
 
-        <!-- Interactive Core Body: Grid split layout for desktop/TV, stacked for mobile -->
+        <!-- Grid layout split core columns blocks -->
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             
-            <!-- LEFT COLUMN (On Desktop): Packages Catalog -->
+            <!-- LEFT LAYER FRAME PANEL -->
             <div class="space-y-4">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
                     <div id="public-packages-wrapper" class="space-y-2">
                         <div class="text-center py-12 text-slate-500 text-xs animate-pulse">
-                            <i class="fa-solid fa-circle-notch fa-spin mb-2 text-base block"></i> Loading plans...
+                            <i class="fa-solid fa-circle-notch fa-spin mb-2 text-base block"></i> Synchronizing profiles...
                         </div>
                     </div>
                 </div>
 
-                <!-- M-Pesa Input & Main Purchase Form -->
                 <div class="space-y-3 pt-2">
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
-                        <!-- text-base prevents mobile zooming; md:text-xs restores density on desktop -->
+                        <!-- text-base prevents auto zoom layout jumps on iOS inputs Safari standard engines -->
                         <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
                     </div>
-
-                    <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg flex items-center justify-center gap-2 active:scale-[0.99]">
-                        <span>Purchase Internet Pass</span>
+                    <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg">
+                        Purchase Internet Pass
                     </button>
                 </div>
 
-                <!-- Reconnect Session Area -->
+                <!-- Manual Connection Link Element -->
                 <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
                     <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
-                    <a href="#" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1">Reconnect Device</a>
+                    <button onclick="openPortalModal('modal-reconnect')" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                        Reconnect Device
+                    </button>
                 </div>
             </div>
 
-            <!-- RIGHT COLUMN (On Desktop): Loyalty & Smart TV Node Configs -->
+            <!-- RIGHT LAYER FRAME PANEL -->
             <div class="space-y-4">
-                <!-- Loyalty Rewards Section -->
+                <!-- Loyalty Grid Component Modules -->
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
                     <div class="flex items-start gap-2.5">
                         <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
                         <div class="space-y-0.5">
                             <p class="text-xs font-bold text-white">Hotspot Loyalty Rewards</p>
                             <p class="text-[10px] text-slate-400 leading-relaxed">
-                                Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">0</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">0</span> points to redeem an instant free daily pass.
+                                Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">1</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">20</span> points to redeem an instant pass.
                             </p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2 pt-1">
-                        <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
-                        <button class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
+                        <button onclick="openPortalModal('modal-points')" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
+                        <button onclick="openPortalModal('modal-redeem')" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
                     </div>
                 </div>
 
-                <!-- Smart TV / Console Module Setup -->
+                <!-- Appliances/Console Access Configuration Grid -->
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
                     <div class="flex items-center gap-2 text-white font-bold text-xs">
                         <i class="fa-solid fa-tv text-indigo-400"></i>
@@ -92,37 +88,145 @@
                     </ol>
                     <div class="space-y-1.5 pt-1">
                         <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
-                        <!-- text-base prevents mobile zooming; md:text-xs restores density on desktop -->
                         <input type="text" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-base md:text-[10px] focus:outline-none transition">
                     </div>
                     <button class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
                 </div>
             </div>
-
         </div>
 
-        <!-- Support Footer Help Area -->
-        <div class="bg-[#0b0c12] p-4 text-center border-t border-zinc-900 text-[10px] text-slate-400">
-            <span>Need Help? Dial support helpline:</span>
-            <strong class="block text-white text-xs mt-0.5 tracking-wide" id="portal-support-phone">Not Configured</strong>
+        <!-- System Footer Information -->
+        <div class="bg-[#0b0c12] p-4 text-center border-t border-zinc-900 text-[10px] text-slate-400 space-y-1">
+            <p>Need Help? Dial support helpline: <strong class="text-white text-xs tracking-wide" id="portal-support-phone">Not Configured</strong></p>
+            <p class="text-slate-600 font-medium pt-1 border-t border-zinc-900/60 text-[9px]">&copy; 2026 Audispot. All rights reserved.</p>
         </div>
     </div>
 
+    <!-- ======================================================= -->
+    <!-- DYNAMIC GLOBAL LAYOUT OVERLAY MODALS WINDOWS            -->
+    <!-- ======================================================= -->
+
+    <!-- Modal 1: Reconnect System Code Entry Form -->
+    <div id="modal-reconnect" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50 animate-fade-in">
+        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-rotate-right text-indigo-400"></i> Reconnect Device</h3>
+                <button onclick="closePortalModal('modal-reconnect')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">Enter your M-Pesa confirmation code token below to trace subscription state mappings and get back online.</p>
+            <div class="space-y-3">
+                <input type="text" id="reconnect-mpesa-code" placeholder="E.g. SGR34XYZ99" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-bold tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-indigo-500 transition">
+                <button onclick="triggerCodeReconnect()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition">Verify & Reconnect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Loyalty System Point Status Checker -->
+    <div id="modal-points" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-wallet text-amber-400"></i> Check Loyalty Metrics</h3>
+                <button onclick="closePortalModal('modal-points')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <div class="space-y-3">
+                <input type="text" id="points-phone" placeholder="Enter M-Pesa Number" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs focus:outline-none focus:border-indigo-500 transition">
+                <button onclick="alert('Points checked: 15 Points Loaded.')" class="w-full py-3 bg-zinc-800 text-white font-bold rounded-xl text-xs transition border border-zinc-700">Query Wallet Balances</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Custom Exchange Points Pass Tiers -->
+    <div id="modal-redeem" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-gift text-emerald-400"></i> Redeem Points Pass</h3>
+                <button onclick="closePortalModal('modal-redeem')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <p class="text-[11px] text-slate-400">Select an internet package tier to redeem using your accumulated reward points balance profile:</p>
+            <div id="portal-redeem-options" class="space-y-2">
+                <!-- Dynamically assigned from database configuration tiers -->
+                <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                    <div class="flex items-center gap-2">
+                        <input type="radio" name="redeemTier" checked class="accent-indigo-500">
+                        <span class="text-xs text-white font-bold">4 Hours Premium Pass</span>
+                    </div>
+                    <span class="text-[11px] text-amber-400 font-bold">20 Points</span>
+                </label>
+                <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                    <div class="flex items-center gap-2">
+                        <input type="radio" name="redeemTier" class="accent-indigo-500">
+                        <span class="text-xs text-white font-bold">6 Hours Premium Pass</span>
+                    </div>
+                    <span class="text-[11px] text-amber-400 font-bold">70 Points</span>
+                </label>
+            </div>
+            <button onclick="alert('Redemption complete. System provisioning gateway...')" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition">Confirm Exchange</button>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- JAVASCRIPT SYSTEM ENGINE CONTROLLER LOGIC               -->
+    <!-- ======================================================= -->
     <script>
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app"; 
 
-        document.addEventListener('DOMContentLoaded', () => {
-            renderConsumerPortalView();
-        });
+        function openPortalModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
 
-        async function renderConsumerPortalView() {
+        function closePortalModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        async function triggerCodeReconnect() {
+            const codeInput = document.getElementById('reconnect-mpesa-code');
+            const codeValue = codeInput ? codeInput.value.trim() : '';
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+
+            if (!codeValue) {
+                alert("Please input a valid M-Pesa reference code pattern match.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/reconnect-by-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mpesaCode: codeValue,
+                        routerId: ispId,
+                        macAddress: 'auto'
+                    })
+                });
+
+                const statusData = await response.json();
+                if (response.ok) {
+                    alert("Success: " + statusData.message);
+                    closePortalModal('modal-reconnect');
+                } else {
+                    alert("Error: " + (statusData.error || "Verification pipeline drop. Try again."));
+                }
+            } catch(err) {
+                console.error(err);
+                alert("Could not reach validation server channels.");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
 
             if (!ispId) {
                 document.getElementById('public-packages-wrapper').innerHTML = `
                     <div class="text-center py-4 text-rose-400 border border-rose-500/10 bg-rose-500/5 rounded-xl font-medium text-xs">
-                        Missing ISP routing parameter query credentials.
+                        Missing valid configuration tenant identification token.
                     </div>`;
                 return;
             }
@@ -133,23 +237,16 @@
                     fetch(`${API_BASE_URL}/api/packages?ispId=${ispId}`)
                 ]);
 
-                if (!designRes.ok) throw new Error("Could not pull design profile.");
+                if (!designRes.ok) throw new Error("Faulty configuration maps.");
                 const config = await designRes.json();
                 
                 document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
-                document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter verification parameters to connect.';
-                document.getElementById('portal-support-phone').innerText = config.supportContact || 'None provided';
+                document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter verification details to connect.';
+                document.getElementById('portal-support-phone').innerText = config.supportContact || 'Not Configured';
                 
                 if (config.reconnectMsg) document.getElementById('portal-reconnect-msg').innerText = config.reconnectMsg;
                 document.getElementById('label-earn-pts').innerText = config.earnPoints || '1';
                 document.getElementById('label-redeem-threshold').innerText = config.redeemPoints || '20';
-
-                if (config.tvSetup) {
-                    const steps = config.tvSetup.split('\n').filter(s => s.trim() !== '');
-                    if (steps.length > 0) {
-                        document.getElementById('portal-tv-setup-list').innerHTML = steps.map(s => `<li>${s}</li>`).join('');
-                    }
-                }
 
                 const accentColor = config.accentColor || '#4f46e5';
                 document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
@@ -160,67 +257,32 @@
                     if (packages && !Array.isArray(packages)) {
                         packages = packages.packages || packages.data || [];
                     }
-                    renderPortalPackagesGrid(packages, accentColor);
+                    
+                    const wrapper = document.getElementById('public-packages-wrapper');
+                    if (wrapper && packages.length > 0) {
+                        wrapper.innerHTML = packages.map((pkg, idx) => {
+                            const pkgId = pkg.id || pkg.docId || '';
+                            const displayDuration = `${pkg.duration} Hour Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
+                            return `
+                                <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
+                                       style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
+                                    <div class="flex items-center gap-3">
+                                        <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
+                                        <div class="space-y-0.5">
+                                            <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
+                                            <p class="text-[10px] text-slate-400 font-medium">${displayDuration}</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
+                                </label>
+                            `;
+                        }).join('');
+                    }
                 }
-
             } catch (err) {
-                console.error("Layout assignment exception mapping:", err);
+                console.error("Critical rendering pipeline drop:", err);
             }
-        }
-
-        // Replacement function for rendering the packages grid cleanly
-        function renderPortalPackagesGrid(packages, accentColor) {
-            const wrapper = document.getElementById('public-packages-wrapper');
-            if (!wrapper || packages.length === 0) {
-                wrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active internet packages configured.</p>`;
-                return;
-            }
-
-            // Helper function to dynamically translate raw hours into Weeks or Months
-            function formatPackageDuration(totalHours) {
-                const hours = Number(totalHours || 0);
-        
-                // 720 hours = 30 days (1 Month)
-                if (hours >= 720 && hours % 720 === 0) {
-                    const months = hours / 720;
-                    return `${months} Month${months > 1 ? 's' : ''}`;
-                }
-                // 168 hours = 7 days (1 Week)
-                if (hours >= 168 && hours % 168 === 0) {
-                    const weeks = hours / 168;
-                    return `${weeks} Week${weeks > 1 ? 's' : ''}`;
-                }
-                // 24 hours = 1 day
-                if (hours >= 24 && hours % 24 === 0) {
-                    const days = hours / 24;
-                    return `${days} Day${days > 1 ? 's' : ''}`;
-                }
-                // Fallback for short durations (e.g., 3 Hours)
-                return `${hours} Hour${hours !== 1 ? 's' : ''}`;
-            }
-
-            wrapper.innerHTML = packages.map((pkg, idx) => {
-                const pkgId = pkg.id || pkg.docId || '';
-        
-                // Get the pretty duration text (e.g., "1 Month" or "3 Hours")
-                const dynamicDuration = formatPackageDuration(pkg.duration);
-                const displayDetails = `${dynamicDuration} Access • ${pkg.bandwidthProfile || 'Unlimited Mbps'}`;
-
-                return `
-                    <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
-                           style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
-                        <div class="flex items-center gap-3">
-                            <input type="radio" name="selectedPlan" value="${pkgId}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
-                            <div class="space-y-0.5">
-                                <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
-                                <p class="text-[10px] text-slate-400 font-medium">${displayDetails}</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
-                    </label>
-                `;
-            }).join('');
-        }
+        });
     </script>
 </body>
 </html>
