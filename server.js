@@ -265,9 +265,11 @@ app.post('/api/hotspot/login', async (req, res) => {
     const profileRef = planProfile || 'default';
 
     try {
-        const doc = await db.collection('routers').doc(routerId).get();
-        if (!doc.exists) return res.status(404).json({ success: false, error: "Hotspot profile not found." });
-
+        const snapshot = await db.collection('routers').where('ispId', '==', routerId).limit(1).get();
+        if (snapshot.empty) {
+        return res.status(404).json({ success: false, error: "Hotspot profile not found." });
+        }
+        const doc = snapshot.docs[0];
         const ispConfig = doc.data();
         const token = await getDynamicMpesaToken(ispConfig.mpesaConsumerKey, ispConfig.mpesaConsumerSecret);
         
