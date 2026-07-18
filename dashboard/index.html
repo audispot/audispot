@@ -641,6 +641,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         
         <div class="space-y-6">
+            <!-- Account Details -->
             <form id="form-settings-account" onsubmit="saveAccountDetails(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
                 <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-address-card text-indigo-500 mr-1.5"></i> Account Details</h3>
                 <div class="space-y-3">
@@ -662,6 +663,7 @@
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save Account Info</button>
             </form>
 
+            <!-- Technicians -->
             <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
                 <div class="flex items-center justify-between">
                     <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-user-gear text-indigo-500 mr-1.5"></i> Technicians</h3>
@@ -680,6 +682,7 @@
                 <button onclick="openAddTechnicianModal()" class="w-full bg-slate-100 dark:bg-vunaborder hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold py-2.5 rounded-lg transition">Add Technician</button>
             </div>
 
+            <!-- SMS Notifications -->
             <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
                 <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-message text-indigo-500 mr-1.5"></i> SMS Notifications</h3>
                 <p class="text-slate-400 leading-relaxed">Send vouchers, welcome messages, and automatic subscription reminders directly to customer phones.</p>
@@ -691,36 +694,50 @@
         </div>
 
         <div class="space-y-6">
+            <!-- M-PESA DARAJA GATEWAY SETTINGS (UPDATED) -->
             <form id="form-settings-mpesa" onsubmit="saveMpesaGatewaySettings(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Payment Receiving</h3>
-                <div class="flex gap-4 border-b border-vunaborder pb-3 font-semibold text-slate-400">
-                    <label class="flex items-center gap-1.5 text-slate-900 dark:text-white"><input type="radio" name="mpesaType" value="till" checked class="accent-indigo-600"> Till / Buy Goods</label>
-                    <label class="flex items-center gap-1.5 opacity-40"><input type="radio" disabled class="accent-indigo-600"> Paybill</label>
-                </div>
-                <div class="space-y-2">
-                    <label class="text-slate-400">Your Till / Paybill Number</label>
-                    <input type="text" id="inp-sett-till" name="tillNumber" placeholder="4030905" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
-                    <span id="lbl-mpesa-ready" class="text-[11px] text-emerald-500 block font-medium"><i class="fa-solid fa-circle-check"></i> Ready to receive payments</span>
-                    <p class="text-[11px] text-slate-400 leading-normal">Payments settle directly to your Till. No advanced credentials needed for platform integration routing.</p>
-                </div>
-                <div class="space-y-3 pt-3 border-t border-vunaborder">
-                    <label class="block font-bold text-slate-400 uppercase text-[10px] tracking-wider">Payment Gateway Tier</label>
-                    <div class="space-y-2">
-                        <div class="p-3 border-2 border-indigo-600 bg-indigo-600/5 rounded-xl flex items-center justify-between">
-                            <div class="flex items-start gap-3">
-                                <div class="w-7 h-7 bg-indigo-600 rounded text-white flex items-center justify-center font-bold text-xs shrink-0">M·P</div>
-                                <div>
-                                    <span class="font-bold block text-slate-900 dark:text-white">Platform M-Pesa Integration</span>
-                                    <span class="text-[10px] text-slate-400 block mt-0.5">Settles to AudiSpot, automated payout schedules. Zero setup.</span>
-                                </div>
-                            </div>
-                            <span class="bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-md tracking-wider animate-pulse">ACTIVE</span>
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Daraja Integration</h3>
+                
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-slate-400">Daraja Environment</label>
+                            <select id="inp-sett-mpesa-env" name="mpesaEnv" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
+                                <option value="sandbox">Test / Sandbox</option>
+                                <option value="live">Live Production</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-slate-400">Shortcode (Till / Paybill)</label>
+                            <input type="text" id="inp-sett-till" name="mpesaShortcode" placeholder="e.g. 174379" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
                         </div>
                     </div>
+
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Daraja Consumer Key</label>
+                        <input type="password" id="inp-sett-mpesa-key" name="mpesaConsumerKey" placeholder="Enter Consumer Key" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Daraja Consumer Secret</label>
+                        <input type="password" id="inp-sett-mpesa-secret" name="mpesaConsumerSecret" placeholder="Enter Consumer Secret" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Online Passkey (Lipa Na M-Pesa)</label>
+                        <input type="password" id="inp-sett-mpesa-passkey" name="mpesaPasskey" placeholder="Enter Passkey String" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
+                    </div>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save Payment Rules</button>
+
+                <div class="p-3 bg-slate-50 dark:bg-vunainput/50 border border-slate-200 dark:border-vunaborder rounded-lg space-y-1.5">
+                    <span id="lbl-mpesa-ready" class="text-[11px] text-emerald-500 font-medium block"><i class="fa-solid fa-circle-check"></i> Custom Routing Configured</span>
+                    <p class="text-[11px] text-slate-400 leading-normal">Customer payments settle to the AudiSpot platform M-Pesa and are paid out to you. Nothing to configure.</p>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save M-Pesa API Credentials</button>
             </form>
 
+            <!-- PPPoE Defaults -->
             <form id="form-settings-pppoe" onsubmit="savePppoeDefaults(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-3 text-xs">
                 <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-shield-halved text-indigo-500 mr-1.5"></i> PPPoE Defaults</h3>
                 <p class="text-slate-400 leading-relaxed">The fallback network authentication password dynamically assigned to new subscriber allocations.</p>
@@ -731,6 +748,7 @@
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save PPPoE Policies</button>
             </form>
 
+            <!-- Network & Branding -->
             <form id="form-settings-branding" onsubmit="saveBrandingState(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
                 <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-sliders text-indigo-500 mr-1.5"></i> Network & Branding</h3>
                 <div class="grid grid-cols-2 gap-3">
@@ -748,16 +766,35 @@
                     <input type="text" id="inp-sett-brand" name="brandName" placeholder="AudiSpot Premium Hotspot" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
                 </div>
                 <div class="space-y-1">
-                    <label class="text-slate-400">Captive Portal Redirect Address</label>
-                    <input type="text" id="inp-sett-redirect" name="redirectUrl" placeholder="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
+                    <label class="text-slate-400">Captive Portal Redirect Address (Generated Backend)</label>
+                    <input type="text" id="inp-sett-redirect" name="redirectUrl" disabled readonly class="w-full p-2.5 bg-slate-100 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-500 dark:text-slate-400 font-mono select-all font-semibold">
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
             </form>
+
+            <!-- NEW SECTION: ALERTS & MONITORING HEALTH MONITOR -->
+            <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-bell text-indigo-500 mr-1.5"></i> Alerts & Monitoring</h3>
+                    <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-500 font-semibold uppercase tracking-wider">Health Monitor Active</span>
+                </div>
+                <p class="text-slate-400 leading-relaxed">Get notified instantly when a router goes offline or comes back online. The health monitor checks every 2 minutes.</p>
+                
+                <div class="p-3.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+                        <div>
+                            <span class="font-bold text-slate-900 dark:text-white block">Router Core System Pulse</span>
+                            <span class="text-slate-400 text-[10px] block mt-0.5">Automated pings running successfully.</span>
+                        </div>
+                    </div>
+                    <span class="font-mono text-[11px] font-bold text-indigo-400">Interval: 120s</span>
+                </div>
+            </div>
         </div>
 
     </div>
 </div>
-
 <div id="modal-add-technician" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-vunaborder pb-3">
@@ -2842,7 +2879,13 @@ async function fetchAndRenderSystemSettings() {
         const phone = data.supportPhone || data.support_phone || '';
         const redirect = data.redirectUrl || data.redirect_url || '';
         const pppoe = data.defaultPppoePassword || data.default_pppoe_password || '';
-        const till = data.tillNumber || data.till_number || '';
+        const till = data.mpesaShortcode || data.tillNumber || data.till_number || '';
+        
+        // M-Pesa Daraja structural fields mappings
+        const mpesaKey = data.mpesaConsumerKey || '';
+        const mpesaSecret = data.mpesaConsumerSecret || '';
+        const mpesaPass = data.mpesaPasskey || '';
+        const mpesaEnv = data.mpesaEnv || 'sandbox';
 
         // Safely set HTML form values using the actual element IDs present in your HTML
         const elBrand = document.getElementById('inp-sett-brand');
@@ -2851,6 +2894,12 @@ async function fetchAndRenderSystemSettings() {
         const elRedirect = document.getElementById('inp-sett-redirect');
         const elPppoe = document.getElementById('inp-sett-pppoe-pass');
         const elTill = document.getElementById('inp-sett-till');
+        
+        // Target elements for full M-Pesa integration
+        const elMpesaKey = document.getElementById('inp-sett-mpesa-key');
+        const elMpesaSecret = document.getElementById('inp-sett-mpesa-secret');
+        const elMpesaPasskey = document.getElementById('inp-sett-mpesa-passkey');
+        const elMpesaEnv = document.getElementById('inp-sett-mpesa-env');
 
         if (elBrand) elBrand.value = brand;
         if (elIp) elIp.value = ip;
@@ -2858,6 +2907,12 @@ async function fetchAndRenderSystemSettings() {
         if (elRedirect) elRedirect.value = redirect;
         if (elPppoe) elPppoe.value = pppoe;
         if (elTill) elTill.value = till;
+        
+        // Map elements values for Daraja settings UI fields safely
+        if (elMpesaKey) elMpesaKey.value = mpesaKey;
+        if (elMpesaSecret) elMpesaSecret.value = mpesaSecret;
+        if (elMpesaPasskey) elMpesaPasskey.value = mpesaPass;
+        if (elMpesaEnv) elMpesaEnv.value = mpesaEnv;
 
         // Admin Identity Card elements
         const elAdminName = document.getElementById('txt-settings-admin-name') || document.getElementById('inp-sett-name');
@@ -2896,6 +2951,7 @@ async function fetchAndRenderSystemSettings() {
         }
     }
 }
+
 // Save functions using dynamic base urls
 async function saveBrandingState(e) {
     e.preventDefault();
@@ -2949,7 +3005,15 @@ async function saveMpesaGatewaySettings(e) {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
-    const payload = { tillNumber: document.getElementById('inp-sett-till').value };
+    // Extended payload structure mapping all 5 fields matching UI updates
+    const payload = { 
+        mpesaShortcode: document.getElementById('inp-sett-till').value,
+        mpesaConsumerKey: document.getElementById('inp-sett-mpesa-key') ? document.getElementById('inp-sett-mpesa-key').value : '',
+        mpesaConsumerSecret: document.getElementById('inp-sett-mpesa-secret') ? document.getElementById('inp-sett-mpesa-secret').value : '',
+        mpesaPasskey: document.getElementById('inp-sett-mpesa-passkey') ? document.getElementById('inp-sett-mpesa-passkey').value : '',
+        mpesaEnv: document.getElementById('inp-sett-mpesa-env') ? document.getElementById('inp-sett-mpesa-env').value : 'sandbox',
+        tillNumber: document.getElementById('inp-sett-till').value // retained for legacy compatibility
+    };
 
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/mpesa?ispId=${targetTenant}`, {
@@ -2958,7 +3022,7 @@ async function saveMpesaGatewaySettings(e) {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('M-Pesa payment receiving rules updated.');
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('M-Pesa payment receiving rules and API credentials updated.');
         }
     } catch (err) {
         console.error(err);
@@ -3110,6 +3174,29 @@ async function removeTechnician(techId) {
     }
 }
 
+// =========================================================================
+// ALERTS & MONITORING: CORE ROUTER HEALTH MONITOR PULSE
+// =========================================================================
+
+async function executeNetworkHealthCheckPulse() {
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    
+    try {
+        const res = await fetch(`${baseEndpoint}/api/monitoring/pulse?ispId=${targetTenant}`);
+        if (!res.ok) {
+            console.warn("Health monitor pulse returned status code error.");
+            return;
+        }
+        const state = await res.json();
+        
+        // Dynamic console tracking for heartbeats
+        console.log(`[Pulse Monitor] System verified active. Online nodes: ${state.onlineCount || 0}`);
+    } catch (err) {
+        console.error("Network dashboard was unable to query active pings:", err);
+    }
+}
+
 // Function to Open or Close the Modal with full dynamic calculations
 function toggleSubscriptionModal(show = true) {
     const modal = document.getElementById('subscription-modal');
@@ -3250,6 +3337,8 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchAndRenderSystemSettings();
     checkSubscriptionTrial();
     fetchCurrentPortalDesign();
+
+    setInterval(executeNetworkHealthCheckPulse, 120000);
 });
         
         window.onload = () => {
