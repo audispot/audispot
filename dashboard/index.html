@@ -694,11 +694,40 @@
         </div>
 
         <div class="space-y-6">
-            <!-- M-PESA DARAJA GATEWAY SETTINGS (UPDATED) -->
+            <!-- M-PESA DARAJA GATEWAY SETTINGS (UPDATED TOGGLES & payout RULES) -->
             <form id="form-settings-mpesa" onsubmit="saveMpesaGatewaySettings(event)" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
-                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Daraja Integration</h3>
+                <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-money-bill-wave text-indigo-500 mr-1.5"></i> M-PESA Integration Setup</h3>
                 
-                <div class="space-y-3">
+                <!-- Gateway Routing Select Switch -->
+                <div class="space-y-1">
+                    <label class="text-slate-400 font-medium">Payment Integration Mode</label>
+                    <select id="inp-sett-mpesa-type" name="mpesaIntegrationType" onchange="toggleMpesaViewState()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
+                        <option value="platform">Use AudiSpot Platform M-Pesa (Automated Payouts)</option>
+                        <option value="daraja">Connect Custom Safaricom Daraja API API</option>
+                    </select>
+                </div>
+
+                <!-- BLOCK A: Platform M-pesa Payout Destination Selectors -->
+                <div id="wrapper-platform-settings" class="space-y-3 hidden">
+                    <div class="p-3 bg-emerald-500/5 border border-emerald-500/20 text-emerald-500 rounded-lg text-[11px]">
+                        Customer payments settle directly via AudiSpot system rules and cascade to your selected settlement method instantly.
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400">Payout Settlement Destination</label>
+                        <select id="inp-sett-platform-payout" name="platformPayoutType" onchange="togglePlatformFields()" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-medium">
+                            <option value="number">M-Pesa Phone Number</option>
+                            <option value="till">Lipa Na M-Pesa Buy Goods Till</option>
+                            <option value="paybill">M-Pesa Business Paybill</option>
+                        </select>
+                    </div>
+                    
+                    <div id="wrapper-platform-inputs" class="grid grid-cols-1 gap-3">
+                        <!-- Dynamic fields injected here -->
+                    </div>
+                </div>
+
+                <!-- BLOCK B: Custom Daraja API Key Parameters -->
+                <div id="wrapper-daraja-settings" class="space-y-3 hidden">
                     <div class="grid grid-cols-2 gap-3">
                         <div class="space-y-1">
                             <label class="text-slate-400">Daraja Environment</label>
@@ -712,29 +741,30 @@
                             <input type="text" id="inp-sett-till" name="mpesaShortcode" placeholder="e.g. 174379" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
                         </div>
                     </div>
-
                     <div class="space-y-1">
                         <label class="text-slate-400">Daraja Consumer Key</label>
                         <input type="password" id="inp-sett-mpesa-key" name="mpesaConsumerKey" placeholder="Enter Consumer Key" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
                     </div>
-
                     <div class="space-y-1">
                         <label class="text-slate-400">Daraja Consumer Secret</label>
                         <input type="password" id="inp-sett-mpesa-secret" name="mpesaConsumerSecret" placeholder="Enter Consumer Secret" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
                     </div>
-
                     <div class="space-y-1">
-                        <label class="text-slate-400">Online Passkey (Lipa Na M-Pesa)</label>
+                        <label class="text-slate-400">Daraja Passkey (Lipa Na M-Pesa)</label>
                         <input type="password" id="inp-sett-mpesa-passkey" name="mpesaPasskey" placeholder="Enter Passkey String" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder font-mono text-slate-900 dark:text-white rounded-lg">
+                    </div>
+
+                    <!-- Verification Test Sandbox Unit Component -->
+                    <div class="pt-2 border-t border-slate-100 dark:border-vunaborder space-y-2">
+                        <label class="text-slate-400 block">Verify Configuration Gateway</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="inp-daraja-test-phone" placeholder="Phone (e.g. 2547XXXXXXXX)" class="flex-1 p-2 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg font-mono text-slate-900 dark:text-white">
+                            <button type="button" onclick="runDarajaTestPayment()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 rounded-lg transition">Verify Gateway</button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="p-3 bg-slate-50 dark:bg-vunainput/50 border border-slate-200 dark:border-vunaborder rounded-lg space-y-1.5">
-                    <span id="lbl-mpesa-ready" class="text-[11px] text-emerald-500 font-medium block"><i class="fa-solid fa-circle-check"></i> Custom Routing Configured</span>
-                    <p class="text-[11px] text-slate-400 leading-normal">Customer payments settle to the AudiSpot platform M-Pesa and are paid out to you. Nothing to configure.</p>
-                </div>
-
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save M-Pesa API Credentials</button>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition">Save M-Pesa Integration Configuration</button>
             </form>
 
             <!-- PPPoE Defaults -->
@@ -772,29 +802,52 @@
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
             </form>
 
-            <!-- NEW SECTION: ALERTS & MONITORING HEALTH MONITOR -->
+            <!-- ALERTS & MONITORING MONITOR -->
             <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
                 <div class="flex items-center justify-between">
                     <h3 class="font-bold uppercase tracking-wider text-slate-400 text-[11px]"><i class="fa-solid fa-bell text-indigo-500 mr-1.5"></i> Alerts & Monitoring</h3>
-                    <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-500 font-semibold uppercase tracking-wider">Health Monitor Active</span>
-                </div>
-                <p class="text-slate-400 leading-relaxed">Get notified instantly when a router goes offline or comes back online. The health monitor checks every 2 minutes.</p>
-                
-                <div class="p-3.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-xl flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
-                        <div>
-                            <span class="font-bold text-slate-900 dark:text-white block">Router Core System Pulse</span>
-                            <span class="text-slate-400 text-[10px] block mt-0.5">Automated pings running successfully.</span>
-                        </div>
+                    <div class="flex items-center gap-2">
+                        <span id="badge-health-monitor" class="px-2 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-400 font-semibold uppercase tracking-wider">Disabled</span>
                     </div>
-                    <span class="font-mono text-[11px] font-bold text-indigo-400">Interval: 120s</span>
+                </div>
+                <p class="text-slate-400 leading-relaxed">Get notified instantly via email when a router node goes offline or drops dynamic heartbeat configurations.</p>
+                
+                <div class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-xl">
+                    <div>
+                        <span class="font-bold text-slate-900 dark:text-white block">Email Notification Alerts</span>
+                        <span id="lbl-health-monitor-desc" class="text-slate-400 text-[10px] block mt-0.5">Alert emails are currently disabled.</span>
+                    </div>
+                    <!-- Master Alert Checkbox Toggle Switch Toggle -->
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="chk-alert-toggle" onchange="handleAlertToggleChange(this)" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-200 dark:bg-vunaborder peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
                 </div>
             </div>
         </div>
 
     </div>
 </div>
+
+<!-- ALERTS CONFIGURATION MODAL -->
+<div id="modal-alert-config" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder w-full max-w-sm rounded-xl p-5 space-y-4 text-xs shadow-xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]"><i class="fa-solid fa-envelope text-indigo-500 mr-1.5"></i> Configure Health Alerts</h3>
+            <button onclick="dismissAlertModal(false)" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+        <p class="text-slate-400 leading-normal">Enter the dispatch email address where router heartbeat status updates should be delivered.</p>
+        <div class="space-y-1">
+            <label class="text-slate-400">Target Notification Email</label>
+            <input type="email" id="inp-alert-email" placeholder="noc@ispdomain.com" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-medium">
+        </div>
+        <div class="flex gap-2 pt-2">
+            <button onclick="dismissAlertModal(false)" class="flex-1 py-2 bg-slate-100 dark:bg-vunaborder hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-semibold rounded-lg transition">Cancel</button>
+            <button onclick="commitAlertSettings()" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition">Save Alerts</button>
+        </div>
+    </div>
+</div>
+        
 <div id="modal-add-technician" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-vunaborder pb-3">
@@ -3000,19 +3053,95 @@ async function savePppoeDefaults(e) {
     }
 }
 
+const mpesaType = data.mpesaIntegrationType || 'platform';
+const platformPayout = data.platformPayoutType || 'number';
+const alertEnabled = data.alertsEnabled === true;
+const alertEmail = data.alertEmail || '';
+
+const elMpesaType = document.getElementById('inp-sett-mpesa-type');
+const elPlatformPayout = document.getElementById('inp-sett-platform-payout');
+const elAlertToggle = document.getElementById('chk-alert-toggle');
+const elAlertEmailInp = document.getElementById('inp-alert-email');
+
+if (elMpesaType) elMpesaType.value = mpesaType;
+if (elPlatformPayout) elPlatformPayout.value = platformPayout;
+if (elAlertToggle) {
+    elAlertToggle.checked = alertEnabled;
+    updateAlertBadgeState(alertEnabled, alertEmail);
+}
+if (elAlertEmailInp) elAlertEmailInp.value = alertEmail;
+
+// Run visibility alignment
+toggleMpesaViewState();
+
+// Dynamic conditional wrapper visibility managers
+function toggleMpesaViewState() {
+    const integrationType = document.getElementById('inp-sett-mpesa-type').value;
+    const platformWrapper = document.getElementById('wrapper-platform-settings');
+    const darajaWrapper = document.getElementById('wrapper-daraja-settings');
+    
+    if (integrationType === 'platform') {
+        platformWrapper.classList.remove('hidden');
+        darajaWrapper.classList.add('hidden');
+        togglePlatformFields();
+    } else {
+        platformWrapper.classList.add('hidden');
+        darajaWrapper.classList.remove('hidden');
+    }
+}
+
+function togglePlatformFields() {
+    const payoutType = document.getElementById('inp-sett-platform-payout').value;
+    const inputContainer = document.getElementById('wrapper-platform-inputs');
+    inputContainer.innerHTML = ''; // clear dynamic layouts
+    
+    if (payoutType === 'number' || payoutType === 'till') {
+        const labelText = payoutType === 'number' ? 'M-Pesa Phone Number' : 'Lipa Na M-Pesa Till Number';
+        const placeholderText = payoutType === 'number' ? 'e.g. 254712345678' : 'e.g. 4030905';
+        
+        inputContainer.innerHTML = `
+            <div class="space-y-1">
+                <label class="text-slate-400">${labelText}</label>
+                <input type="text" id="inp-platform-primary" name="platformPrimaryDestination" placeholder="${placeholderText}" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg font-mono text-slate-900 dark:text-white">
+            </div>
+        `;
+    } else if (payoutType === 'paybill') {
+        inputContainer.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-400">Paybill Business Number</label>
+                    <input type="text" id="inp-platform-primary" name="platformPrimaryDestination" placeholder="e.g. 222222" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg font-mono text-slate-900 dark:text-white">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-400">Account Number / Suffix</label>
+                    <input type="text" id="inp-platform-secondary" name="platformSecondaryDestination" placeholder="e.g. INVOICE" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg font-mono text-slate-900 dark:text-white">
+                </div>
+            </div>
+        `;
+    }
+}
+
 async function saveMpesaGatewaySettings(e) {
     e.preventDefault();
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
-    // Extended payload structure mapping all 5 fields matching UI updates
+    const integrationType = document.getElementById('inp-sett-mpesa-type').value;
+    const payoutType = document.getElementById('inp-sett-platform-payout') ? document.getElementById('inp-sett-platform-payout').value : 'number';
+    
+    const elPrimary = document.getElementById('inp-platform-primary');
+    const elSecondary = document.getElementById('inp-platform-secondary');
+
     const payload = { 
-        mpesaShortcode: document.getElementById('inp-sett-till').value,
+        mpesaIntegrationType: integrationType,
+        platformPayoutType: payoutType,
+        platformPrimaryDestination: elPrimary ? elPrimary.value : '',
+        platformSecondaryDestination: elSecondary ? elSecondary.value : '',
+        mpesaShortcode: document.getElementById('inp-sett-till') ? document.getElementById('inp-sett-till').value : '',
         mpesaConsumerKey: document.getElementById('inp-sett-mpesa-key') ? document.getElementById('inp-sett-mpesa-key').value : '',
         mpesaConsumerSecret: document.getElementById('inp-sett-mpesa-secret') ? document.getElementById('inp-sett-mpesa-secret').value : '',
         mpesaPasskey: document.getElementById('inp-sett-mpesa-passkey') ? document.getElementById('inp-sett-mpesa-passkey').value : '',
-        mpesaEnv: document.getElementById('inp-sett-mpesa-env') ? document.getElementById('inp-sett-mpesa-env').value : 'sandbox',
-        tillNumber: document.getElementById('inp-sett-till').value // retained for legacy compatibility
+        mpesaEnv: document.getElementById('inp-sett-mpesa-env') ? document.getElementById('inp-sett-mpesa-env').value : 'sandbox'
     };
 
     try {
@@ -3022,10 +3151,112 @@ async function saveMpesaGatewaySettings(e) {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('M-Pesa payment receiving rules and API credentials updated.');
+            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('M-Pesa processing state successfully recorded.');
+        }
+    } catch (err) {
+        console.error("Mpesa settings save failed:", err);
+    }
+}
+
+// Live Daraja Gateway Sandbox verification executor
+async function runDarajaTestPayment() {
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const phone = document.getElementById('inp-daraja-test-phone').value;
+
+    if (!phone) {
+        alert("Please provide a valid M-Pesa phone number to send the test STK Push request.");
+        return;
+    }
+
+    const payload = {
+        phone: phone,
+        mpesaShortcode: document.getElementById('inp-sett-till').value,
+        mpesaConsumerKey: document.getElementById('inp-sett-mpesa-key').value,
+        mpesaConsumerSecret: document.getElementById('inp-sett-mpesa-secret').value,
+        mpesaPasskey: document.getElementById('inp-sett-mpesa-passkey').value,
+        mpesaEnv: document.getElementById('inp-sett-mpesa-env').value
+    };
+
+    if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Dispatching Daraja gateway validation token...');
+    
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/mpesa/verify-test?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert("Verification STK push dispatched successfully! Please check your mobile phone handset for the M-Pesa PIN prompt.");
+        } else {
+            alert(`Gateway verification failed: ${data.message || 'Check credentials syntax structure.'}`);
         }
     } catch (err) {
         console.error(err);
+        alert("Fatal error running backend Daraja API verification pipeline.");
+    }
+}
+
+// Alerts modal handling logic
+function handleAlertToggleChange(checkbox) {
+    if (checkbox.checked) {
+        document.getElementById('modal-alert-config').classList.remove('hidden');
+    } else {
+        saveAlertConfigurationState(false, '');
+    }
+}
+
+function dismissAlertModal(isSaved) {
+    document.getElementById('modal-alert-config').classList.add('hidden');
+    if (!isSaved) {
+        document.getElementById('chk-alert-toggle').checked = false;
+    }
+}
+
+async function commitAlertSettings() {
+    const email = document.getElementById('inp-alert-email').value;
+    if (!email || !email.includes('@')) {
+        alert('Please provide a valid diagnostic destination email address.');
+        return;
+    }
+    await saveAlertConfigurationState(true, email);
+    dismissAlertModal(true);
+}
+
+async function saveAlertConfigurationState(enabled, email) {
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/monitoring/alerts?ispId=${targetTenant}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alertsEnabled: enabled, alertEmail: email })
+        });
+        if (res.ok) {
+            updateAlertBadgeState(enabled, email);
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(enabled ? 'Router network monitoring alerts activated.' : 'Monitoring alert engines set to offline standby.');
+            }
+        }
+    } catch (err) {
+        console.error("Failed persisting system tracking state configurations:", err);
+    }
+}
+
+function updateAlertBadgeState(enabled, email) {
+    const badge = document.getElementById('badge-health-monitor');
+    const desc = document.getElementById('lbl-health-monitor-desc');
+    
+    if (enabled) {
+        badge.innerText = "Health Monitor Active";
+        badge.className = "px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-500 font-semibold uppercase tracking-wider";
+        desc.innerText = `System health status changes will email: ${email}`;
+    } else {
+        badge.innerText = "Disabled";
+        badge.className = "px-2 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-400 font-semibold uppercase tracking-wider";
+        desc.innerText = "Alert emails are currently disabled.";
     }
 }
 
