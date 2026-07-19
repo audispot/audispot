@@ -1383,9 +1383,6 @@ async function fetchPPPoESubscriberBase() {
         const routers = await response.json();
         if(routers.length === 0) return;
 
-        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
-        const routers = await response.json();
-
         document.getElementById("pppoe-metric-active").textContent = secrets.length;
         document.getElementById("pppoe-metric-profiles").textContent = [...new Set(secrets.map(s => s.profile))].length;
 
