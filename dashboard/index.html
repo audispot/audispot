@@ -1760,14 +1760,15 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
 
-    // ==================== LIVE DATA HOOK TRIGGERS ====================
+   // ==================== LIVE DATA HOOK TRIGGERS ====================
     if (activeTab === 'expenses') {
         if (typeof fetchAndRenderExpenses === "function") {
             fetchAndRenderExpenses();
         }
     } else if (activeTab === 'analytics') {
-        if (typeof fetchPerformanceAnalytics === "function") {
-            fetchPerformanceAnalytics();
+        // FIXED: Swapped to your actual function name
+        if (typeof fetchAndRenderAnalytics === "function") {
+            fetchAndRenderAnalytics();
         }
     } else if (activeTab === 'vouchers') { 
         if (typeof fetchSystemVoucherRegistry === "function") {
@@ -2452,26 +2453,6 @@ function navigateToView(viewId) {
         fetchAndRenderExpenses();
     } else if (viewId === 'view-analytics') {
         fetchAndRenderAnalytics();
-    }
-}
-
-// ====================================================================
-// EXPENSE PROCESSORS (FRONTEND INTEGRITY)
-// ====================================================================
-function toggleModal(modalId, shouldShow) {
-    const targetModal = document.getElementById(modalId);
-    if (!targetModal) return;
-            
-    if (shouldShow) {
-        targetModal.classList.remove('hidden');
-        // Auto-fill today's date if showing the expense modal
-        if (modalId === 'modal-add-expense') {
-            const today = new Date().toISOString().split('T')[0];
-            const dateInput = document.getElementById('expense-date');
-            if (dateInput) dateInput.value = today;
-        }
-    } else {
-                targetModal.classList.add('hidden');
     }
 }
 
@@ -3544,6 +3525,8 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchAndRenderSystemSettings();
     checkSubscriptionTrial();
     fetchCurrentPortalDesign();
+    fetchAndRenderExpenses();
+    fetchAndRenderAnalytics();
 
     setInterval(executeNetworkHealthCheckPulse, 120000);
 });
