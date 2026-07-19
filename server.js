@@ -5,15 +5,11 @@ const cors = require('cors');
 const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
-const { Resend } = require('resend');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Initialize Resend Client SDK
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Initialize Cloud Firestore securely with explicit project target
 let db;
@@ -209,144 +205,6 @@ app.post('/api/settings/mpesa/verify-test', async (req, res) => {
         return res.status(500).json({ success: false, message: "Gateway connection timed out. Check authorization configuration parameters." });
     }
 });
-
-// POST: /api/settings/monitoring/alerts - Saves Network Monitoring Alert Email Rules
-app.post('/api/settings/monitoring/alerts', async (req, res) => {
-    const ispId = req.query.ispId || 'default_isp';
-    const { alertsEnabled, alertEmail } = req.body;
-    
-    try {
-        await db.collection('settings').doc(ispId).set({
-            alertsEnabled: !!alertsEnabled,
-            alertEmail: alertEmail || ""
-        }, { merge: true });
-        
-        return res.json({ success: true, message: "Alert subscription configurations mapped." });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// POST: /api/monitoring/pulse - Recieve real-time physical router hardware ping drops
-app.post('/api/monitoring/pulse', async (req, res) => {
-    const { routerId, ispId } = req.body;
-    if (!routerId || !ispId) return res.status(400).json({ error: "Missing identity tracking metrics." });
-
-    try {
-        const routerRef = db.collection('routers').doc(routerId);
-        const routerDoc = await routerRef.get();
-
-        if (!routerDoc.exists) return res.status(404).json({ error: "Node array lookup reference not matched." });
-        const routerNode = routerDoc.data();
-
-        const previousState = routerNode.status || 'online';
-        const currentTimestamp = Date.now();
-
-        await routerRef.update({
-            lastPulse: currentTimestamp,
-            status: 'online'
-        });
-
-        // Retrieve the corresponding tenant tracking email limits setup
-        const settingsDoc = await db.collection('settings').doc(ispId).get();
-        if (settingsDoc.exists) {
-            const currentConfig = settingsDoc.data();
-            if (previousState === 'offline' && currentConfig.alertsEnabled && currentConfig.alertEmail) {
-                await dispatchRouterAlertEmail(currentConfig.alertEmail, { id: routerId, name: routerNode.ispName || 'Captive Router Node' }, 'ONLINE');
-            }
-        }
-        
-        return res.json({ success: true, state: "Pulse verified." });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// Email Dispatch via Resend Services Layer
-async function dispatchRouterAlertEmail(targetEmail, routerNode, stateType) {
-    const borderIndicatorColor = stateType === 'OFFLINE' ? '#e11d48' : '#10b981';
-    const emailSubject = `[ALERT] System Node Notification: ${routerNode.name} is ${stateType}`;
-    
-    try {
-        await resend.emails.send({
-            from: 'AudiSpot Core Systems <mail.audispot.audiory.site>',
-            to: targetEmail,
-            subject: emailSubject,
-            html: `
-                <div style="font-family: sans-serif; max-width: 550px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background-color: #ffffff;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${borderIndicatorColor}; padding-bottom: 12px; margin-bottom: 16px;">
-                        <h2 style="margin: 0; color: #0f172a; font-size: 16px; text-transform: uppercase;">AudiSpot Monitoring Service</h2>
-                        <span style="background-color: ${borderIndicatorColor}20; color: ${borderIndicatorColor}; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;">${stateType}</span>
-                    </div>
-                    <p style="font-size: 13px; color: #475569; line-height: 1.6;">
-                        This notification confirms that the network monitoring layer observed an instant state variance regarding your localized infrastructure hardware components.
-                    </p>
-                    <table style="width: 100%; font-size: 12px; background-color: #f8fafc; border-radius: 8px; padding: 12px;">
-                        <tr>
-                            <td style="padding: 4px 0; color: #64748b; font-weight: 600;">Router Model Node:</td>
-                            <td style="padding: 4px 0; color: #0f172a; font-weight: 700; text-align: right;">${routerNode.name}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; color: #64748b; font-weight: 600;">System Identification:</td>
-                            <td style="padding: 4px 0; color: #334155; font-family: monospace; text-align: right;">${routerNode.id}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; color: #64748b; font-weight: 600;">Timestamp Recorded:</td>
-                            <td style="padding: 4px 0; color: #334155; text-align: right;">${new Date().toLocaleString()}</td>
-                        </tr>
-                    </table>
-                    <p style="font-size: 11px; color: #94a3b8; margin-top: 20px; text-align: center; line-height: 1.4;">
-                        Automated diagnostic pulse running from server clusters targeting active Mikrotik API tunnels.<br/>
-                        &copy; AudiSpot System Dashboard Registry.
-                    </p>
-                </div>
-            `
-        });
-        console.log(`[Diagnostic Mail Dispatch Success] Target alerts dispatched to: ${targetEmail}`);
-    } catch (mailError) {
-        console.error("[Resend Integration Pipeline Exception Failure]:", mailError);
-    }
-}
-
-// Background Health Monitor CRON Engine (Checks for dropped router heartbeats)
-// Scans for dead routers across the platform every 60 seconds
-ompnteNetworkCronEngine();
-function ompnteNetworkCronEngine() {
-    console.log("[Health Monitor Worker] Initializing tracking loop matrix...");
-    
-    setInterval(async () => {
-        const thresholdTimeout = 2 * 60 * 1000; // 2 minutes window fallback threshold
-        const currentTimestamp = Date.now();
-
-        try {
-            const routersSnapshot = await db.collection('routers').get();
-            
-            for (let doc of routersSnapshot.docs) {
-                const routerNode = doc.data();
-                const routerId = doc.id;
-                const lastPulse = routerNode.lastPulse || 0;
-                const status = routerNode.status || 'online';
-                const ispId = routerNode.ispId || 'default_isp';
-
-                if (currentTimestamp - lastPulse > thresholdTimeout && status === 'online') {
-                    // Update the router status inside Firestore to offline
-                    await db.collection('routers').doc(routerId).update({ status: 'offline' });
-
-                    // Lookup if alerts notifications are active for this specific ISP
-                    const settingsDoc = await db.collection('settings').doc(ispId).get();
-                    if (settingsDoc.exists) {
-                        const currentConfig = settingsDoc.data();
-                        if (currentConfig.alertsEnabled && currentConfig.alertEmail) {
-                            await dispatchRouterAlertEmail(currentConfig.alertEmail, { id: routerId, name: routerNode.ispName || 'Captive Router Node' }, 'OFFLINE');
-                        }
-                    }
-                }
-            }
-        } catch (cronErr) {
-            console.error("[Health Monitor Loop Exception Handled]:", cronErr.message);
-        }
-    }, 60000); 
-}
 
 // Fetch live real-time inbound logs directly from Firestore
 // 1. Fetch Hotspot Logs Filtered by ISP
@@ -1738,17 +1596,6 @@ app.post('/api/settings/account', async (req, res) => {
             accountEmail,
             accountCompany
         }, { merge: true });
-        res.sendStatus(200);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/settings/mpesa', async (req, res) => {
-    const ispId = req.query.ispId || 'default_isp';
-    const { tillNumber } = req.body;
-    try {
-        await req.db.collection('settings').doc(ispId).set({ tillNumber }, { merge: true });
         res.sendStatus(200);
     } catch (err) {
         res.status(500).json({ error: err.message });
