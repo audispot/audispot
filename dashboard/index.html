@@ -2493,7 +2493,7 @@ function toggleModal(modalId, shouldShow) {
 }
 
 async function fetchAndRenderExpenses() {
-    const ispId = localStorage.getItem('ispId') || "default_isp";
+    const ispId = localStorage.getItem('isp_id') || "default_isp";
     const tbody = document.getElementById('tbl-expenses-body');
     const ratiosContainer = document.getElementById('expense-category-ratios');
     
@@ -2605,7 +2605,7 @@ function renderExpenseList(expenses) {
 
 async function handleExpenseCreateSubmit(event) {
     event.preventDefault();
-    const ispId = localStorage.getItem('ispId') || "default_isp";
+    const ispId = localStorage.getItem('isp_id') || "default_isp";
     
     let rawDate = document.getElementById('expense-date').value;
     if (!rawDate) {
@@ -2692,7 +2692,7 @@ async function deleteExpenseEntry(id) {
 // ====================================================================
 
 async function fetchAndRenderAnalytics() {
-    const ispId = localStorage.getItem('ispId') || "default_isp";
+    const ispId = localStorage.getItem('isp_id') || "default_isp";
     try {
         const response = await fetch(`https://audispoty-749056206562.europe-west1.run.app/api/isp/analytics/${ispId}`);
         const data = await response.json();
