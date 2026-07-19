@@ -1372,7 +1372,7 @@ app.get('/api/expenses', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
         // Query matching documents WITHOUT orderBy to avoid Firestore Index errors
-        const snapshot = await req.db.collection('isp_expenses')
+        const snapshot = await db.collection('isp_expenses')
             .where('ispId', '==', ispId)
             .get();
             
