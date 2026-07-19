@@ -1370,25 +1370,28 @@ app.post('/api/portal/design/save', async (req, res) => {
 
 app.get('/api/expenses', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
+
     try {
         // Query matching documents WITHOUT orderBy to avoid Firestore Index errors
         const snapshot = await db.collection('isp_expenses')
             .where('ispId', '==', ispId)
             .get();
-            
+
         const expenses = [];
+
         snapshot.forEach(doc => {
             const data = doc.data();
+
             expenses.push({
                 id: doc.id,
                 description: data.description || "Uncategorized Expense",
                 amount: data.amount || 0,
                 category: data.category || "General",
-                date: data.date || new Date().toISOString()
+                date: data.date || new Date().toISOString(),
+                createdAt: data.createdAt || null
             });
         });
 
-        // Safe in-memory sorting by createdAt (descending)
         expenses.sort((a, b) => {
             const dateA = new Date(a.createdAt || 0);
             const dateB = new Date(b.createdAt || 0);
@@ -1396,8 +1399,9 @@ app.get('/api/expenses', async (req, res) => {
         });
 
         return res.status(200).json(expenses);
-    catch (err) {
-        console.error(err);
+
+    } catch (err) {
+        console.error("Expenses fetch failure:", err);
         return res.status(500).json({
             error: err.message
         });
