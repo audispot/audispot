@@ -162,7 +162,7 @@
             try {
                 const response = await fetch(`${API_HOST}/api/hotspot/routers?ispId=${ISP_ID}`);
                 if (!response.ok) throw new Error("Could not pull network layout specifications matrices.");
-                const fleet = await response.getJson ? await response.json() : await response.json();
+                const fleet = await response.json();
                 
                 const tbody = document.getElementById("router-fleet-rows");
                 if(fleet.length === 0) {
