@@ -1293,6 +1293,10 @@ function evaluateActiveViewRoutingContext() {
     if (!document.getElementById('viewframe-pppoe').classList.contains('hidden')) fetchPPPoESubscriberBase();
     if (!document.getElementById('viewframe-static-ip').classList.contains('hidden')) fetchStaticDHCPLeases();
     if (!document.getElementById('viewframe-packages').classList.contains('hidden')) fetchActiveBillingCatalog();
+    
+    // ADDED HOOKS FOR MISSING VIEWS:
+    if (!document.getElementById('viewframe-expenses').classList.contains('hidden')) fetchExpensesLedger();
+    if (!document.getElementById('viewframe-analytics').classList.contains('hidden')) fetchPerformanceAnalytics();
 }
 
 // ==========================================
@@ -1379,8 +1383,8 @@ async function fetchPPPoESubscriberBase() {
         const routers = await response.json();
         if(routers.length === 0) return;
 
-        const res = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${routers[0].id}`);
-        const secrets = await res.json();
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
+        const routers = await response.json();
 
         document.getElementById("pppoe-metric-active").textContent = secrets.length;
         document.getElementById("pppoe-metric-profiles").textContent = [...new Set(secrets.map(s => s.profile))].length;
@@ -3529,6 +3533,9 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchAndRenderAnalytics();
 
     setInterval(executeNetworkHealthCheckPulse, 120000);
+    
+    // Initial runtime trigger execution mapping
+    evaluateActiveViewRoutingContext();
 });
         
         window.onload = () => {
