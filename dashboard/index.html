@@ -1295,8 +1295,13 @@ function evaluateActiveViewRoutingContext() {
     if (!document.getElementById('viewframe-packages').classList.contains('hidden')) fetchActiveBillingCatalog();
     
     // ADDED HOOKS FOR MISSING VIEWS:
-    if (!document.getElementById('viewframe-expenses').classList.contains('hidden')) fetchExpensesLedger();
-    if (!document.getElementById('viewframe-analytics').classList.contains('hidden')) fetchPerformanceAnalytics();
+    if (!document.getElementById('viewframe-expenses').classList.contains('hidden')) {
+        fetchAndRenderExpenses();
+    }
+
+    if (!document.getElementById('viewframe-analytics').classList.contains('hidden')) {
+        fetchAndRenderAnalytics();
+    }
 }
 
 // ==========================================
