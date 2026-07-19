@@ -2908,7 +2908,6 @@ async function fetchAndRenderDashboard() {
 // =========================================================================
 // SYSTEM CONFIGURATION & CONFIG MATRIX ENGINE
 // =========================================================================
-
 async function fetchAndRenderSystemSettings() {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
@@ -2916,7 +2915,6 @@ async function fetchAndRenderSystemSettings() {
     // Dynamically retrieve real user details from local storage to seed new documents if needed
     const loggedInEmail = localStorage.getItem('user_email') || '';
     const loggedInName = localStorage.getItem('user_name') || '';
-
     try {
         // Appended email and name parameters to dynamically seed backend defaults
         const response = await fetch(`${baseEndpoint}/api/settings?ispId=${targetTenant}&email=${encodeURIComponent(loggedInEmail)}&name=${encodeURIComponent(loggedInName)}`);
@@ -2953,7 +2951,6 @@ async function fetchAndRenderSystemSettings() {
         const elMpesaSecret = document.getElementById('inp-sett-mpesa-secret');
         const elMpesaPasskey = document.getElementById('inp-sett-mpesa-passkey');
         const elMpesaEnv = document.getElementById('inp-sett-mpesa-env');
-
         if (elBrand) elBrand.value = brand;
         if (elIp) elIp.value = ip;
         if (elPhone) elPhone.value = phone;
@@ -2971,7 +2968,6 @@ async function fetchAndRenderSystemSettings() {
         const elAdminName = document.getElementById('txt-settings-admin-name') || document.getElementById('inp-sett-name');
         const elAdminEmail = document.getElementById('txt-settings-admin-email') || document.getElementById('inp-sett-email');
         const elAdminCompany = document.getElementById('txt-settings-admin-company');
-
         if (elAdminName) elAdminName.value = data.accountName || data.account_name || '';
         if (elAdminEmail) elAdminEmail.value = data.accountEmail || data.account_email || '';
         if (elAdminCompany) elAdminCompany.value = data.accountCompany || data.account_company || '';
@@ -2981,7 +2977,6 @@ async function fetchAndRenderSystemSettings() {
         const smsToggleBtn = document.getElementById('btn-settings-sms-toggle');
         const smsBadge = document.getElementById('badge-settings-sms-status');
         const smsCreditsEl = document.getElementById('lbl-settings-sms-credits');
-
         if (smsToggleBtn && smsBadge && smsCreditsEl) {
             if (isSmsActive) {
                 smsToggleBtn.innerText = "Deactivate SMS Integration";
@@ -2996,6 +2991,28 @@ async function fetchAndRenderSystemSettings() {
             }
             smsCreditsEl.innerText = `${data.smsCredits || data.sms_credits || 0} Credits remaining`;
         }
+
+        // FIXED: Shifted these extraction statements inward to resolve scope references to 'data'
+        const mpesaType = data.mpesaIntegrationType || 'platform';
+        const platformPayout = data.platformPayoutType || 'number';
+        const alertEnabled = data.alertsEnabled === true;
+        const alertEmail = data.alertEmail || '';
+        
+        const elMpesaType = document.getElementById('inp-sett-mpesa-type');
+        const elPlatformPayout = document.getElementById('inp-sett-platform-payout');
+        const elAlertToggle = document.getElementById('chk-alert-toggle');
+        const elAlertEmailInp = document.getElementById('inp-alert-email');
+        
+        if (elMpesaType) elMpesaType.value = mpesaType;
+        if (elPlatformPayout) elPlatformPayout.value = platformPayout;
+        if (elAlertToggle) {
+            elAlertToggle.checked = alertEnabled;
+            updateAlertBadgeState(alertEnabled, alertEmail);
+        }
+        if (elAlertEmailInp) elAlertEmailInp.value = alertEmail;
+        
+        // Run visibility alignment framework matching state adjustments
+        toggleMpesaViewState();
 
     } catch (err) {
         console.error("Configuration system load failure:", err);
@@ -3017,7 +3034,6 @@ async function saveBrandingState(e) {
         supportPhone: document.getElementById('inp-sett-phone').value,
         redirectUrl: document.getElementById('inp-sett-redirect').value
     };
-
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/branding?ispId=${targetTenant}`, {
             method: 'POST',
@@ -3038,7 +3054,6 @@ async function savePppoeDefaults(e) {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
     const payload = { defaultPppoePassword: document.getElementById('inp-sett-pppoe-pass').value };
-
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/pppoe?ispId=${targetTenant}`, {
             method: 'POST',
@@ -3052,27 +3067,6 @@ async function savePppoeDefaults(e) {
         console.error(err);
     }
 }
-
-const mpesaType = data.mpesaIntegrationType || 'platform';
-const platformPayout = data.platformPayoutType || 'number';
-const alertEnabled = data.alertsEnabled === true;
-const alertEmail = data.alertEmail || '';
-
-const elMpesaType = document.getElementById('inp-sett-mpesa-type');
-const elPlatformPayout = document.getElementById('inp-sett-platform-payout');
-const elAlertToggle = document.getElementById('chk-alert-toggle');
-const elAlertEmailInp = document.getElementById('inp-alert-email');
-
-if (elMpesaType) elMpesaType.value = mpesaType;
-if (elPlatformPayout) elPlatformPayout.value = platformPayout;
-if (elAlertToggle) {
-    elAlertToggle.checked = alertEnabled;
-    updateAlertBadgeState(alertEnabled, alertEmail);
-}
-if (elAlertEmailInp) elAlertEmailInp.value = alertEmail;
-
-// Run visibility alignment
-toggleMpesaViewState();
 
 // Dynamic conditional wrapper visibility managers
 function toggleMpesaViewState() {
@@ -3131,7 +3125,6 @@ async function saveMpesaGatewaySettings(e) {
     
     const elPrimary = document.getElementById('inp-platform-primary');
     const elSecondary = document.getElementById('inp-platform-secondary');
-
     const payload = { 
         mpesaIntegrationType: integrationType,
         platformPayoutType: payoutType,
@@ -3143,7 +3136,6 @@ async function saveMpesaGatewaySettings(e) {
         mpesaPasskey: document.getElementById('inp-sett-mpesa-passkey') ? document.getElementById('inp-sett-mpesa-passkey').value : '',
         mpesaEnv: document.getElementById('inp-sett-mpesa-env') ? document.getElementById('inp-sett-mpesa-env').value : 'sandbox'
     };
-
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/mpesa?ispId=${targetTenant}`, {
             method: 'POST',
@@ -3163,12 +3155,10 @@ async function runDarajaTestPayment() {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const phone = document.getElementById('inp-daraja-test-phone').value;
-
     if (!phone) {
         alert("Please provide a valid M-Pesa phone number to send the test STK Push request.");
         return;
     }
-
     const payload = {
         phone: phone,
         mpesaShortcode: document.getElementById('inp-sett-till').value,
@@ -3177,7 +3167,6 @@ async function runDarajaTestPayment() {
         mpesaPasskey: document.getElementById('inp-sett-mpesa-passkey').value,
         mpesaEnv: document.getElementById('inp-sett-mpesa-env').value
     };
-
     if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Dispatching Daraja gateway validation token...');
     
     try {
@@ -3270,7 +3259,6 @@ async function saveAccountDetails(e) {
         accountEmail: document.getElementById('inp-sett-email').value,
         accountCompany: document.getElementById('inp-sett-company').value
     };
-
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/account?ispId=${targetTenant}`, {
             method: 'POST',
@@ -3313,21 +3301,18 @@ async function handleTechnicianRegistration(e) {
     e.preventDefault();
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-
     const payload = {
         name: document.getElementById('tech-name').value,
         email: document.getElementById('tech-email').value,
         password: document.getElementById('tech-password').value,
         ispId: targetTenant
     };
-
     try {
         const res = await fetch(`${baseEndpoint}/api/technicians`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
         if (res.ok) {
             closeAddTechnicianModal();
             if (typeof triggerToastDisplay === 'function') triggerToastDisplay('New restricted technician user added successfully.');
@@ -3346,23 +3331,18 @@ async function loadTechniciansRegistry() {
     const container = document.getElementById('tech-list-container');
     const emptyState = document.getElementById('tech-empty-state');
     const countLabel = document.getElementById('lbl-tech-count');
-
     try {
         const res = await fetch(`${baseEndpoint}/api/technicians?ispId=${targetTenant}`);
         if (!res.ok) return;
         const technicians = await res.json();
-
         countLabel.innerText = `Technicians (${technicians.length})`;
-
         // Remove old dynamic technician items (excluding the base template empty state)
         const activeItems = container.querySelectorAll('.tech-active-item');
         activeItems.forEach(item => item.remove());
-
         if (technicians.length === 0) {
             emptyState.classList.remove('hidden');
             return;
         }
-
         emptyState.classList.add('hidden');
         technicians.forEach(tech => {
             const row = document.createElement('div');
@@ -3383,7 +3363,6 @@ async function loadTechniciansRegistry() {
             `;
             container.appendChild(row);
         });
-
     } catch (err) {
         console.error("Failed loading technicians registry:", err);
     }
@@ -3393,7 +3372,6 @@ async function removeTechnician(techId) {
     if (!confirm("Are you sure you want to terminate this technician's administrative rights?")) return;
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
-
     try {
         const res = await fetch(`${baseEndpoint}/api/technicians/${techId}?ispId=${targetTenant}`, { method: 'DELETE' });
         if (res.ok) {
@@ -3408,7 +3386,6 @@ async function removeTechnician(techId) {
 // =========================================================================
 // ALERTS & MONITORING: CORE ROUTER HEALTH MONITOR PULSE
 // =========================================================================
-
 async function executeNetworkHealthCheckPulse() {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
@@ -3427,7 +3404,6 @@ async function executeNetworkHealthCheckPulse() {
         console.error("Network dashboard was unable to query active pings:", err);
     }
 }
-
 // Function to Open or Close the Modal with full dynamic calculations
 function toggleSubscriptionModal(show = true) {
     const modal = document.getElementById('subscription-modal');
