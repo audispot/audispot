@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize Resend Client SDK
-const resend = new Resend(process.env.RESEND_API_KEY || 're_XCoFbijY_EpHEyACKpKikcFQJcsxJSdck');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Initialize Cloud Firestore securely with explicit project target
 let db;
