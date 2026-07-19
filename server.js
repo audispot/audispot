@@ -1372,7 +1372,7 @@ app.get('/api/expenses', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
         // Query matching documents WITHOUT orderBy to avoid Firestore Index errors
-        const snapshot = await req.db.collection('expenses')
+        const snapshot = await req.db.collection('isp_expenses')
             .where('ispId', '==', ispId)
             .get();
             
@@ -1396,10 +1396,11 @@ app.get('/api/expenses', async (req, res) => {
         });
 
         return res.status(200).json(expenses);
-    } catch (err) {
-        console.error("Expenses fetch failure:", err);
-        res.status(500).json({ error: err.message });
-        return res.status(500).json({ error: error.message });
+    catch (err) {
+        console.error(err);
+        return res.status(500).json({
+            error: err.message
+        });
     }
 });
 
