@@ -186,7 +186,7 @@ app.post('/api/settings/mpesa/verify-test', async (req, res) => {
             PartyA: phone.trim(),
             PartyB: mpesaShortcode,
             PhoneNumber: phone.trim(),
-            CallBackURL: 'https://mail.audispot.audiory.site/api/mpesa/callback-test',
+            CallBackURL: 'https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback-test',
             AccountReference: 'AudiSpotVerify',
             TransactionDesc: 'Gateway Test Simulation'
         };
