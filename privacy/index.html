@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy | AudiSpot Network Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        dark: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f293d',
+                            600: '#374151'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-dark-900 text-slate-300 font-sans antialiased selection:bg-brand-500 selection:text-white flex flex-col min-h-screen">
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-dark-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-dark-700/60 h-20 flex items-center">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="/" class="text-2xl font-black text-white flex items-center gap-3 tracking-tight">
+                <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-wifi text-lg"></i>
+                </div>
+                <span>Audi<span class="text-brand-500">Spot</span></span>
+            </a>
+
+            <!-- Desktop Navigation -->
+            <nav class="hidden md:flex items-center gap-8 font-medium text-slate-400 text-sm">
+                <a href="/#features" class="hover:text-white transition-colors">Features</a>
+                <a href="/#capabilities" class="hover:text-white transition-colors">Platform</a>
+                <a href="/#pricing" class="hover:text-white transition-colors">Pricing</a>
+                <a href="/#faq" class="hover:text-white transition-colors">FAQ</a>
+            </nav>
+
+            <!-- Actions & Mobile Hamburger Button -->
+            <div class="flex items-center gap-4">
+                <a href="/dashboard/" class="hidden sm:inline-flex bg-brand-600 hover:bg-brand-500 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-lg shadow-brand-600/20 text-sm items-center gap-2">
+                    <i class="fa-solid fa-gauge-high"></i> Control Center
+                </a>
+
+                <!-- Mobile Menu Button -->
+                <button id="mobile-menu-btn" aria-label="Toggle Menu" class="md:hidden p-2.5 text-slate-400 hover:text-white bg-dark-800 rounded-xl border border-dark-700 focus:outline-none">
+                    <i id="menu-icon" class="fa-solid fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Dropdown Navigation -->
+        <div id="mobile-menu" class="hidden md:hidden absolute top-20 left-0 w-full bg-dark-900/95 backdrop-blur-xl border-b border-dark-700 py-6 px-6 shadow-2xl transition-all duration-300">
+            <div class="flex flex-col space-y-4 font-medium text-slate-300">
+                <a href="/#features" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-bolt text-brand-500 w-5"></i> Features
+                </a>
+                <a href="/#capabilities" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-layer-group text-brand-500 w-5"></i> Platform Capability
+                </a>
+                <a href="/#pricing" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-tags text-brand-500 w-5"></i> Pricing Plans
+                </a>
+                <a href="/#faq" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-circle-question text-brand-500 w-5"></i> FAQ
+                </a>
+                <div class="pt-4 flex flex-col gap-3">
+                    <a href="/dashboard/" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-xl text-center text-sm">
+                        Access Control Center
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Body Content -->
+    <main class="flex-grow py-12 md:py-20">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 max-w-4xl space-y-12">
+            
+            <!-- Page Header -->
+            <div class="space-y-4 text-center md:text-left border-b border-dark-700/80 pb-8">
+                <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-semibold px-3 py-1.5 rounded-full">
+                    <i class="fa-solid fa-shield-halved text-brand-400"></i> Legal & Compliance
+                </div>
+                <h1 class="text-3xl sm:text-5xl font-black text-white tracking-tight">Privacy Policy</h1>
+                <p class="text-slate-400 text-sm sm:text-base">
+                    Last updated: <span class="text-white font-semibold">July 2026</span>. Learn how AudiSpot collects, uses, and protects your information across our hotspot billing platforms.
+                </p>
+            </div>
+
+            <!-- Policy Sections Container -->
+            <div class="space-y-10 text-sm sm:text-base leading-relaxed text-slate-300">
+                
+                <!-- Section 1 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">1</span>
+                        Introduction & Scope
+                    </h2>
+                    <p class="text-slate-400">
+                        AudiSpot ("we", "our", or "us") provides cloud-based network billing software, M-Pesa STK Push API middleware, and MikroTik router management dashboards. This Privacy Policy governs the processing of personal data collected through our customer control panels, captive portals, and physical router integrations.
+                    </p>
+                </section>
+
+                <!-- Section 2 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">2</span>
+                        Information We Collect
+                    </h2>
+                    <p class="text-slate-400">Depending on whether you are an ISP Network Operator or an end-user connecting to a Wi-Fi Hotspot, we process the following information:</p>
+                    
+                    <ul class="space-y-3 pt-2">
+                        <li class="flex items-start gap-3">
+                            <i class="fa-solid fa-circle-check text-brand-500 mt-1"></i>
+                            <div>
+                                <strong class="text-white">ISP Account Information:</strong> Email address, business name, phone number, and Safaricom Paybill/Till number settings required to route transaction callbacks.
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fa-solid fa-circle-check text-brand-500 mt-1"></i>
+                            <div>
+                                <strong class="text-white">Hotspot Subscriber Data:</strong> Safaricom M-Pesa phone number (for STK Push prompt dispatching), device MAC address, allocated IP address, and connection session timestamps.
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fa-solid fa-circle-check text-brand-500 mt-1"></i>
+                            <div>
+                                <strong class="text-white">Hardware Telemetry:</strong> MikroTik RouterOS identity details, uptime statistics, CPU usage, active lease counts, and API response latency logs.
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <!-- Section 3 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">3</span>
+                        M-Pesa Funds & Non-Custodial Architecture
+                    </h2>
+                    <p class="text-slate-400">
+                        AudiSpot functions strictly as a non-custodial middleware platform. When a subscriber inputs their phone number to purchase a Wi-Fi voucher:
+                    </p>
+                    <div class="bg-dark-900 border border-dark-700/60 p-4 rounded-xl text-xs sm:text-sm text-slate-300 space-y-2">
+                        <p class="flex items-center gap-2"><i class="fa-solid fa-shield text-emerald-400"></i> Direct Settlement: All funds move directly from Safaricom M-Pesa into the operator’s designated Paybill or Till number.</p>
+                        <p class="flex items-center gap-2"><i class="fa-solid fa-ban text-rose-400"></i> Zero Financial Custody: AudiSpot never holds, intercepts, delays, or collects commission fees on end-user payments.</p>
+                    </div>
+                </section>
+
+                <!-- Section 4 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">4</span>
+                        How We Use Your Data
+                    </h2>
+                    <p class="text-slate-400">We utilize collected data strictly for operational fulfillment, including:</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-400 pl-2">
+                        <li>Triggering M-Pesa STK Push prompts on Safaricom's official API endpoints.</li>
+                        <li>Automating RouterOS API bindings (MAC bypass, active user profile generation, and speed limits).</li>
+                        <li>Generating financial reports and expense ledger analytics inside your AudiSpot Control Center.</li>
+                        <li>Preventing unauthorized network access and anti-bypass firewall enforcement.</li>
+                    </ul>
+                </section>
+
+                <!-- Section 5 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">5</span>
+                        Data Sharing & Security
+                    </h2>
+                    <p class="text-slate-400">
+                        We do not sell, rent, or trade subscriber phone numbers or operator telemetry to third parties. Data is only transferred to payment gateways (e.g., Safaricom Daraja API) solely to execute requested transactions.
+                    </p>
+                    <p class="text-slate-400">
+                        All communication between AudiSpot cloud servers, captive portals, and client MikroTik hardware is encrypted via SSL/TLS and secure API tunneling frameworks.
+                    </p>
+                </section>
+
+                <!-- Section 6 -->
+                <section class="bg-dark-800/50 border border-dark-700/80 p-6 sm:p-8 rounded-2xl space-y-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-lg bg-brand-600/20 border border-brand-500/30 text-brand-400 flex items-center justify-center text-sm font-black">6</span>
+                        Contact Support & Data Protection
+                    </h2>
+                    <p class="text-slate-400">
+                        If you have any questions regarding this Privacy Policy, wish to request account deletion, or require custom data processing agreements for your ISP network, contact our privacy officer:
+                    </p>
+                    <div class="pt-2 flex flex-wrap gap-4 text-xs sm:text-sm">
+                        <a href="mailto:privacy@audispot.net" class="bg-dark-700 hover:bg-dark-600 text-white font-medium px-4 py-2.5 rounded-xl border border-dark-600 transition flex items-center gap-2">
+                            <i class="fa-solid fa-envelope text-brand-400"></i> privacy@audispot.net
+                        </a>
+                        <a href="https://wa.me/254700000000" target="_blank" class="bg-dark-700 hover:bg-dark-600 text-white font-medium px-4 py-2.5 rounded-xl border border-dark-600 transition flex items-center gap-2">
+                            <i class="fa-brands fa-whatsapp text-emerald-400"></i> Technical Support
+                        </a>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Area -->
+    <footer class="bg-dark-900 text-slate-500 py-12 border-t border-dark-800 text-xs mt-auto">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="font-bold text-slate-300 text-sm flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center text-white text-xs">
+                    <i class="fa-solid fa-wifi"></i>
+                </div>
+                AudiSpot Systems
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="/#features" class="hover:text-slate-300 transition">Features</a>
+                <a href="/#pricing" class="hover:text-slate-300 transition">Pricing</a>
+                <a href="/#faq" class="hover:text-slate-300 transition">FAQ</a>
+                <a href="/privacy/" class="text-brand-400 font-semibold">Privacy</a>
+            </div>
+            <div>&copy; 2026 AudiSpot. All Rights Reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Mobile Hamburger Script -->
+    <script>
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const menuIcon = document.getElementById('menu-icon');
+        const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            const isHidden = mobileMenu.classList.contains('hidden');
+            if (isHidden) {
+                mobileMenu.classList.remove('hidden');
+                menuIcon.classList.remove('fa-bars');
+                menuIcon.classList.add('fa-xmark');
+            } else {
+                mobileMenu.classList.add('hidden');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            }
+        });
+
+        mobileNavLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            });
+        });
+    </script>
+</body>
+</html>
