@@ -1379,7 +1379,7 @@ async function handlePPPoEProvisioning(e) {
 async function fetchPPPoESubscriberBase() {
     const tbody = document.getElementById("pppoe-table-body");
     try {
-        const response = await fetch(`${API_BASE_URLT}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         const routers = await response.json();
         if(routers.length === 0) return;
 
