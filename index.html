@@ -1,184 +1,637 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AudiSpot | Automated M-Pesa Wi-Fi Hotspot Billing Solutions</title>
+    <title>AudiSpot | Next-Gen Automated M-Pesa Wi-Fi Billing & Router Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        dark: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f293d',
+                            600: '#374151'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glow-effect {
+            box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.35);
+        }
+    </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+<body class="bg-dark-900 text-slate-200 font-sans antialiased selection:bg-brand-500 selection:text-white">
 
     <!-- Header Navigation Bar -->
-    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200 h-20 flex items-center">
-        <div class="container mx-auto px-6 md:px-12 flex items-center justify-between">
-            <a href="#" class="text-2xl font-black text-slate-900 flex items-center gap-3">
-                <i class="fa-solid fa-wifi text-blue-600"></i> AudiSpot
+    <header class="bg-dark-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-dark-700/60 h-20 flex items-center">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="#" class="text-2xl font-black text-white flex items-center gap-3 tracking-tight">
+                <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-wifi text-lg"></i>
+                </div>
+                <span>Audi<span class="text-brand-500">Spot</span></span>
             </a>
-            <nav class="hidden md:flex items-center gap-8 font-medium text-slate-600">
-                <a href="#features" class="hover:text-blue-600 transition">Features</a>
-                <a href="#packages" class="hover:text-blue-600 transition">Wi-Fi Packages</a>
-                <a href="#partners" class="hover:text-blue-600 transition">ISP Partnership</a>
+
+            <!-- Desktop Navigation -->
+            <nav class="hidden md:flex items-center gap-8 font-medium text-slate-400 text-sm">
+                <a href="#features" class="hover:text-white transition-colors">Features</a>
+                <a href="#capabilities" class="hover:text-white transition-colors">Platform</a>
+                <a href="#packages" class="hover:text-white transition-colors">Vouchers</a>
+                <a href="#pricing" class="hover:text-white transition-colors">Pricing</a>
+                <a href="#calculator" class="hover:text-white transition-colors">ROI Calculator</a>
+                <a href="#faq" class="hover:text-white transition-colors">FAQ</a>
             </nav>
+
+            <!-- Actions & Mobile Hamburger Button -->
             <div class="flex items-center gap-4">
-                <a href="/dashboard/" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl transition shadow-sm text-sm">
-                    Control Center
+                <a href="/dashboard/" class="hidden sm:inline-flex bg-brand-600 hover:bg-brand-500 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-lg shadow-brand-600/20 text-sm items-center gap-2">
+                    <i class="fa-solid fa-gauge-high"></i> Control Center
                 </a>
+
+                <!-- Mobile Menu Button -->
+                <button id="mobile-menu-btn" aria-label="Toggle Menu" class="md:hidden p-2.5 text-slate-400 hover:text-white bg-dark-800 rounded-xl border border-dark-700 focus:outline-none">
+                    <i id="menu-icon" class="fa-solid fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Dropdown Navigation -->
+        <div id="mobile-menu" class="hidden md:hidden absolute top-20 left-0 w-full bg-dark-900/95 backdrop-blur-xl border-b border-dark-700 py-6 px-6 shadow-2xl transition-all duration-300">
+            <div class="flex flex-col space-y-4 font-medium text-slate-300">
+                <a href="#features" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-bolt text-brand-500 w-5"></i> Features
+                </a>
+                <a href="#capabilities" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-[#6366f1] fa-layer-group text-brand-500 w-5"></i> Platform Capability
+                </a>
+                <a href="#packages" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-ticket text-brand-500 w-5"></i> Sample Vouchers
+                </a>
+                <a href="#pricing" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-tags text-brand-500 w-5"></i> Pricing Plans
+                </a>
+                <a href="#calculator" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-calculator text-brand-500 w-5"></i> Revenue Calculator
+                </a>
+                <a href="#faq" class="mobile-nav-link py-2 hover:text-brand-500 border-b border-dark-800 flex items-center gap-3">
+                    <i class="fa-solid fa-circle-question text-brand-500 w-5"></i> FAQ
+                </a>
+                <div class="pt-4 flex flex-col gap-3">
+                    <a href="/dashboard/" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-xl text-center text-sm">
+                        Access Control Center
+                    </a>
+                </div>
             </div>
         </div>
     </header>
 
     <!-- Hero Section -->
-    <section class="py-16 md:py-28 bg-gradient-to-b from-white to-slate-50">
-        <div class="container mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div class="space-y-6 max-w-xl">
-                <span class="bg-blue-50 text-blue-700 text-xs font-bold tracking-wider uppercase px-3 py-1.5 rounded-full inline-block">
-                    Next-Gen Hotspot Automation
-                </span>
-                <h1 class="text-4xl md:text-6xl font-black text-slate-900 leading-tight">
-                    Turn Your Wi-Fi Into A <span class="text-blue-600">Revenue Stream</span>
+    <section class="relative py-16 md:py-28 overflow-hidden">
+        <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-brand-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+        
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+            <!-- Text Content -->
+            <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-semibold px-4 py-2 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    Automated Safaricom M-Pesa Hotspot Middleware
+                </div>
+                
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
+                    Turn Any MikroTik Router Into An <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-indigo-400">Automated Cashflow</span> Machine
                 </h1>
-                <p class="text-lg text-slate-500 leading-relaxed">
-                    AudiSpot bridges the gap between your MikroTik infrastructure and Safaricom M-Pesa. Monetize your local network infrastructure instantly with seamless captive portals, instant client provisioning, and zero-delay withdrawals.
+                
+                <p class="text-lg text-slate-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                    AudiSpot bridges your network hardware with instant M-Pesa STK Push triggers. Zero manual approvals, zero delayed payouts—plug in your router, set your pricing, and start collecting revenue 24/7.
                 </p>
-                <div class="flex flex-col sm:flex-row items-center gap-4 pt-4">
-                    <a href="/signup/" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-center px-8 py-4 rounded-xl transition shadow-lg shadow-blue-600/20">
-                        Get Started For Free
+
+                <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+                    <a href="#pricing" class="w-full sm:w-auto bg-brand-600 hover:bg-brand-500 text-white font-bold text-center px-8 py-4 rounded-xl transition shadow-xl shadow-brand-600/30 flex items-center justify-center gap-2">
+                        Start 3-Day Free Trial <i class="fa-solid fa-arrow-right text-sm"></i>
                     </a>
-                    <a href="#packages" class="w-full sm:w-auto bg-white border border-slate-300 hover:border-slate-400 text-slate-700 font-bold text-center px-8 py-4 rounded-xl transition">
-                        View Sample Packages
+                    <a href="#calculator" class="w-full sm:w-auto bg-dark-800 hover:bg-dark-700 border border-dark-700 text-slate-300 font-semibold text-center px-8 py-4 rounded-xl transition">
+                        Estimate Revenue
                     </a>
                 </div>
-            </div>
-            <!-- Interactive Visual Block -->
-            <div class="relative flex justify-center">
-                <div class="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 opacity-10 blur-2xl"></div>
-                <div class="relative bg-white border border-slate-200 p-8 rounded-3xl shadow-xl w-full max-w-md space-y-6">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                        <span class="font-bold text-slate-900"><i class="fa-solid fa-mobile-screen-button text-blue-500 mr-2"></i> Captive Portal Preview</span>
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+
+                <!-- Trust Badges -->
+                <div class="pt-8 grid grid-cols-3 gap-4 border-t border-dark-800/80 max-w-lg mx-auto lg:mx-0 text-left">
+                    <div>
+                        <div class="text-2xl font-extrabold text-white">99.9%</div>
+                        <div class="text-xs text-slate-500">Uptime SLA</div>
                     </div>
-                    <div class="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div class="text-center">
-                            <h3 class="font-black text-slate-800 text-lg">Welcome to AudiSpot High-Speed Zone</h3>
-                            <p class="text-xs text-slate-400 mt-1">Enter your phone number below to connect instantly</p>
+                    <div>
+                        <div class="text-2xl font-extrabold text-white">0%</div>
+                        <div class="text-xs text-slate-500">Transaction Cut</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-extrabold text-white">&lt; 3s</div>
+                        <div class="text-xs text-slate-500">STK Response</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Captive Portal Preview -->
+            <div class="lg:col-span-5 flex justify-center">
+                <div class="relative w-full max-w-sm">
+                    <div class="absolute -inset-1 rounded-3xl bg-gradient-to-r from-brand-500 to-indigo-600 opacity-30 blur-2xl"></div>
+                    <div class="relative bg-dark-800 border border-dark-700 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+                        <div class="flex items-center justify-between border-b border-dark-700/80 pb-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+                            </div>
+                            <span class="text-xs font-mono text-slate-400"><i class="fa-solid fa-lock text-emerald-400 mr-1"></i> captive.audispot.net</span>
                         </div>
-                        <input type="tel" disabled placeholder="0712345678 / 0112345678" class="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm">
-                        <button disabled class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-money-bill-wave"></i> Pay via Lipa Na M-Pesa
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-3 text-xs text-slate-400 justify-center">
-                        <i class="fa-solid fa-shield-halved text-emerald-600"></i> Secured Multi-Tenant ISP Isolation Architecture
+
+                        <div class="text-center space-y-2">
+                            <div class="w-12 h-12 bg-brand-500/10 text-brand-400 rounded-2xl flex items-center justify-center mx-auto text-xl border border-brand-500/20">
+                                <i class="fa-solid fa-wifi"></i>
+                            </div>
+                            <h3 class="font-bold text-white text-lg">Fast Internet Access</h3>
+                            <p class="text-xs text-slate-400">Select package & enter phone number</p>
+                        </div>
+
+                        <form onsubmit="event.preventDefault(); alert('STK Push Request Simulated successfully!');" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Select Package</label>
+                                <select class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500">
+                                    <option>1 Hour Unlimited - KES 10</option>
+                                    <option>24 Hours Unlimited - KES 50</option>
+                                    <option>7 Days Pass - KES 300</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">M-Pesa Mobile Number</label>
+                                <input type="tel" required placeholder="0712345678" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500">
+                            </div>
+                            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition">
+                                <i class="fa-solid fa-bolt"></i> Pay via Lipa Na M-Pesa
+                            </button>
+                        </form>
+
+                        <div class="flex items-center gap-2 text-[11px] text-slate-500 justify-center pt-2">
+                            <i class="fa-solid fa-shield-halved text-emerald-500"></i> Instant Mac Binding & Bandwidth Shaping
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Core Features Section -->
-    <section id="features" class="py-20 bg-slate-900 text-slate-300 scroll-mt-20">
-        <div class="container mx-auto px-6 md:px-12 space-y-16">
+    <!-- Key Metrics Strip -->
+    <section class="bg-dark-800/50 border-y border-dark-700/60 py-10">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+                <div class="text-3xl font-black text-white">KES 500</div>
+                <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider">Flat Monthly Fee</div>
+            </div>
+            <div>
+                <div class="text-3xl font-black text-brand-500">0%</div>
+                <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider">Revenue Commission</div>
+            </div>
+            <div>
+                <div class="text-3xl font-black text-white">100%</div>
+                <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider">Router Compatibility</div>
+            </div>
+            <div>
+                <div class="text-3xl font-black text-emerald-400">Instant</div>
+                <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider">M-Pesa STK Triggers</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section: "One Platform. The Whole Hustle." -->
+    <section id="capabilities" class="py-24 bg-dark-900 scroll-mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 space-y-16">
+            <div class="text-center max-w-3xl mx-auto space-y-4">
+                <span class="text-xs font-bold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-3 py-1 rounded-full border border-brand-500/20">WHAT YOU CAN DO WITH AUDISPOT</span>
+                <h2 class="text-3xl sm:text-5xl font-black text-white">One platform. The whole hustle.</h2>
+                <p class="text-slate-400 text-base sm:text-lg">Run your ISP micro-business seamlessly with complete automation, security, and live financial insights.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-brand-500/10 text-brand-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-brand-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-router"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Connect any MikroTik</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">hAP, hEX, ac²—claim it with an IP and login. RouterOS 6 and 7, even behind CGNAT networks without public IP hassles.</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Get paid via M-Pesa</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">STK push straight from your captive portal. Money lands directly in your Paybill or Till number—AudiSpot takes 0% cut.</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-purple-500/10 text-purple-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-purple-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-ticket"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Sell vouchers anywhere</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Bulk-generate codes, print scratch cards for the counter, or let SMS deliver credentials automatically after payment.</p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-blue-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">See your revenue live</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Daily takings, top performing packages, and busiest operating hours from every router—all inside one centralized console.</p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-amber-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Know who's online</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Every connected device, what it paid, and bandwidth consumed in real time. Kick or disconnect abusers with a single click.</p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="bg-dark-800/60 border border-dark-700/80 p-8 rounded-2xl hover:border-brand-500/50 transition-all duration-300 group">
+                    <div class="w-14 h-14 bg-rose-500/10 text-rose-400 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-rose-500/20 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Locked down by default</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Anti-bypass firewall integration and walled garden lockups. Your ISP line earns strictly from paying authorized users.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-24 bg-dark-800/40 border-t border-dark-700/60 scroll-mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 space-y-16">
             <div class="text-center max-w-2xl mx-auto space-y-4">
-                <h2 class="text-3xl md:text-4xl font-black text-white">Engineered For High Performance</h2>
-                <p class="text-slate-400">Everything you need to automate corporate wireless billing frameworks without hosting overhead costs.</p>
+                <span class="text-xs font-bold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-3 py-1 rounded-full border border-brand-500/20">PRICING</span>
+                <h2 class="text-3xl sm:text-5xl font-black text-white">Simple, transparent pricing</h2>
+                <p class="text-slate-400 text-base sm:text-lg">Start with a 3-day free trial. No credit card required. Cancel anytime.</p>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-800 space-y-4 hover:border-slate-700 transition">
-                    <div class="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-bolt"></i></div>
-                    <h3 class="text-xl font-bold text-white">Instant STK Push</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">Clients experience flawless interactive execution strings via automated Safaricom production prompt requests immediately upon registration requests.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch max-w-7xl mx-auto">
+                <!-- Main Router Pricing (BEST VALUE) -->
+                <div class="relative bg-dark-800 border-2 border-brand-500 rounded-3xl p-8 flex flex-col justify-between shadow-2xl glow-effect">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+                        Best Value
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-brand-400 uppercase tracking-widest mb-2">AUDISPOT DASHBOARD</div>
+                        <div class="flex items-baseline gap-1 my-4">
+                            <span class="text-xl font-extrabold text-slate-400">KES</span>
+                            <span class="text-5xl font-black text-white">500</span>
+                            <span class="text-slate-400 text-sm ml-1">/ router / month</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">KES 500 per router per month. No hidden charges or transaction commissions.</p>
+                        
+                        <ul class="space-y-3.5 text-sm text-slate-300 border-t border-dark-700 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> KES 500 per router / month</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Automated M-Pesa STK Push</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Branded captive portal setup</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Voucher generation & bulk import</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Bandwidth control & speed limiters</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Real-time analytics & financials</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Anti-bypass firewall configurations</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> Multi-tenant management agents</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-400"></i> WhatsApp support & system updates</li>
+                        </ul>
+                    </div>
+                    <div class="pt-8">
+                        <a href="/signup/" class="block w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3.5 rounded-xl text-center transition shadow-lg shadow-brand-600/30 text-sm">
+                            Start Free Trial
+                        </a>
+                    </div>
                 </div>
-                <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-800 space-y-4 hover:border-slate-700 transition">
-                    <div class="w-12 h-12 bg-purple-500/10 text-purple-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-terminal"></i></div>
-                    <h3 class="text-xl font-bold text-white">MikroTik API Routing</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">Our multi-tenant sync architecture interacts programmatically with your physical network routers to activate profiles automatically upon payment confirmations.</p>
+
+                <!-- One-time Setup Option -->
+                <div class="bg-dark-800/80 border border-dark-700 rounded-3xl p-8 flex flex-col justify-between hover:border-slate-600 transition">
+                    <div>
+                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">ONE-TIME INSTALLATION</div>
+                        <div class="flex items-baseline gap-1 my-4">
+                            <span class="text-xl font-extrabold text-slate-400">KES</span>
+                            <span class="text-5xl font-black text-white">1,000</span>
+                            <span class="text-slate-400 text-sm ml-1">one-time · optional</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">Don't want to touch a router? We'll do the full setup for you remotely.</p>
+
+                        <ul class="space-y-3.5 text-sm text-slate-300 border-t border-dark-700 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> Full remote device configuration</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> AudiSpot hotspot setup & bridge</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> M-Pesa Paybill / Till integration</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> Customer login portal branding</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> Basic testing & bandwidth optimization</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-emerald-400"></i> Or skip this — install yourself for free</li>
+                        </ul>
+                    </div>
+                    <div class="pt-8">
+                        <a href="https://wa.me/254700000000?text=I%20need%20help%20setting%20up%20my%20router" target="_blank" class="block w-full bg-dark-700 hover:bg-dark-600 text-white font-semibold py-3.5 rounded-xl text-center transition text-sm border border-dark-600">
+                            Talk to Engineer
+                        </a>
+                    </div>
                 </div>
-                <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-800 space-y-4 hover:border-slate-700 transition">
-                    <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-wallet"></i></div>
-                    <h3 class="text-xl font-bold text-white">Direct Ledger Access</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">No intermediary settlement custody. Balance pools correlate transparently to independent configuration parameters, optimizing processing workflows.</p>
+
+                <!-- Custom / White Label Option -->
+                <div class="bg-dark-800/80 border border-dark-700 rounded-3xl p-8 flex flex-col justify-between hover:border-slate-600 transition">
+                    <div>
+                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">CUSTOM DEPLOYMENT</div>
+                        <div class="my-4">
+                            <span class="text-4xl font-black text-white">Let's Talk</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">Perpetual license or custom deployment tailored for growing regional ISPs.</p>
+
+                        <ul class="space-y-3.5 text-sm text-slate-300 border-t border-dark-700 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> Perpetual licensing options</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> On-premise private server deployment</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> Custom API & ERP integrations</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> Full White-label portal branding</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> Dedicated account engineer</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> SLA uptime guarantee</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-indigo-400"></i> 24/7 phone & priority dispatch support</li>
+                        </ul>
+                    </div>
+                    <div class="pt-8">
+                        <a href="mailto:support@audispot.net" class="block w-full bg-dark-700 hover:bg-dark-600 text-white font-semibold py-3.5 rounded-xl text-center transition text-sm border border-dark-600">
+                            See White-Label Options
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Sample Wi-Fi Packages Grid Section -->
-    <section id="packages" class="py-20 bg-slate-50 scroll-mt-20">
-        <div class="container mx-auto px-6 md:px-12 space-y-16">
+    <!-- Interactive Revenue Calculator Section -->
+    <section id="calculator" class="py-20 bg-dark-900 border-t border-dark-700/60 scroll-mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 max-w-4xl">
+            <div class="bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700 p-8 sm:p-12 rounded-3xl shadow-2xl space-y-8">
+                <div class="text-center space-y-2">
+                    <span class="text-xs font-bold text-brand-400 uppercase tracking-wider">PROJECT YOUR EARNINGS</span>
+                    <h2 class="text-2xl sm:text-4xl font-black text-white">Interactive Revenue Estimator</h2>
+                    <p class="text-xs sm:text-sm text-slate-400">Calculate estimated monthly return based on active users per day.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center pt-4">
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-sm font-semibold mb-2">
+                                <span class="text-slate-300">Daily Paying Users:</span>
+                                <span id="user-count-label" class="text-brand-400 font-bold">30 Users</span>
+                            </div>
+                            <input id="user-range" type="range" min="5" max="300" value="30" class="w-full h-2 bg-dark-700 rounded-lg appearance-none cursor-pointer accent-brand-500">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-sm font-semibold mb-2">
+                                <span class="text-slate-300">Average Spend Per User:</span>
+                                <span id="spend-label" class="text-brand-400 font-bold">KES 20 / day</span>
+                            </div>
+                            <input id="spend-range" type="range" min="5" max="100" step="5" value="20" class="w-full h-2 bg-dark-700 rounded-lg appearance-none cursor-pointer accent-brand-500">
+                        </div>
+                    </div>
+
+                    <div class="bg-dark-900/90 border border-dark-700 p-6 rounded-2xl text-center space-y-4">
+                        <div class="text-xs uppercase font-bold text-slate-500">Est. Gross Monthly Revenue</div>
+                        <div id="monthly-revenue" class="text-4xl font-black text-emerald-400">KES 18,000</div>
+                        <div class="text-xs text-slate-400 border-t border-dark-800 pt-3">
+                            AudiSpot Software Fee: <strong class="text-white">KES 500</strong>
+                            <br>Your Net Margin: <strong id="net-margin" class="text-emerald-400">KES 17,500</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sample Vouchers Section -->
+    <section id="packages" class="py-20 bg-dark-800/30 border-t border-dark-700/60 scroll-mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 space-y-12">
             <div class="text-center max-w-2xl mx-auto space-y-4">
-                <h2 class="text-3xl md:text-4xl font-black text-slate-900">Flexible Packages, Maximized Returns</h2>
-                <p class="text-slate-500">Design custom billing parameters matched exactly to your regional target demographics.</p>
+                <h2 class="text-3xl font-black text-white">Sample Package Configs</h2>
+                <p class="text-slate-400 text-sm">Create unlimited packages directly from your control panel dashboard.</p>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                <!-- Package 1 -->
-                <div class="bg-white border border-slate-200 p-8 rounded-2xl shadow-sm space-y-6 relative overflow-hidden flex flex-col justify-between">
-                    <div class="space-y-4">
-                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">Short Session</span>
-                        <h3 class="text-2xl font-black text-slate-900">1 Hour Access</h3>
-                        <p class="text-slate-400 text-sm">Perfect for quick browse pipelines and rapid message downloads.</p>
-                        <div class="text-3xl font-black text-slate-900">KES 10.00</div>
-                    </div>
-                    <ul class="space-y-3 text-sm text-slate-500 pt-4 border-t border-slate-100">
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> High-Speed Priority Pipe</li>
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> Single Device Binding</li>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                <div class="bg-dark-800 border border-dark-700 p-6 rounded-2xl space-y-4">
+                    <span class="text-[10px] font-bold text-brand-400 bg-brand-500/10 px-2.5 py-1 rounded-full uppercase">Quick Browse</span>
+                    <h3 class="text-xl font-bold text-white">30 Minutes</h3>
+                    <div class="text-2xl font-black text-emerald-400">KES 5.00</div>
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-dark-700">
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> 3Mbps Bandwidth Speed</li>
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> Single MAC Lock</li>
                     </ul>
                 </div>
-                <!-- Package 2 (Featured) -->
-                <div class="bg-white border-2 border-blue-600 p-8 rounded-2xl shadow-md space-y-6 relative flex flex-col justify-between">
-                    <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-bl-xl">Popular</div>
-                    <div class="space-y-4">
-                        <span class="text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full uppercase tracking-wider">Daily Pass</span>
-                        <h3 class="text-2xl font-black text-slate-900">24 Hour Pass</h3>
-                        <p class="text-slate-400 text-sm">Uncapped access optimized for consistent content delivery parameters.</p>
-                        <div class="text-3xl font-black text-slate-900">KES 50.00</div>
-                    </div>
-                    <ul class="space-y-3 text-sm text-slate-500 pt-4 border-t border-slate-100">
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> Completely Uncapped Bandwidth</li>
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> Automated Re-login Handshake</li>
+
+                <div class="bg-dark-800 border border-dark-700 p-6 rounded-2xl space-y-4">
+                    <span class="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full uppercase">Standard</span>
+                    <h3 class="text-xl font-bold text-white">3 Hours Pass</h3>
+                    <div class="text-2xl font-black text-emerald-400">KES 20.00</div>
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-dark-700">
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> 5Mbps Bandwidth Speed</li>
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> Automated Re-login</li>
                     </ul>
                 </div>
-                <!-- Package 3 -->
-                <div class="bg-white border border-slate-200 p-8 rounded-2xl shadow-sm space-y-6 relative overflow-hidden flex flex-col justify-between">
-                    <div class="space-y-4">
-                        <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-wider">Heavy User</span>
-                        <h3 class="text-2xl font-black text-slate-900">7 Days Unlimited</h3>
-                        <p class="text-slate-400 text-sm">Tailored context for local households requiring fixed stability matrices.</p>
-                        <div class="text-3xl font-black text-slate-900">KES 300.00</div>
-                    </div>
-                    <ul class="space-y-3 text-sm text-slate-500 pt-4 border-t border-slate-100">
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> Dedicated Device Bandwidth Lock</li>
-                        <li><i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> 24/7 Priority Node Access</li>
+
+                <div class="bg-dark-800 border border-brand-500/50 p-6 rounded-2xl space-y-4 relative">
+                    <span class="absolute top-3 right-3 text-[9px] bg-brand-600 text-white px-2 py-0.5 rounded-full uppercase font-bold">Popular</span>
+                    <span class="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full uppercase">24 Hour Pass</span>
+                    <h3 class="text-xl font-bold text-white">1 Full Day</h3>
+                    <div class="text-2xl font-black text-emerald-400">KES 50.00</div>
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-dark-700">
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> Uncapped Priority Speed</li>
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> Multi-device Option</li>
+                    </ul>
+                </div>
+
+                <div class="bg-dark-800 border border-dark-700 p-6 rounded-2xl space-y-4">
+                    <span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full uppercase">Weekly</span>
+                    <h3 class="text-xl font-bold text-white">7 Days Unlimited</h3>
+                    <div class="text-2xl font-black text-emerald-400">KES 300.00</div>
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-dark-700">
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> High-Speed Priority Node</li>
+                        <li><i class="fa-solid fa-check text-brand-400 mr-1.5"></i> 24/7 Connectivity</li>
                     </ul>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Partner CTA Section -->
-    <section id="partners" class="py-20 bg-white border-t border-slate-200 scroll-mt-20">
-        <div class="container mx-auto px-6 md:px-12 max-w-4xl text-center space-y-8">
-            <h2 class="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Ready to Deploy Your Fleet?</h2>
-            <p class="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-                Connect your local hardware infrastructure context to AudiSpot and scale up your automated billing pipelines seamlessly today.
+    <!-- Frequently Asked Questions Section -->
+    <section id="faq" class="py-20 bg-dark-900 border-t border-dark-700/60 scroll-mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 max-w-3xl space-y-12">
+            <div class="text-center space-y-3">
+                <h2 class="text-3xl font-black text-white">Frequently Asked Questions</h2>
+                <p class="text-slate-400 text-sm">Everything you need to know about setting up AudiSpot on your network.</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- FAQ Item 1 -->
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
+                    <button onclick="toggleFaq('faq-1')" class="w-full p-5 text-left font-bold text-white flex justify-between items-center gap-4 hover:bg-dark-700/50 transition">
+                        <span>Do I need a public static IP on my MikroTik?</span>
+                        <i id="faq-1-icon" class="fa-solid fa-chevron-down text-slate-400 transition-transform"></i>
+                    </button>
+                    <div id="faq-1" class="hidden p-5 pt-0 text-xs sm:text-sm text-slate-400 border-t border-dark-700/50 leading-relaxed">
+                        No! AudiSpot operates seamlessly even behind CGNAT, dynamic IPs, or standard home ISP connections using secure API tunneling agent configurations.
+                    </div>
+                </div>
+
+                <!-- FAQ Item 2 -->
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
+                    <button onclick="toggleFaq('faq-2')" class="w-full p-5 text-left font-bold text-white flex justify-between items-center gap-4 hover:bg-dark-700/50 transition">
+                        <span>How does the M-Pesa money reach my account?</span>
+                        <i id="faq-2-icon" class="fa-solid fa-chevron-down text-slate-400 transition-transform"></i>
+                    </button>
+                    <div id="faq-2" class="hidden p-5 pt-0 text-xs sm:text-sm text-slate-400 border-t border-dark-700/50 leading-relaxed">
+                        The money goes directly from your customer's M-Pesa into your Safaricom Buy Goods Till Number or Paybill. AudiSpot never holds your funds or acts as a financial intermediary.
+                    </div>
+                </div>
+
+                <!-- FAQ Item 3 -->
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
+                    <button onclick="toggleFaq('faq-3')" class="w-full p-5 text-left font-bold text-white flex justify-between items-center gap-4 hover:bg-dark-700/50 transition">
+                        <span>What routers are supported?</span>
+                        <i id="faq-3-icon" class="fa-solid fa-chevron-down text-slate-400 transition-transform"></i>
+                    </button>
+                    <div id="faq-3" class="hidden p-5 pt-0 text-xs sm:text-sm text-slate-400 border-t border-dark-700/50 leading-relaxed">
+                        All MikroTik RouterOS devices running RouterOS version 6.x or 7.x (hAP lite, hEX, RB3011, RB4011, CCR series, etc.) are fully supported out of the box.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partner CTA Banner -->
+    <section class="py-20 bg-gradient-to-r from-brand-900 via-dark-800 to-dark-900 border-t border-dark-700/60 relative overflow-hidden">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 text-center space-y-6 relative z-10 max-w-3xl">
+            <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tight">Ready to deploy your hotspot fleet?</h2>
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+                Connect your hardware infrastructure to AudiSpot today and automate your hotspot business in under 10 minutes.
             </p>
-            <div class="pt-4">
-                <a href="/dashboard/" class="inline-block bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 py-4 rounded-xl transition shadow-md">
-                    Access Dashboard Console
+            <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="/signup/" class="w-full sm:w-auto bg-brand-600 hover:bg-brand-500 text-white font-bold px-8 py-4 rounded-xl transition shadow-xl shadow-brand-600/30 text-sm">
+                    Start Your 3-Day Free Trial
+                </a>
+                <a href="/dashboard/" class="w-full sm:w-auto bg-dark-800 border border-dark-700 hover:bg-dark-700 text-white font-semibold px-8 py-4 rounded-xl transition text-sm">
+                    Control Center Dashboard
                 </a>
             </div>
         </div>
     </section>
 
     <!-- Footer Area -->
-    <footer class="bg-slate-900 text-slate-500 py-12 border-t border-slate-800 text-xs">
-        <div class="container mx-auto px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div class="font-bold text-slate-400 text-sm flex items-center gap-2">
-                <i class="fa-solid fa-wifi text-blue-500"></i> AudiSpot
+    <footer class="bg-dark-900 text-slate-500 py-12 border-t border-dark-800 text-xs">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="font-bold text-slate-300 text-sm flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center text-white text-xs">
+                    <i class="fa-solid fa-wifi"></i>
+                </div>
+                AudiSpot Systems
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="#features" class="hover:text-slate-300 transition">Features</a>
+                <a href="#pricing" class="hover:text-slate-300 transition">Pricing</a>
+                <a href="#faq" class="hover:text-slate-300 transition">FAQ</a>
+                <a href="/privacy" class="hover:text-slate-300 transition">Privacy</a>
             </div>
             <div>&copy; 2026 AudiSpot. All Rights Reserved.</div>
         </div>
     </footer>
 
+    <!-- Mobile Hamburger Menu & Interactive JS -->
+    <script>
+        // Hamburger Menu Toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const menuIcon = document.getElementById('menu-icon');
+        const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            const isHidden = mobileMenu.classList.contains('hidden');
+            if (isHidden) {
+                mobileMenu.classList.remove('hidden');
+                menuIcon.classList.remove('fa-bars');
+                menuIcon.classList.add('fa-xmark');
+            } else {
+                mobileMenu.classList.add('hidden');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            }
+        });
+
+        // Close Mobile Menu on Nav Click
+        mobileNavLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            });
+        });
+
+        // FAQ Toggle Function
+        function toggleFaq(id) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById(id + '-icon');
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                el.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Revenue Estimator Logic
+        const userRange = document.getElementById('user-range');
+        const spendRange = document.getElementById('spend-range');
+        const userLabel = document.getElementById('user-count-label');
+        const spendLabel = document.getElementById('spend-label');
+        const monthlyRev = document.getElementById('monthly-revenue');
+        const netMargin = document.getElementById('net-margin');
+
+        function updateRevenue() {
+            const users = parseInt(userRange.value);
+            const spend = parseInt(spendRange.value);
+            const gross = users * spend * 30;
+            const net = Math.max(0, gross - 500);
+
+            userLabel.textContent = `${users} Users`;
+            spendLabel.textContent = `KES ${spend} / day`;
+            monthlyRev.textContent = `KES ${gross.toLocaleString()}`;
+            netMargin.textContent = `KES ${net.toLocaleString()}`;
+        }
+
+        userRange.addEventListener('input', updateRevenue);
+        spendRange.addEventListener('input', updateRevenue);
+    </script>
 </body>
 </html>
