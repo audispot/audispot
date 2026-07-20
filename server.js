@@ -717,7 +717,6 @@ app.post('/api/packages/delete', async (req, res) => {
 // ====================================================================
 // LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
 // ====================================================================
-
 app.get('/api/hotspot/loyalty/balance', async (req, res) => {
     const { macAddress } = req.query;
     if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
