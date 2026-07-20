@@ -111,7 +111,7 @@ async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = ""
             serverIp: "10.5.5.1",
             supportPhone: "+254700000000",
             redirectUrl: "https://audispot.audiory.site/login",
-            defaultPppoePassword: "AudiSpot123",
+            defaultPppoePassword: "AudiSpot",
             tillNumber: "",
             accountName: registrantName || "ISP Owner",
             accountEmail: registrantEmail || "owner@example.com",
