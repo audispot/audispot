@@ -382,9 +382,14 @@ app.post('/api/hotspot/login', async (req, res) => {
 
 // 6. Multi-Tenant M-Pesa Callback & Hardware Provisioning Hook
 app.post('/api/mpesa/callback', async (req, res) => {
-    // FIX: Extract the appended variables out of query maps safely
+    // Extract query variables safely
     const { routerId, macAddress, profile } = req.query; 
-    const callbackData = req.body.Body.stkCallback;
+    const callbackData = req.body?.Body?.stkCallback;
+
+    if (!callbackData) {
+        return res.status(400).json({ ResultCode: 1, ResultDesc: "Invalid callback payload" });
+    }
+
     const checkoutId = callbackData.CheckoutRequestID;
     
     if (callbackData.ResultCode === 0) {
@@ -393,24 +398,45 @@ app.post('/api/mpesa/callback', async (req, res) => {
             if (doc.exists) {
                 const ispConfig = doc.data();
                 const items = callbackData.CallbackMetadata.Item;
-                const amountPaid = parseFloat(items.find(i => i.Name === 'Amount').Value);
-                const payingPhone = items.find(i => i.Name === 'PhoneNumber').Value;
-                const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber').Value;
+                const amountPaid = parseFloat(items.find(i => i.Name === 'Amount')?.Value || 0);
+                const payingPhone = items.find(i => i.Name === 'PhoneNumber')?.Value || '';
+                const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber')?.Value || '';
                 const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
 
-                // Update individual STK record for frontend tracking hooks
+                // FIX 1: Support both 'ws_' prefixed and raw CheckoutIDs so Firestore updates correctly
                 if (checkoutId) {
-                    await db.collection('stk_requests').doc(checkoutId).set({ status: 'PAID', receipt: mpesaReceipt }, { merge: true });
+                    const stkRef = db.collection('stk_requests');
+                    
+                    // Check if document exists with raw checkoutId or 'ws_' prefix
+                    const directDoc = await stkRef.doc(checkoutId).get();
+                    const wsDoc = await stkRef.doc(`ws_${checkoutId}`).get();
+
+                    let targetDocId = checkoutId;
+                    if (!directDoc.exists && wsDoc.exists) {
+                        targetDocId = `ws_${checkoutId}`;
+                    }
+
+                    await stkRef.doc(targetDocId).set({ 
+                        status: 'PAID', 
+                        receipt: mpesaReceipt,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
                 }
 
-                await db.collection('global_transactions').doc(mpesaReceipt).set({
+                // FIX 2: Store transaction under 'transactions' collection (matching reconnect route)
+                const transactionData = {
                     routerId, 
                     ispOwner: ispConfig.ispName || "Unknown ISP", 
                     customerPhone: payingPhone, 
                     macAddress: cleanMac,
                     grossAmount: amountPaid, 
-                    processedAt: new Date().toISOString()
-                });
+                    mpesaReceipt: mpesaReceipt,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Write to both for backwards compatibility
+                await db.collection('transactions').doc(mpesaReceipt).set(transactionData);
+                await db.collection('global_transactions').doc(mpesaReceipt).set(transactionData);
 
                 const ispId = ispConfig.ispId || "default_isp";
                 let earnPointsAmount = 10; 
@@ -452,7 +478,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         const client = getRouterClient(ispConfig);
                         const api = await client.connect();
                         
-                        // FIX: If front-end pass matched profile exists, adopt it; else drop back to duration limits checks.
                         let dynamicPlanProfile = profile && profile !== 'default' ? profile : (amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan");
                         
                         await api.write('/ip/hotspot/user/add', [
@@ -468,20 +493,34 @@ app.post('/api/mpesa/callback', async (req, res) => {
             console.error("Callback ledger writing exception:", dbError);
         }
     } else {
-        // Log transaction failures clearly to terminate frontend loading interfaces
         if (checkoutId) {
-            await db.collection('stk_requests').doc(checkoutId).set({ status: 'FAILED' }, { merge: true });
+            const stkRef = db.collection('stk_requests');
+            await stkRef.doc(checkoutId).set({ status: 'FAILED' }, { merge: true });
+            await stkRef.doc(`ws_${checkoutId}`).set({ status: 'FAILED' }, { merge: true });
         }
     }
     res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
 
-// NEW: Polling Route to check payment progress inside connect.html
+// Polling Route to check payment progress inside connect.html
 app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
     try {
-        const doc = await db.collection('stk_requests').doc(req.params.checkoutId).get();
+        const rawId = req.params.checkoutId;
+        
+        // Check raw ID or 'ws_' prefix
+        let doc = await db.collection('stk_requests').doc(rawId).get();
+        if (!doc.exists) {
+            doc = await db.collection('stk_requests').doc(`ws_${rawId}`).get();
+        }
+
         if (!doc.exists) return res.status(404).json({ success: false, status: 'NOT_FOUND' });
-        return res.status(200).json({ success: true, status: doc.data().status, receipt: doc.data().receipt || '' });
+        
+        const data = doc.data();
+        return res.status(200).json({ 
+            success: true, 
+            status: data.status, 
+            receipt: data.receipt || data.mpesaReceiptNumber || '' 
+        });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }
@@ -834,7 +873,7 @@ app.get('/api/hotspot/reconnect', async (req, res) => {
 });
 
 // ====================================================================
-// NEW: MANIPULATE AND VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS
+// VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS
 // ====================================================================
 app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
     const { mpesaCode, routerId, macAddress } = req.body;
@@ -846,8 +885,11 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
     const cleanCode = mpesaCode.trim().toUpperCase();
 
     try {
-        // 1. Cross-reference your payments collection for the specific transaction reference
-        const transactionDoc = await db.collection('transactions').doc(cleanCode).get();
+        // FIX 3: Search both 'transactions' and 'global_transactions'
+        let transactionDoc = await db.collection('transactions').doc(cleanCode).get();
+        if (!transactionDoc.exists) {
+            transactionDoc = await db.collection('global_transactions').doc(cleanCode).get();
+        }
         
         if (!transactionDoc.exists) {
             return res.status(404).json({ error: "Invalid M-Pesa transaction token code provided." });
@@ -855,11 +897,9 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
 
         const txData = transactionDoc.data();
         
-        // 2. Safety check if the transaction token has already expired or has passed timeline thresholds
-        const purchaseTime = new Date(txData.timestamp || txData.createdAt);
+        const purchaseTime = new Date(txData.timestamp || txData.processedAt || txData.createdAt);
         const elapsedMinutes = (new Date() - purchaseTime) / 60000;
         
-        // Match duration validity against package limits dynamically
         const packageDurationHours = Number(txData.durationHours || 1); 
         const maxValidityMinutes = packageDurationHours * 60;
 
@@ -867,7 +907,6 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
             return res.status(410).json({ error: "The transaction pass code for this package configuration has expired." });
         }
 
-        // 3. Connect directly to MikroTik to provision the user interface network pass
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (routerDoc.exists) {
             const rData = routerDoc.data();
@@ -877,7 +916,7 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
                     const api = await client.connect();
                     
                     const profileName = txData.profileName || "1_Hour_Plan";
-                    const fallbackUser = txData.phoneNumber || "HotspotUser";
+                    const fallbackUser = txData.customerPhone || txData.phoneNumber || "HotspotUser";
 
                     await api.write('/ip/hotspot/user/add', [
                         `=name=${fallbackUser}`, 
