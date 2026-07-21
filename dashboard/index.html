@@ -273,8 +273,10 @@
                     </div>
                 </div>
                 <!-- VIEW 3: PAYMENTS & SETTLED DUAL-GATEWAY POOLS -->
- <div id="viewframe-earnings" class="space-y-6 hidden viewframe">
-    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs">
+<div id="viewframe-earnings" class="space-y-6 hidden viewframe">
+    
+    <!-- Top Row: Dual-Gateway Settlement Card -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs shadow-sm">
         
         <!-- Header & Gateway Badge -->
         <div class="flex items-center justify-between">
@@ -295,7 +297,7 @@
 
         <!-- Metrics Grid -->
         <div class="grid grid-cols-2 gap-3 pt-2">
-            <!-- Total Revenue Earned (Always Visible) -->
+            <!-- Total Revenue Earned -->
             <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder">
                 <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Revenue Earned</span>
                 <div class="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
@@ -322,8 +324,88 @@
                 Request Monthly Settlement
             </button>
         </div>
-
     </div>
+
+    <!-- Summary Metrics Dashboard Grid (As per design) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">TOTAL</span>
+            <div id="cnt-total" class="text-2xl font-black text-slate-900 dark:text-white mt-1">0</div>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">COMPLETED</span>
+            <div id="cnt-completed" class="text-2xl font-black text-emerald-500 mt-1">0</div>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PENDING</span>
+            <div id="cnt-pending" class="text-2xl font-black text-amber-500 mt-1">0</div>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">FAILED</span>
+            <div id="cnt-failed" class="text-2xl font-black text-red-500 mt-1">0</div>
+        </div>
+    </div>
+
+    <!-- Collection Interval Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">COLLECTED TODAY</span>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-today">0</span></div>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">THIS WEEK</span>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-week">0</span></div>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">THIS MONTH</span>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-month">0</span></div>
+        </div>
+    </div>
+
+    <!-- Filters & Search Toolbar -->
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4 text-xs pt-2">
+        <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
+            <button onclick="filterTxTable('all')" id="btn-filter-all" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold">All (<span id="filter-cnt-all">0</span>)</button>
+            <button onclick="filterTxTable('completed')" id="btn-filter-completed" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200">Completed (<span id="filter-cnt-completed">0</span>)</button>
+            <button onclick="filterTxTable('pending')" id="btn-filter-pending" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200">Pending (<span id="filter-cnt-pending">0</span>)</button>
+            <button onclick="filterTxTable('failed')" id="btn-filter-failed" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200">Failed (<span id="filter-cnt-failed">0</span>)</button>
+        </div>
+
+        <div class="flex items-center gap-2 w-full md:w-auto">
+            <input type="text" id="input-tx-search" onkeyup="searchTxTable()" placeholder="Search phone, receipt..." class="w-full md:w-64 bg-white dark:bg-vunainput border border-slate-200 dark:border-vunaborder px-3 py-1.5 rounded-lg text-slate-900 dark:text-white outline-none focus:border-indigo-500" />
+            <button onclick="searchTxTable()" class="bg-slate-800 dark:bg-slate-700 text-white font-bold px-4 py-1.5 rounded-lg">Search</button>
+        </div>
+    </div>
+
+    <!-- Real-Time Data Table -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 dark:bg-vunainput/50 border-b border-slate-200 dark:border-vunaborder text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    <tr>
+                        <th class="p-3.5">DATE</th>
+                        <th class="p-3.5">PHONE</th>
+                        <th class="p-3.5">CUSTOMER</th>
+                        <th class="p-3.5">PACKAGE</th>
+                        <th class="p-3.5">AMOUNT</th>
+                        <th class="p-3.5">STATUS</th>
+                        <th class="p-3.5">RECEIPT</th>
+                        <th class="p-3.5">VOUCHER</th>
+                        <th class="p-3.5 text-right">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="tbl-body-transactions" class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-700 dark:text-slate-300 font-mono text-[11px]">
+                    <!-- Dynamic Rows Rendered Here -->
+                    <tr>
+                        <td colspan="9" class="p-6 text-center text-slate-400 font-sans">
+                            <i class="fa-solid fa-spinner fa-spin mr-2"></i> Loading transaction history...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
                 <div id="viewframe-vouchers" class="hidden space-y-6 viewframe">
@@ -1954,7 +2036,174 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             }
         }
 
-        // Function to refresh dashboard stats dynamically
+let allTransactionsCache = [];
+let currentFilter = 'all';
+
+// Load All Data on Frame Show or Page Refresh
+async function loadPaymentHistoryView(ispId) {
+    try {
+        const res = await fetch(`/api/isp/payment-history/${ispId}`);
+        const data = await res.json();
+
+        if (!data.success) return;
+
+        // 1. Dual-Gateway Pool & Status Updates
+        document.getElementById('lbl-gross-earned').innerText = parseFloat(data.metrics.grossEarnedAllTime).toFixed(2);
+        
+        const badgeGateway = document.getElementById('badge-gateway-type');
+        const withdrawableLabel = document.getElementById('lbl-earnings-withdrawable');
+        const descLabel = document.getElementById('lbl-settlement-desc');
+        const withdrawBtn = document.getElementById('btn-request-settlement');
+
+        if (data.gatewayType === 'custom_daraja') {
+            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+            badgeGateway.innerText = `Custom Daraja (Till #${data.tillNumber})`;
+
+            withdrawableLabel.innerText = "0.00";
+            descLabel.innerText = "Funds settled directly to your Till/Paybill by Safaricom.";
+            
+            withdrawBtn.disabled = true;
+            withdrawBtn.className = "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
+            withdrawBtn.innerText = "Settled Directly to Till";
+        } else {
+            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
+            badgeGateway.innerText = "Platform Shared Gateway";
+
+            withdrawableLabel.innerText = parseFloat(data.withdrawableBalance).toFixed(2);
+            descLabel.innerText = "Disbursals clear directly via Safaricom B2C.";
+
+            withdrawBtn.disabled = false;
+            withdrawBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
+            withdrawBtn.innerText = "Request Monthly Settlement";
+        }
+
+        // 2. Metrics Cards Updates
+        document.getElementById('cnt-total').innerText = data.metrics.totalCount;
+        document.getElementById('cnt-completed').innerText = data.metrics.completedCount;
+        document.getElementById('cnt-pending').innerText = data.metrics.pendingCount;
+        document.getElementById('cnt-failed').innerText = data.metrics.failedCount;
+
+        document.getElementById('filter-cnt-all').innerText = data.metrics.totalCount;
+        document.getElementById('filter-cnt-completed').innerText = data.metrics.completedCount;
+        document.getElementById('filter-cnt-pending').innerText = data.metrics.pendingCount;
+        document.getElementById('filter-cnt-failed').innerText = data.metrics.failedCount;
+
+        document.getElementById('rev-today').innerText = parseFloat(data.metrics.collectedToday).toLocaleString();
+        document.getElementById('rev-week').innerText = parseFloat(data.metrics.collectedThisWeek).toLocaleString();
+        document.getElementById('rev-month').innerText = parseFloat(data.metrics.collectedThisMonth).toLocaleString();
+
+        // 3. Cache & Render Table
+        allTransactionsCache = data.transactions || [];
+        renderTransactionTable(allTransactionsCache);
+
+    } catch (err) {
+        console.error("Failed to load payment history:", err);
+    }
+}
+
+// Render Table Rows
+function renderTransactionTable(records) {
+    const tbody = document.getElementById('tbl-body-transactions');
+    tbody.innerHTML = '';
+
+    if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded yet.</td></tr>`;
+        return;
+    }
+
+    records.forEach(tx => {
+        const formattedDate = new Date(tx.date).toLocaleString('en-US', {
+            month: 'numeric', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+        });
+
+        let statusBadge = '';
+        if (tx.status === 'completed' || tx.status === 'success') {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">• completed</span>`;
+        } else if (tx.status === 'pending') {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">• pending</span>`;
+        } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">• failed</span>`;
+        }
+
+        const rowHtml = `
+            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                <td class="p-3.5 text-slate-400">${formattedDate}</td>
+                <td class="p-3.5 font-bold text-slate-900 dark:text-white">${tx.phone}</td>
+                <td class="p-3.5 text-slate-400">${tx.customer}</td>
+                <td class="p-3.5 text-slate-300">${tx.package}</td>
+                <td class="p-3.5 font-bold text-emerald-500">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
+                <td class="p-3.5">${statusBadge}</td>
+                <td class="p-3.5 text-slate-400">${tx.receipt}</td>
+                <td class="p-3.5 text-slate-400">${tx.voucher}</td>
+                <td class="p-3.5 text-right font-sans">
+                    <button onclick="voidTransaction('${tx.id}')" class="px-2.5 py-1 text-[10px] border border-slate-300 dark:border-slate-700 rounded text-slate-400 hover:text-white hover:bg-slate-700 transition">
+                        Void
+                    </button>
+                </td>
+            </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', rowHtml);
+    });
+}
+
+// Filter Status Tabs
+function filterTxTable(status) {
+    currentFilter = status;
+    
+    // Update active tab styling
+    ['all', 'completed', 'pending', 'failed'].forEach(st => {
+        const btn = document.getElementById(`btn-filter-${st}`);
+        if (st === status) {
+            btn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold";
+        } else {
+            btn.className = "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
+        }
+    });
+
+    if (status === 'all') {
+        renderTransactionTable(allTransactionsCache);
+    } else {
+        const filtered = allTransactionsCache.filter(t => t.status === status);
+        renderTransactionTable(filtered);
+    }
+}
+
+// Search Functionality
+function searchTxTable() {
+    const query = document.getElementById('input-tx-search').value.toLowerCase().trim();
+    if (!query) {
+        filterTxTable(currentFilter);
+        return;
+    }
+
+    const searched = allTransactionsCache.filter(t => {
+        return (t.phone && t.phone.toLowerCase().includes(query)) ||
+               (t.receipt && t.receipt.toLowerCase().includes(query)) ||
+               (t.package && t.package.toLowerCase().includes(query));
+    });
+
+    renderTransactionTable(searched);
+}
+
+// Settlement Request Action
+function triggerMonthlySettlementDisbursal() {
+    const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
+    if (currentAmountValue === "0.00") {
+        triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
+        return;
+    }
+    triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
+}
+
+// Void Action Helper
+function voidTransaction(txId) {
+    if (confirm("Are you sure you want to void this record from active logs?")) {
+        triggerToastDisplay(`Transaction record ${txId} voided.`);
+    }
+}
+
+// Function to refresh dashboard stats dynamically
 async function fetchDashboardEarningsStats(ispId) {
     try {
         const response = await fetch(`/api/isp/dashboard-stats/${ispId}`);
@@ -1997,16 +2246,6 @@ async function fetchDashboardEarningsStats(ispId) {
     } catch (err) {
         console.error("Error fetching earnings stats:", err);
     }
-}
-
-// Updated Disbursal Trigger Function
-function triggerMonthlySettlementDisbursal() {
-    const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
-    if (currentAmountValue === "0.00") {
-        triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
-        return;
-    }
-    triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
 }
 
        // ==========================================
