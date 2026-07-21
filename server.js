@@ -1856,47 +1856,45 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// REAL-TIME TRANSACTION & REVENUE FETCH API
+// FLEXIBLE MULTI-COLLECTION FIRESTORE PAYMENT FETCH
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
 
     try {
+        console.log(`[DEBUG] Fetching payments for ISP: ${ispId}`);
+
         // 1. Get ISP and Settings
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
-        if (!ispDoc.exists) {
-            return res.status(404).json({ success: false, error: "ISP profile not found" });
-        }
-
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
+        const ispData = ispDoc.exists ? ispDoc.data() : {};
 
-        // 2. Fetch all Router IDs registered to this ISP
-        const routerDocs = await db.collection('routers').where('ispId', '==', ispId).get();
-        const ispRouterIds = [];
-        routerDocs.forEach(r => ispRouterIds.push(r.id));
-
-        // 3. Query transactions matching ispId OR any router belonging to this ISP
+        // 2. Collection targets to check
+        const collectionsToSearch = ['global_transactions', 'transactions', 'mpesa_payments', 'payments'];
         const rawDocsMap = new Map();
 
-        // Query by ispId
-        const byIspSnap = await db.collection('global_transactions').where('ispId', '==', ispId).get();
-        byIspSnap.forEach(d => rawDocsMap.set(d.id, d.data()));
+        for (const colName of collectionsToSearch) {
+            // Match by ispId
+            const q1 = await db.collection(colName).where('ispId', '==', ispId).get();
+            q1.forEach(doc => rawDocsMap.set(doc.id, { ...doc.data(), _sourceCol: colName }));
 
-        // Query by routerId if any routers exist
-        if (ispRouterIds.length > 0) {
-            // Firestore 'in' query supports up to 30 items
-            const chunks = [];
-            for (let i = 0; i < ispRouterIds.length; i += 10) {
-                chunks.push(ispRouterIds.slice(i, i + 10));
-            }
-            for (const chunk of chunks) {
-                const byRouterSnap = await db.collection('global_transactions').where('routerId', 'in', chunk).get();
-                byRouterSnap.forEach(d => rawDocsMap.set(d.id, d.data()));
+            // Match by userId (if stored as userId)
+            const q2 = await db.collection(colName).where('userId', '==', ispId).get();
+            q2.forEach(doc => rawDocsMap.set(doc.id, { ...doc.data(), _sourceCol: colName }));
+
+            // Fallback: If no ispId was stored on transaction, fetch recent docs from this collection
+            if (rawDocsMap.size === 0) {
+                const q3 = await db.collection(colName).orderBy('createdAt', 'desc').limit(25).get().catch(() => null);
+                if (q3) {
+                    q3.forEach(doc => rawDocsMap.set(doc.id, { ...doc.data(), _sourceCol: colName }));
+                }
             }
         }
 
-        // 4. Calculate Revenue Metrics
+        console.log(`[DEBUG] Found ${rawDocsMap.size} total transaction documents.`);
+
+        // 3. Process metrics & records
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
@@ -1921,16 +1919,15 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         rawDocsMap.forEach((tx, docId) => {
             totalTx++;
 
-            const rawStatus = String(tx.status || 'SUCCESS').toUpperCase();
-            const isSuccess = ['SUCCESS', 'PAID', 'COMPLETED'].includes(rawStatus);
+            const rawStatus = String(tx.status || tx.resultCode === 0 ? 'SUCCESS' : 'FAILED').toUpperCase();
+            const isSuccess = ['SUCCESS', 'PAID', 'COMPLETED', '0'].includes(rawStatus);
             const isPending = rawStatus === 'PENDING';
 
-            const amount = parseFloat(tx.grossAmount || tx.amount || 0);
+            const amount = parseFloat(tx.grossAmount || tx.amount || tx.MpesaAmount || tx.TransAmount || 0);
 
             // Parse Date
-            let txTime = 0;
-            const dateStr = tx.createdAt || tx.timestamp || new Date().toISOString();
-            txTime = new Date(dateStr).getTime();
+            const dateStr = tx.createdAt || tx.timestamp || tx.date || new Date().toISOString();
+            const txTime = new Date(dateStr).getTime();
 
             if (isSuccess) {
                 completedTx++;
@@ -1948,24 +1945,24 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             transactions.push({
                 id: docId,
                 date: dateStr,
-                phone: tx.phoneNumber || tx.customerPhone || '—',
-                customer: tx.customerName || '—',
-                package: tx.profileName || tx.package || `${tx.durationHours || 1} Hr Pass`,
+                phone: tx.phoneNumber || tx.phone || tx.MSISDN || tx.customerPhone || '—',
+                customer: tx.customerName || tx.accountReference || '—',
+                package: tx.profileName || tx.packageName || tx.package || `${tx.durationHours || 1} Hr Pass`,
                 amount: amount,
                 status: isSuccess ? 'completed' : (isPending ? 'pending' : 'failed'),
-                receipt: tx.mpesaReceipt || tx.receipt || '—',
-                voucher: tx.voucher || '—'
+                receipt: tx.mpesaReceipt || tx.mpesaReceiptNumber || tx.MpesaReceiptNumber || tx.receipt || '—',
+                voucher: tx.voucher || tx.code || '—'
             });
         });
 
-        // Sort descending by date (newest first)
+        // Sort descending by date
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         return res.status(200).json({
             success: true,
             gatewayType: settings.mpesaIntegrationType || 'platform',
             tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
-            withdrawableBalance: ispDoc.data().walletBalance || 0,
+            withdrawableBalance: ispData.walletBalance || 0,
             metrics: {
                 totalCount: totalTx,
                 completedCount: completedTx,
@@ -1980,7 +1977,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Failed to load ISP payments:", error);
+        console.error("[ERROR] Failed to load payment history:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
