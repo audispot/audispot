@@ -1855,5 +1855,115 @@ app.post('/api/auth/isp-login', async (req, res) => {
     }
 });
 
+// ====================================================================
+// FETCH DUAL-GATEWAY STATS & REAL TRANSACTION HISTORY FROM FIRESTORE
+// ====================================================================
+app.get('/api/isp/payment-history/:ispId', async (req, res) => {
+    const { ispId } = req.params;
+
+    try {
+        // 1. Fetch ISP User & Settings Data
+        const ispDoc = await db.collection('isp_users').doc(ispId).get();
+        if (!ispDoc.exists) return res.status(404).json({ error: "ISP account not found" });
+
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+
+        // 2. Query Real Transactions for this ISP
+        const snapshot = await db.collection('global_transactions')
+            .where('ispId', '==', ispId)
+            .get();
+
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        
+        // Start of Week (Sunday/Monday start)
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        // Start of Month
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+        let totalTx = 0;
+        let completedTx = 0;
+        let pendingTx = 0;
+        let failedTx = 0;
+
+        let collectedToday = 0;
+        let collectedThisWeek = 0;
+        let collectedThisMonth = 0;
+        let grossEarnedAllTime = 0;
+
+        const transactions = [];
+
+        snapshot.forEach(doc => {
+            const tx = doc.data();
+            totalTx++;
+
+            const status = (tx.status || 'SUCCESS').toLowerCase();
+            const amount = parseFloat(tx.grossAmount || tx.amount || 0);
+            
+            // Parse Timestamp
+            let txTime = 0;
+            if (tx.createdAt) txTime = new Date(tx.createdAt).getTime();
+            else if (tx.timestamp) txTime = new Date(tx.timestamp).getTime();
+
+            // Status Counters
+            if (status === 'success' || status === 'completed' || status === 'paid') {
+                completedTx++;
+                grossEarnedAllTime += amount;
+
+                if (txTime >= startOfDay) collectedToday += amount;
+                if (txTime >= startOfWeek.getTime()) collectedThisWeek += amount;
+                if (txTime >= startOfMonth) collectedThisMonth += amount;
+
+            } else if (status === 'pending') {
+                pendingTx++;
+            } else if (status === 'failed') {
+                failedTx++;
+            }
+
+            // Standardize output payload
+            transactions.push({
+                id: doc.id,
+                date: tx.createdAt || tx.timestamp || new Date().toISOString(),
+                phone: tx.phoneNumber || tx.customerPhone || '—',
+                customer: tx.customerName || '—',
+                package: tx.profileName || tx.package || `${tx.durationHours || 1} Hr Pass`,
+                amount: amount,
+                status: status === 'paid' ? 'completed' : status,
+                receipt: tx.mpesaReceipt || tx.receipt || '—',
+                voucher: tx.voucher || '—'
+            });
+        });
+
+        // Sort descending by date
+        transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        return res.status(200).json({
+            success: true,
+            gatewayType: settings.mpesaIntegrationType || 'platform',
+            tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
+            withdrawableBalance: ispDoc.data().walletBalance || 0,
+            metrics: {
+                totalCount: totalTx,
+                completedCount: completedTx,
+                pendingCount: pendingTx,
+                failedCount: failedTx,
+                collectedToday: collectedToday,
+                collectedThisWeek: collectedThisWeek,
+                collectedThisMonth: collectedThisMonth,
+                grossEarnedAllTime: grossEarnedAllTime
+            },
+            transactions: transactions
+        });
+
+    } catch (error) {
+        console.error("Payment history error:", error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
