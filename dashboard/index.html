@@ -272,23 +272,59 @@
                         </div>
                     </div>
                 </div>
-                <!-- VIEW 3: PAYMENTS & SETTLED FIXED MONTHLY POOLS -->
-                <div id="viewframe-earnings" class="space-y-6 hidden viewframe">
-                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs">
-                        <div class="w-10 h-10 bg-indigo-600/10 text-indigo-500 rounded-lg flex items-center justify-center text-lg"><i class="fa-solid fa-building-columns"></i></div>
-                        <div>
-                            <h3 class="font-bold text-slate-900 dark:text-white text-sm">Safaricom Business-to-Customer (B2C) Disbursal</h3>
-                            <p class="text-slate-400 mt-1 leading-relaxed">Network financial pipelines utilize multi-tenant accounting isolation layers. Withdrawals clear directly into your target recipient line through execution pools precisely on a **Fixed Monthly Interval Settlement Window**.</p>
-                        </div>
-                        <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder flex items-center justify-between">
-                            <div>
-                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Settled Funds Balance</span>
-                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-0.5">KSh <span id="lbl-earnings-withdrawable">0.00</span></div>
-                            </div>
-                            <button onclick="triggerMonthlySettlementDisbursal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition">Request Monthly Settlement</button>
-                        </div>
-                    </div>
+                <!-- VIEW 3: PAYMENTS & SETTLED DUAL-GATEWAY POOLS -->
+ <div id="viewframe-earnings" class="space-y-6 hidden viewframe">
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs">
+        
+        <!-- Header & Gateway Badge -->
+        <div class="flex items-center justify-between">
+            <div class="w-10 h-10 bg-indigo-600/10 text-indigo-500 rounded-lg flex items-center justify-center text-lg">
+                <i class="fa-solid fa-building-columns"></i>
+            </div>
+            <span id="badge-gateway-type" class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                Platform Gateway
+            </span>
+        </div>
+
+        <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-sm">Safaricom Gateway Settlement & Revenue Ledger</h3>
+            <p class="text-slate-400 mt-1 leading-relaxed">
+                Network financial pipelines isolate transactions by multi-tenant accounts. Direct Daraja integrations settle immediately into your own Paybill/Till, while Platform shared gateways accumulate in withdrawable pools.
+            </p>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-2 gap-3 pt-2">
+            <!-- Total Revenue Earned (Always Visible) -->
+            <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Revenue Earned</span>
+                <div class="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    KSh <span id="lbl-gross-earned">0.00</span>
                 </div>
+            </div>
+
+            <!-- Withdrawable Pool / Direct Till Status -->
+            <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Settled Funds Balance</span>
+                <div class="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                    KSh <span id="lbl-earnings-withdrawable">0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settlement Action Panel -->
+        <div id="panel-withdraw-action" class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder flex items-center justify-between">
+            <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Withdrawal Request</span>
+                <p id="lbl-settlement-desc" class="text-[11px] text-slate-500 mt-0.5">Disbursals clear directly via Safaricom B2C.</p>
+            </div>
+            <button id="btn-request-settlement" onclick="triggerMonthlySettlementDisbursal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition">
+                Request Monthly Settlement
+            </button>
+        </div>
+
+    </div>
+</div>
 
                 <div id="viewframe-vouchers" class="hidden space-y-6 viewframe">
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm">
@@ -1918,14 +1954,60 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             }
         }
 
-        function triggerMonthlySettlementDisbursal() {
-            const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
-            if (currentAmountValue === "0.00") {
-                triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
-                return;
-            }
-            triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
+        // Function to refresh dashboard stats dynamically
+async function fetchDashboardEarningsStats(ispId) {
+    try {
+        const response = await fetch(`/api/isp/dashboard-stats/${ispId}`);
+        const data = await response.json();
+
+        if (!data.success) return;
+
+        // Update Amounts
+        document.getElementById('lbl-gross-earned').innerText = parseFloat(data.totalGrossEarned).toFixed(2);
+        
+        const badgeGateway = document.getElementById('badge-gateway-type');
+        const withdrawableLabel = document.getElementById('lbl-earnings-withdrawable');
+        const descLabel = document.getElementById('lbl-settlement-desc');
+        const withdrawBtn = document.getElementById('btn-request-settlement');
+
+        if (data.gatewayType === 'custom_daraja') {
+            // CUSTOM DARAJA MODE
+            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+            badgeGateway.innerText = `Custom Daraja (Till #${data.tillNumber})`;
+
+            withdrawableLabel.innerText = "0.00";
+            descLabel.innerText = "Funds settled directly to your Till/Paybill by Safaricom.";
+            
+            withdrawBtn.disabled = true;
+            withdrawBtn.className = "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
+            withdrawBtn.innerText = "Settled Directly to Till";
+        } else {
+            // PLATFORM GATEWAY MODE
+            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
+            badgeGateway.innerText = "Platform Shared Gateway";
+
+            withdrawableLabel.innerText = parseFloat(data.withdrawableBalance).toFixed(2);
+            descLabel.innerText = "Disbursals clear directly via Safaricom B2C.";
+
+            withdrawBtn.disabled = false;
+            withdrawBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
+            withdrawBtn.innerText = "Request Monthly Settlement";
         }
+
+    } catch (err) {
+        console.error("Error fetching earnings stats:", err);
+    }
+}
+
+// Updated Disbursal Trigger Function
+function triggerMonthlySettlementDisbursal() {
+    const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
+    if (currentAmountValue === "0.00") {
+        triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
+        return;
+    }
+    triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
+}
 
        // ==========================================
 // VOUCHERS MANAGEMENT ENGINE (INLINE & BULK)
