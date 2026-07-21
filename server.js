@@ -382,124 +382,139 @@ app.post('/api/hotspot/login', async (req, res) => {
 
 // 6. Multi-Tenant M-Pesa Callback & Hardware Provisioning Hook
 app.post('/api/mpesa/callback', async (req, res) => {
-    // Extract query variables safely
+    // 1. Always log incoming callbacks for debugging in Cloud Run
+    console.log("=== INCOMING MPESA CALLBACK ===");
+    console.log("Query:", req.query);
+    console.log("Body:", JSON.stringify(req.body));
+
     const { routerId, macAddress, profile } = req.query; 
     const callbackData = req.body?.Body?.stkCallback;
 
     if (!callbackData) {
-        return res.status(400).json({ ResultCode: 1, ResultDesc: "Invalid callback payload" });
+        console.error("Callback missing stkCallback body structure.");
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
     const checkoutId = callbackData.CheckoutRequestID;
     
     if (callbackData.ResultCode === 0) {
         try {
-            const doc = await db.collection('routers').doc(routerId).get();
-            if (doc.exists) {
-                const ispConfig = doc.data();
-                const items = callbackData.CallbackMetadata.Item;
-                const amountPaid = parseFloat(items.find(i => i.Name === 'Amount')?.Value || 0);
-                const payingPhone = items.find(i => i.Name === 'PhoneNumber')?.Value || '';
-                const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber')?.Value || '';
-                const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
+            const items = callbackData.CallbackMetadata?.Item || [];
+            const amountPaid = parseFloat(items.find(i => i.Name === 'Amount')?.Value || 0);
+            const payingPhone = String(items.find(i => i.Name === 'PhoneNumber')?.Value || '');
+            const mpesaReceipt = items.find(i => i.Name === 'MpesaReceiptNumber')?.Value || '';
+            const cleanMac = macAddress ? macAddress.toLowerCase().replace(/[^a-f0-9]/g, '') : 'nomac';
 
-                // FIX 1: Support both 'ws_' prefixed and raw CheckoutIDs so Firestore updates correctly
-                if (checkoutId) {
-                    const stkRef = db.collection('stk_requests');
-                    
-                    // Check if document exists with raw checkoutId or 'ws_' prefix
-                    const directDoc = await stkRef.doc(checkoutId).get();
-                    const wsDoc = await stkRef.doc(`ws_${checkoutId}`).get();
+            console.log(`Payment SUCCESS! Receipt: ${mpesaReceipt}, CheckoutID: ${checkoutId}`);
 
-                    let targetDocId = checkoutId;
-                    if (!directDoc.exists && wsDoc.exists) {
-                        targetDocId = `ws_${checkoutId}`;
-                    }
+            // -------------------------------------------------------------
+            // FIX 1: UPDATE STK REQUESTS (Handles ws_ prefix and raw CheckoutID)
+            // -------------------------------------------------------------
+            if (checkoutId) {
+                const stkBatch = db.batch();
+                // Update raw checkout ID
+                stkBatch.set(db.collection('stk_requests').doc(checkoutId), { 
+                    status: 'PAID', 
+                    receipt: mpesaReceipt,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
 
-                    await stkRef.doc(targetDocId).set({ 
-                        status: 'PAID', 
-                        receipt: mpesaReceipt,
-                        updatedAt: new Date().toISOString()
-                    }, { merge: true });
-                }
+                // Update prefixed checkout ID (e.g., ws_CO_...)
+                stkBatch.set(db.collection('stk_requests').doc(`ws_${checkoutId}`), { 
+                    status: 'PAID', 
+                    receipt: mpesaReceipt,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
 
-                // FIX 2: Store transaction under 'transactions' collection (matching reconnect route)
-                const transactionData = {
-                    routerId, 
-                    ispOwner: ispConfig.ispName || "Unknown ISP", 
-                    customerPhone: payingPhone, 
-                    macAddress: cleanMac,
-                    grossAmount: amountPaid, 
+                await stkBatch.commit();
+            }
+
+            // -------------------------------------------------------------
+            // FIX 2: SAVE TO 'transactions' COLLECTION WITH M-PESA RECEIPT AS DOC ID
+            // -------------------------------------------------------------
+            if (mpesaReceipt) {
+                // Calculate validity duration based on amount paid
+                let durationHours = 1;
+                if (amountPaid >= 50) durationHours = 24;
+                else if (amountPaid >= 20) durationHours = 3;
+
+                const transactionPayload = {
                     mpesaReceipt: mpesaReceipt,
-                    timestamp: new Date().toISOString()
+                    grossAmount: amountPaid,
+                    durationHours: durationHours,
+                    phoneNumber: payingPhone,
+                    customerPhone: payingPhone,
+                    macAddress: cleanMac,
+                    routerId: routerId || "unknown",
+                    profileName: profile || (amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan"),
+                    timestamp: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
+                    status: 'SUCCESS'
                 };
 
-                // Write to both for backwards compatibility
-                await db.collection('transactions').doc(mpesaReceipt).set(transactionData);
-                await db.collection('global_transactions').doc(mpesaReceipt).set(transactionData);
+                // Save to 'transactions' (used by reconnect-by-code)
+                await db.collection('transactions').doc(mpesaReceipt).set(transactionPayload, { merge: true });
+                
+                // Save to 'global_transactions' (for tenant accounting)
+                await db.collection('global_transactions').doc(mpesaReceipt).set(transactionPayload, { merge: true });
+                
+                console.log(`Saved transaction record under document ID: ${mpesaReceipt}`);
+            }
 
-                const ispId = ispConfig.ispId || "default_isp";
-                let earnPointsAmount = 10; 
-                try {
-                    const designDoc = await db.collection('isp_portals').doc(ispId).get();
-                    if (designDoc.exists && designDoc.data().earnPoints) {
-                        earnPointsAmount = parseInt(designDoc.data().earnPoints) || 10;
-                    }
-                } catch (pe) {
-                    console.error("Portal config fetch error:", pe.message);
-                }
+            // -------------------------------------------------------------
+            // FIX 3: SUBSCRIBER LOYALTY & ROUTER PROVISIONING
+            // -------------------------------------------------------------
+            if (routerId) {
+                const routerDoc = await db.collection('routers').doc(routerId).get();
+                if (routerDoc.exists) {
+                    const ispConfig = routerDoc.data();
 
-                if (cleanMac !== 'nomac') {
-                    const subRef = db.collection('subscribers').doc(cleanMac);
+                    // Credit ISP Wallet
+                    const ispId = ispConfig.ispId || "default_isp";
+                    const ispRef = db.collection('isp_users').doc(ispId);
                     await db.runTransaction(async (ts) => {
-                        const subDoc = await ts.get(subRef);
-                        const currentPoints = subDoc.exists ? (subDoc.data().loyaltyPoints || 0) : 0;
-                        ts.set(subRef, {
-                            phoneNumber: payingPhone,
-                            loyaltyPoints: currentPoints + earnPointsAmount,
-                            lastActivePackage: amountPaid,
-                            lastActiveTimestamp: new Date().toISOString(),
-                            routerId: routerId
-                        }, { merge: true });
+                        const iDoc = await ts.get(ispRef);
+                        if (iDoc.exists) {
+                            const currentBal = iDoc.data().walletBalance || 0;
+                            ts.update(ispRef, { walletBalance: currentBal + amountPaid });
+                        }
                     });
-                }
 
-                const ispRef = db.collection('isp_users').doc(ispId);
-                await db.runTransaction(async (ts) => {
-                    const ispDoc = await ts.get(ispRef);
-                    if (ispDoc.exists) {
-                        const currentBalance = ispDoc.data().walletBalance || 0;
-                        ts.update(ispRef, { walletBalance: currentBalance + amountPaid });
-                    }
-                });
-
-                if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
-                    try {
-                        const client = getRouterClient(ispConfig);
-                        const api = await client.connect();
-                        
-                        let dynamicPlanProfile = profile && profile !== 'default' ? profile : (amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan");
-                        
-                        await api.write('/ip/hotspot/user/add', [
-                            `=name=${payingPhone}`, `=password=${payingPhone}`, `=profile=${dynamicPlanProfile}`, `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
-                        ]);
-                        await api.close();
-                    } catch (err) {
-                        console.error("Router execution failure:", err.message);
+                    // Direct Router Hotspot Provisioning
+                    if (ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
+                        try {
+                            const client = getRouterClient(ispConfig);
+                            const api = await client.connect();
+                            let planProfile = profile && profile !== 'default' ? profile : (amountPaid >= 20 ? (amountPaid >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan");
+                            
+                            await api.write('/ip/hotspot/user/add', [
+                                `=name=${payingPhone}`, 
+                                `=password=${payingPhone}`, 
+                                `=profile=${planProfile}`, 
+                                `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
+                            ]);
+                            await api.close();
+                        } catch (rErr) {
+                            console.error("Router connection error:", rErr.message);
+                        }
                     }
                 }
             }
+
         } catch (dbError) {
-            console.error("Callback ledger writing exception:", dbError);
+            console.error("Callback database write exception:", dbError);
         }
     } else {
+        // Handle Failed / Cancelled STK Push
+        console.log(`STK Push failed with ResultCode: ${callbackData.ResultCode}`);
         if (checkoutId) {
-            const stkRef = db.collection('stk_requests');
-            await stkRef.doc(checkoutId).set({ status: 'FAILED' }, { merge: true });
-            await stkRef.doc(`ws_${checkoutId}`).set({ status: 'FAILED' }, { merge: true });
+            await db.collection('stk_requests').doc(checkoutId).set({ status: 'FAILED' }, { merge: true });
+            await db.collection('stk_requests').doc(`ws_${checkoutId}`).set({ status: 'FAILED' }, { merge: true });
         }
     }
-    res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
+
+    // Safaricom requires a 200 OK response
+    return res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
 
 // Polling Route to check payment progress inside connect.html
