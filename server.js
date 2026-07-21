@@ -1856,33 +1856,54 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// FETCH DUAL-GATEWAY STATS & REAL TRANSACTION HISTORY FROM FIRESTORE
+// REAL-TIME TRANSACTION & REVENUE FETCH API
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
 
     try {
-        // 1. Fetch ISP User & Settings Data
+        // 1. Get ISP and Settings
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
-        if (!ispDoc.exists) return res.status(404).json({ error: "ISP account not found" });
+        if (!ispDoc.exists) {
+            return res.status(404).json({ success: false, error: "ISP profile not found" });
+        }
 
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
-        // 2. Query Real Transactions for this ISP
-        const snapshot = await db.collection('global_transactions')
-            .where('ispId', '==', ispId)
-            .get();
+        // 2. Fetch all Router IDs registered to this ISP
+        const routerDocs = await db.collection('routers').where('ispId', '==', ispId).get();
+        const ispRouterIds = [];
+        routerDocs.forEach(r => ispRouterIds.push(r.id));
 
+        // 3. Query transactions matching ispId OR any router belonging to this ISP
+        const rawDocsMap = new Map();
+
+        // Query by ispId
+        const byIspSnap = await db.collection('global_transactions').where('ispId', '==', ispId).get();
+        byIspSnap.forEach(d => rawDocsMap.set(d.id, d.data()));
+
+        // Query by routerId if any routers exist
+        if (ispRouterIds.length > 0) {
+            // Firestore 'in' query supports up to 30 items
+            const chunks = [];
+            for (let i = 0; i < ispRouterIds.length; i += 10) {
+                chunks.push(ispRouterIds.slice(i, i + 10));
+            }
+            for (const chunk of chunks) {
+                const byRouterSnap = await db.collection('global_transactions').where('routerId', 'in', chunk).get();
+                byRouterSnap.forEach(d => rawDocsMap.set(d.id, d.data()));
+            }
+        }
+
+        // 4. Calculate Revenue Metrics
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        
-        // Start of Week (Sunday/Monday start)
+
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
 
-        // Start of Month
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
         let totalTx = 0;
@@ -1897,48 +1918,47 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
 
         const transactions = [];
 
-        snapshot.forEach(doc => {
-            const tx = doc.data();
+        rawDocsMap.forEach((tx, docId) => {
             totalTx++;
 
-            const status = (tx.status || 'SUCCESS').toLowerCase();
-            const amount = parseFloat(tx.grossAmount || tx.amount || 0);
-            
-            // Parse Timestamp
-            let txTime = 0;
-            if (tx.createdAt) txTime = new Date(tx.createdAt).getTime();
-            else if (tx.timestamp) txTime = new Date(tx.timestamp).getTime();
+            const rawStatus = String(tx.status || 'SUCCESS').toUpperCase();
+            const isSuccess = ['SUCCESS', 'PAID', 'COMPLETED'].includes(rawStatus);
+            const isPending = rawStatus === 'PENDING';
 
-            // Status Counters
-            if (status === 'success' || status === 'completed' || status === 'paid') {
+            const amount = parseFloat(tx.grossAmount || tx.amount || 0);
+
+            // Parse Date
+            let txTime = 0;
+            const dateStr = tx.createdAt || tx.timestamp || new Date().toISOString();
+            txTime = new Date(dateStr).getTime();
+
+            if (isSuccess) {
                 completedTx++;
                 grossEarnedAllTime += amount;
 
                 if (txTime >= startOfDay) collectedToday += amount;
                 if (txTime >= startOfWeek.getTime()) collectedThisWeek += amount;
                 if (txTime >= startOfMonth) collectedThisMonth += amount;
-
-            } else if (status === 'pending') {
+            } else if (isPending) {
                 pendingTx++;
-            } else if (status === 'failed') {
+            } else {
                 failedTx++;
             }
 
-            // Standardize output payload
             transactions.push({
-                id: doc.id,
-                date: tx.createdAt || tx.timestamp || new Date().toISOString(),
+                id: docId,
+                date: dateStr,
                 phone: tx.phoneNumber || tx.customerPhone || '—',
                 customer: tx.customerName || '—',
                 package: tx.profileName || tx.package || `${tx.durationHours || 1} Hr Pass`,
                 amount: amount,
-                status: status === 'paid' ? 'completed' : status,
+                status: isSuccess ? 'completed' : (isPending ? 'pending' : 'failed'),
                 receipt: tx.mpesaReceipt || tx.receipt || '—',
                 voucher: tx.voucher || '—'
             });
         });
 
-        // Sort descending by date
+        // Sort descending by date (newest first)
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         return res.status(200).json({
@@ -1960,8 +1980,8 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Payment history error:", error);
-        return res.status(500).json({ error: error.message });
+        console.error("Failed to load ISP payments:", error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
