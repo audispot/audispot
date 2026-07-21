@@ -396,7 +396,7 @@ app.post('/api/hotspot/login', async (req, res) => {
 });
 
 // ====================================================================
-// 6. DYNAMIC M-PESA CALLBACK & ISP WALLET & CUSTOM DURATION ENGINE
+// 6. DYNAMIC M-PESA CALLBACK & DUAL-GATEWAY REVENUE ENGINE
 // ====================================================================
 app.post('/api/mpesa/callback', async (req, res) => {
     console.log("=== INCOMING MPESA CALLBACK ===");
@@ -442,12 +442,15 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 }
             }
 
+            // Fetch ISP Settings to verify Gateway Mode (Platform vs Custom Daraja)
+            const settingsDoc = await db.collection('settings').doc(ispId).get();
+            const gatewayType = settingsDoc.exists ? (settingsDoc.data().mpesaIntegrationType || 'platform') : 'platform';
+
             // 3. DYNAMIC DURATION LOOKUP FROM ISP_PACKAGES
-            let durationHours = 1; // Default safety fallback (1 hr)
+            let durationHours = 1; 
             let bandwidthProfile = profile || "Default_Limit";
 
             try {
-                // Search for the package created by this ISP that matches the price paid
                 const packageQuery = await db.collection('isp_packages')
                     .where('ispId', '==', ispId)
                     .where('price', '==', amountPaid)
@@ -460,20 +463,18 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     if (matchedPkg.bandwidthProfile) {
                         bandwidthProfile = matchedPkg.bandwidthProfile;
                     }
-                    console.log(`Matched ISP Custom Package: ${matchedPkg.packageName}, Duration: ${durationHours} hours`);
                 } else {
-                    // Smart fallback calculation if no custom package was found
-                    if (amountPaid >= 2000) durationHours = 720;      // 1 Month
-                    else if (amountPaid >= 500) durationHours = 168;  // 1 Week
-                    else if (amountPaid >= 50) durationHours = 12;    // 12 Hours
-                    else if (amountPaid >= 20) durationHours = 3;     // 3 Hours
-                    else if (amountPaid >= 10) durationHours = 2;     // 2 Hours
+                    if (amountPaid >= 2000) durationHours = 720;      
+                    else if (amountPaid >= 500) durationHours = 168;  
+                    else if (amountPaid >= 50) durationHours = 12;    
+                    else if (amountPaid >= 20) durationHours = 3;     
+                    else if (amountPaid >= 10) durationHours = 2;     
                 }
             } catch (pkgErr) {
                 console.error("Dynamic package lookup error:", pkgErr.message);
             }
 
-            // 4. SAVE TRANSACTION RECORD
+            // 4. SAVE TRANSACTION RECORD (Tracks Revenue on Dashboard for Both Modes)
             if (mpesaReceipt) {
                 const transactionPayload = {
                     mpesaReceipt: mpesaReceipt,
@@ -483,6 +484,8 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     customerPhone: payingPhone,
                     macAddress: cleanMac,
                     routerId: routerId || "unknown",
+                    ispId: ispId,
+                    gatewayType: gatewayType, // 'platform' or 'custom_daraja'
                     profileName: bandwidthProfile,
                     timestamp: new Date().toISOString(),
                     createdAt: new Date().toISOString(),
@@ -493,19 +496,19 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 await db.collection('global_transactions').doc(mpesaReceipt).set(transactionPayload, { merge: true });
             }
 
-            // 5. CREDIT ISP OWNER DASHBOARD WALLET
-            if (ispId) {
+            // 5. CREDIT ISP OWNER DASHBOARD WALLET (ONLY IF USING PLATFORM GATEWAY)
+            if (ispId && gatewayType === 'platform') {
                 const ispRef = db.collection('isp_users').doc(ispId);
                 await db.runTransaction(async (ts) => {
                     const iDoc = await ts.get(ispRef);
                     if (iDoc.exists) {
                         const currentBal = iDoc.data().walletBalance || 0;
                         ts.update(ispRef, { walletBalance: currentBal + amountPaid });
-                        console.log(`Credited ISP ${ispId} wallet with +KES ${amountPaid}. New balance: ${currentBal + amountPaid}`);
-                    } else {
-                        console.error(`ISP account ${ispId} does not exist in isp_users collection.`);
+                        console.log(`Credited ISP ${ispId} platform wallet with +KES ${amountPaid}.`);
                     }
                 });
+            } else {
+                console.log(`ISP ${ispId} uses Custom Daraja Gateway. Funds settled directly to their Till/Paybill.`);
             }
 
             // 6. UPDATE SUBSCRIBER RECORD
@@ -538,7 +541,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     ]);
                     await api.close();
                 } catch (rErr) {
-                    console.error("Router connection/provisioning error:", rErr.message);
+                    console.error("Router provisioning error:", rErr.message);
                 }
             }
 
@@ -554,7 +557,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
 
     return res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
-
 // Polling Route to check payment progress inside connect.html
 app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
     try {
@@ -579,17 +581,34 @@ app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
     }
 });
 
-// 7. Fetch Wallet Statistics & Router Counts
+// 7. Fetch Dual-Gateway Wallet & Revenue Statistics
 app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
     const { ispId } = req.params;
     try {
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
         if (!ispDoc.exists) return res.status(404).json({ error: "ISP not found" });
         
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+        
+        // Compute total gross revenue processed (Platform + Custom Till)
+        const txSnapshot = await db.collection('global_transactions')
+            .where('ispId', '==', ispId)
+            .get();
+
+        let totalGrossEarned = 0;
+        txSnapshot.forEach(doc => {
+            totalGrossEarned += (doc.data().grossAmount || 0);
+        });
+
         const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+
         return res.status(200).json({
             success: true,
-            balance: ispDoc.data().walletBalance || 0,
+            gatewayType: settings.mpesaIntegrationType || 'platform', // 'platform' or 'custom_daraja'
+            tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
+            withdrawableBalance: ispDoc.data().walletBalance || 0,
+            totalGrossEarned: totalGrossEarned,
             routerCount: routersSnapshot.size,
             ispName: ispDoc.data().ispName
         });
