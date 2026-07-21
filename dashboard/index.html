@@ -2248,6 +2248,13 @@ async function fetchDashboardEarningsStats(ispId) {
     }
 }
 
+// Call this function when the Payments & Earnings tab opens
+function onPaymentsTabOpened() {
+    // Get logged in ISP User ID
+    const ispId = window.currentIspId || localStorage.getItem('ispId') || 'default_isp';
+    loadPaymentHistoryView(ispId);
+}
+
        // ==========================================
 // VOUCHERS MANAGEMENT ENGINE (INLINE & BULK)
 // ==========================================
