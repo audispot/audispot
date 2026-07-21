@@ -273,34 +273,35 @@
                     </div>
                 </div>
                 <!-- VIEW 3: PAYMENTS & SETTLED DUAL-GATEWAY POOLS -->
-<div id="viewframe-earnings" class="space-y-6 hidden viewframe">
+<div id="viewframe-earnings" class="space-y-6 hidden viewframe w-full">
     
-    <!-- Top Row: Dual-Gateway Settlement Card -->
-    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl max-w-xl mx-auto space-y-4 text-xs shadow-sm">
+    <!-- Top Row: Dual-Gateway Settlement Card (Full Width) -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl w-full space-y-4 text-xs shadow-sm">
         
         <!-- Header & Gateway Badge -->
         <div class="flex items-center justify-between">
-            <div class="w-10 h-10 bg-indigo-600/10 text-indigo-500 rounded-lg flex items-center justify-center text-lg">
-                <i class="fa-solid fa-building-columns"></i>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600/10 text-indigo-500 rounded-lg flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 dark:text-white text-sm">Safaricom Gateway Settlement & Revenue Ledger</h3>
+                    <p class="text-slate-400 text-[11px] mt-0.5">
+                        Network financial pipelines isolate transactions by multi-tenant accounts. Direct Daraja integrations settle immediately into your own Paybill/Till, while Platform shared gateways accumulate in withdrawable pools.
+                    </p>
+                </div>
             </div>
-            <span id="badge-gateway-type" class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+            <span id="badge-gateway-type" class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 shrink-0">
                 Platform Gateway
             </span>
         </div>
 
-        <div>
-            <h3 class="font-bold text-slate-900 dark:text-white text-sm">Safaricom Gateway Settlement & Revenue Ledger</h3>
-            <p class="text-slate-400 mt-1 leading-relaxed">
-                Network financial pipelines isolate transactions by multi-tenant accounts. Direct Daraja integrations settle immediately into your own Paybill/Till, while Platform shared gateways accumulate in withdrawable pools.
-            </p>
-        </div>
-
         <!-- Metrics Grid -->
-        <div class="grid grid-cols-2 gap-3 pt-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <!-- Total Revenue Earned -->
             <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder">
                 <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Revenue Earned</span>
-                <div class="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
                     KSh <span id="lbl-gross-earned">0.00</span>
                 </div>
             </div>
@@ -308,26 +309,26 @@
             <!-- Withdrawable Pool / Direct Till Status -->
             <div class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder">
                 <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Settled Funds Balance</span>
-                <div class="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">
                     KSh <span id="lbl-earnings-withdrawable">0.00</span>
                 </div>
             </div>
         </div>
 
         <!-- Settlement Action Panel -->
-        <div id="panel-withdraw-action" class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder flex items-center justify-between">
+        <div id="panel-withdraw-action" class="p-4 bg-slate-50 dark:bg-vunainput rounded-xl border border-slate-200 dark:border-vunaborder flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Withdrawal Request</span>
                 <p id="lbl-settlement-desc" class="text-[11px] text-slate-500 mt-0.5">Disbursals clear directly via Safaricom B2C.</p>
             </div>
-            <button id="btn-request-settlement" onclick="triggerMonthlySettlementDisbursal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition">
+            <button id="btn-request-settlement" onclick="triggerMonthlySettlementDisbursal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition shrink-0">
                 Request Monthly Settlement
             </button>
         </div>
     </div>
 
-    <!-- Summary Metrics Dashboard Grid (As per design) -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+    <!-- Summary Metrics Dashboard Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">TOTAL</span>
             <div id="cnt-total" class="text-2xl font-black text-slate-900 dark:text-white mt-1">0</div>
@@ -350,15 +351,15 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">COLLECTED TODAY</span>
-            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-today">0</span></div>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-today">0.00</span></div>
         </div>
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">THIS WEEK</span>
-            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-week">0</span></div>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-week">0.00</span></div>
         </div>
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">THIS MONTH</span>
-            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-month">0</span></div>
+            <div class="text-2xl font-black text-emerald-500 mt-1">KSh <span id="rev-month">0.00</span></div>
         </div>
     </div>
 
@@ -377,7 +378,7 @@
         </div>
     </div>
 
-    <!-- Real-Time Data Table -->
+    <!-- Data Table -->
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
@@ -395,10 +396,9 @@
                     </tr>
                 </thead>
                 <tbody id="tbl-body-transactions" class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-700 dark:text-slate-300 font-mono text-[11px]">
-                    <!-- Dynamic Rows Rendered Here -->
                     <tr>
                         <td colspan="9" class="p-6 text-center text-slate-400 font-sans">
-                            <i class="fa-solid fa-spinner fa-spin mr-2"></i> Loading transaction history...
+                            <i class="fa-solid fa-spinner fa-spin mr-2"></i> Fetching transaction records...
                         </td>
                     </tr>
                 </tbody>
