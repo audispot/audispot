@@ -2041,7 +2041,7 @@ let ispPackagesCache = [];
 let currentFilter = 'all';
 
 /**
- * Robust DOM Updater that handles plain text AND badge spans inside buttons
+ * Robust DOM Updater
  */
 function setDOMValues(idVariants, value) {
     const list = Array.isArray(idVariants) ? idVariants : [idVariants];
@@ -2049,7 +2049,6 @@ function setDOMValues(idVariants, value) {
     list.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            // If updating tab pill badges specifically
             if (id.startsWith('tab-cnt-') || id.startsWith('cnt-tab-')) {
                 el.textContent = `(${value})`;
             } else {
@@ -2060,7 +2059,59 @@ function setDOMValues(idVariants, value) {
 }
 
 /**
- * Custom Modern Modal
+ * Fetch ISP User's configured packages catalog from active DB
+ */
+async function fetchIspPackageCatalog(tenantId) {
+    try {
+        const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`);
+        if (res.ok) {
+            ispPackagesCache = await res.json();
+            console.log(`[PACKAGE MAP] Successfully loaded ${ispPackagesCache.length} packages for catalog mapping.`);
+        }
+    } catch (err) {
+        console.warn("[PACKAGE MAP] Failed to load catalog mapping:", err.message);
+        ispPackagesCache = [];
+    }
+}
+
+/**
+ * Resolves raw package key/bandwidth to the ISP's actual package name
+ */
+function resolvePackageDisplayName(rawPackage, amount) {
+    if (!rawPackage) return 'Standard Access';
+
+    const cleanRaw = String(rawPackage).trim();
+
+    // 1. First check dynamic ISP Package Catalog match
+    if (ispPackagesCache && ispPackagesCache.length > 0) {
+        const matched = ispPackagesCache.find(p => 
+            p.id === cleanRaw || 
+            p.docId === cleanRaw || 
+            (p.packageName && p.packageName.toLowerCase() === cleanRaw.toLowerCase()) ||
+            (p.name && p.name.toLowerCase() === cleanRaw.toLowerCase()) ||
+            (p.price && Number(p.price) === Number(amount))
+        );
+
+        if (matched && (matched.packageName || matched.name)) {
+            return matched.packageName || matched.name;
+        }
+    }
+
+    // 2. Dynamic Fallback Rules for "default" or rate limits like "5Mbps"
+    if (cleanRaw.toLowerCase() === 'default' || cleanRaw.toLowerCase().includes('mbps')) {
+        const numAmt = Number(amount);
+        if (numAmt === 5) return '1 hr time';
+        if (numAmt === 10) return '2hrs Net';
+        if (numAmt === 20) return '24hrs Unlimited';
+        return cleanRaw.toLowerCase() === 'default' ? 'Hotspot Pass' : cleanRaw;
+    }
+
+    return cleanRaw;
+}
+
+/**
+ * Modern Confirmation Modal
  */
 function showModernConfirmModal(title, message, onConfirm) {
     const oldModal = document.getElementById('audispot-custom-modal');
@@ -2098,11 +2149,11 @@ function showModernConfirmModal(title, message, onConfirm) {
 }
 
 /**
- * Client-side fallback accumulator for Today, Week, Month totals
+ * Client-side periodic calculation fallback
  */
 function calculatePeriodicTotals(records) {
     const now = new Date();
-    const todayStr = now.toLocaleDateString('en-US'); // Matches "7/22/2026"
+    const todayStr = now.toLocaleDateString('en-US');
 
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
@@ -2117,7 +2168,6 @@ function calculatePeriodicTotals(records) {
             const amt = parseFloat(tx.amount || 0);
             const d = new Date(tx.date);
 
-            // Today check using String match or Timestamp
             if (d.toLocaleDateString('en-US') === todayStr || d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
                 today += amt;
             }
@@ -2152,6 +2202,10 @@ async function loadPaymentHistoryView(overrideIspId) {
     }
 
     try {
+        // 1. Fetch Package Catalog dynamically for this specific ISP
+        await fetchIspPackageCatalog(tenantId);
+
+        // 2. Fetch Ledger Data
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         const response = await fetch(url);
 
@@ -2160,32 +2214,41 @@ async function loadPaymentHistoryView(overrideIspId) {
         const data = await response.json();
         if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
-        allTransactionsCache = data.transactions || [];
+        // 3. Map transactions with Package Resolver
+        allTransactionsCache = (data.transactions || []).map(tx => ({
+            ...tx,
+            displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
+        }));
 
         const m = data.metrics || {};
         const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
 
-        // 1. REVENUE CARDS
+        // 4. REVENUE CARDS
         const grossEarned = m.grossEarnedAllTime != null ? m.grossEarnedAllTime : allTransactionsCache.reduce((a, c) => a + (c.amount || 0), 0);
         
         setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], `KSh ${grossEarned.toFixed(2)}`);
 
-        // Settled Funds Box
+        // Dynamic Gateway Badge & Settled Funds Box
+        const userTillNumber = data.tillNumber || data.paybillNumber || '';
+        const badge = document.getElementById('badge-gateway-type');
+
         if (isDaraja) {
-            const tillStr = data.tillNumber && data.tillNumber !== 'N/A' ? ` (Till #${data.tillNumber})` : ' (Custom Daraja)';
+            const tillStr = userTillNumber ? ` (Till #${userTillNumber})` : ' (Custom Daraja)';
             setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${grossEarned.toFixed(2)}${tillStr}`);
             
-            // Badge
-            const badge = document.getElementById('badge-gateway-type');
             if (badge) {
-                badge.innerText = `CUSTOM DARAJA (TILL #${data.tillNumber || '4030905'})`;
+                badge.innerText = userTillNumber ? `CUSTOM DARAJA (TILL #${userTillNumber})` : "CUSTOM DARAJA";
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
             }
         } else {
             setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
+            if (badge) {
+                badge.innerText = "PLATFORM GATEWAY";
+                badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+            }
         }
 
-        // 2. COUNTS (Top Cards)
+        // 5. COUNTS
         const total = m.totalCount || allTransactionsCache.length;
         const completed = m.completedCount || allTransactionsCache.filter(t => t.status === 'completed').length;
         const pending = m.pendingCount || allTransactionsCache.filter(t => t.status === 'pending').length;
@@ -2196,10 +2259,10 @@ async function loadPaymentHistoryView(overrideIspId) {
         setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], pending);
         setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], failed);
 
-        // 3. TAB PILL BADGES FIX
+        // Update Tab Pill Counters
         updateTabBadges(total, completed, pending, failed);
 
-        // 4. PERIODIC METRICS (Today, Week, Month)
+        // 6. PERIODIC METRICS
         const periodic = calculatePeriodicTotals(allTransactionsCache);
         const todayVal = (m.collectedToday && m.collectedToday > 0) ? m.collectedToday : periodic.today;
         const weekVal = (m.collectedThisWeek && m.collectedThisWeek > 0) ? m.collectedThisWeek : periodic.week;
@@ -2209,7 +2272,7 @@ async function loadPaymentHistoryView(overrideIspId) {
         setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], `KSh ${weekVal.toFixed(2)}`);
         setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${monthVal.toFixed(2)}`);
 
-        // 5. RENDER TABLE
+        // 7. RENDER TABLE
         renderTransactionTable(allTransactionsCache);
 
     } catch (error) {
@@ -2218,7 +2281,7 @@ async function loadPaymentHistoryView(overrideIspId) {
 }
 
 /**
- * Updates Tab Button Texts accurately (All (4), Completed (4), etc.)
+ * Updates Tab Badges
  */
 function updateTabBadges(all, completed, pending, failed) {
     const btnAll = document.getElementById('btn-filter-all');
@@ -2235,7 +2298,7 @@ function updateTabBadges(all, completed, pending, failed) {
 }
 
 /**
- * RENDER TABLE
+ * RENDER TRANSACTION TABLE
  */
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
@@ -2263,12 +2326,14 @@ function renderTransactionTable(records) {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">• failed</span>`;
         }
 
+        const pkgDisplay = tx.displayPackage || resolvePackageDisplayName(tx.package, tx.amount);
+
         const rowHtml = `
             <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                 <td class="p-3.5 text-slate-400 text-xs">${formattedDate}</td>
                 <td class="p-3.5 font-bold text-slate-900 dark:text-white text-xs">${tx.phone}</td>
                 <td class="p-3.5 text-slate-400 text-xs">${tx.customer}</td>
-                <td class="p-3.5 text-slate-200 text-xs font-semibold">${tx.package}</td>
+                <td class="p-3.5 text-slate-200 text-xs font-semibold">${pkgDisplay}</td>
                 <td class="p-3.5 font-bold text-emerald-500 text-xs">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
                 <td class="p-3.5">${statusBadge}</td>
                 <td class="p-3.5 text-slate-400 text-xs font-mono">${tx.receipt}</td>
@@ -2307,6 +2372,7 @@ function searchTxTable() {
     const searched = allTransactionsCache.filter(t => {
         return (t.phone && t.phone.toLowerCase().includes(query)) ||
                (t.receipt && t.receipt.toLowerCase().includes(query)) ||
+               (t.displayPackage && t.displayPackage.toLowerCase().includes(query)) ||
                (t.package && t.package.toLowerCase().includes(query));
     });
 
@@ -2326,16 +2392,12 @@ function voidTransaction(txId) {
     );
 }
 
-/**
- * PREVENT DUP/OVERWRITE CALLS
- * Completely overrides fetchDashboardEarningsStats to stop background timers from wiping Till data
- */
+// Disable background override timers
 window.fetchDashboardEarningsStats = function() {
-    // Intentionally no-op to protect rendered ledger state
     return Promise.resolve();
 };
 
-// Initial Auto-run
+// Initial Load
 document.addEventListener('DOMContentLoaded', () => {
     loadPaymentHistoryView();
 });
