@@ -2040,104 +2040,75 @@ let allTransactionsCache = [];
 let currentFilter = 'all';
 
 async function loadPaymentHistoryView(ispId) {
+    // Dynamically resolve tenant strictly from the current user session
+    const tenantId = ispId 
+        || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')) : null) 
+        || localStorage.getItem('ispId')
+        || window.currentIspId;
 
-    // Use the same ISP ID strategy used everywhere else in your dashboard.
-    const tenantId = ispId || CURRENT_ISP_ID;
-
-    if (!tenantId || tenantId === "default_isp") {
-        console.error("No active ISP session found to fetch payment history.");
+    // Safety check: Don't fetch if no valid session exists
+    if (!tenantId) {
+        console.error("[PAYMENT FETCH] No active ISP session found. Please authenticate.");
+        const tbody = document.getElementById('tbl-body-transactions');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-amber-400 font-sans">Please log in to view transaction records.</td></tr>`;
+        }
         return;
     }
 
-    console.log(`[PAYMENT FETCH] Fetching transaction history for tenant: ${tenantId}`);
+    console.log(`[PAYMENT FETCH] Requesting transaction ledger for active tenant: ${tenantId}`);
 
     try {
-
-        // IMPORTANT: Use API_BASE_URL just like your working modules.
-        const response = await fetch(
-            `${API_BASE_URL}/api/isp/payment-history/${encodeURIComponent(tenantId)}`
-        );
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status} - Unable to fetch payment history.`);
-        }
-
+        const response = await fetch(`/api/isp/payment-history/${encodeURIComponent(tenantId)}`);
         const data = await response.json();
-        console.log("PAYMENT DATA:", data);
 
         if (!data.success) {
-            throw new Error(data.error || "Failed to retrieve transaction records");
+            throw new Error(data.error || "Failed to load payment history");
         }
 
-        // Populate cache
+        // 1. UPDATE GLOBAL CACHE FOR SEARCH/FILTER
         allTransactionsCache = data.transactions || [];
 
         const m = data.metrics || {};
 
         // Safe DOM updater
-        const updateText = (id, text) => {
+        const setVal = (id, text) => {
             const el = document.getElementById(id);
-            if (el) {
-                el.textContent = text;
-            }
+            if (el) el.textContent = text;
         };
 
-        // Revenue cards
-        updateText(
-            "lbl-gross-earned",
-            (m.grossEarnedAllTime || 0).toFixed(2)
-        );
+        // 2. MAP FINANCIAL CARDS DYNAMICALLY
+        const grossText = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
+        setVal('gross-revenue-earned', grossText);
+        setVal('lbl-gross-earned', (m.grossEarnedAllTime || 0).toFixed(2));
 
-        updateText(
-            "lbl-earnings-withdrawable",
-            (data.withdrawableBalance || 0).toFixed(2)
-        );
+        const settledText = data.gatewayType === 'daraja' 
+            ? `Direct Till #${data.tillNumber}` 
+            : `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`;
+        
+        setVal('settled-funds-balance', settledText);
+        setVal('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
 
-        // Collection stats
-        updateText(
-            "rev-today",
-            (m.collectedToday || 0).toFixed(2)
-        );
+        // Periodic Collections
+        setVal('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
+        setVal('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
+        setVal('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
-        updateText(
-            "rev-week",
-            (m.collectedThisWeek || 0).toFixed(2)
-        );
+        // Transaction Counts
+        setVal('total-tx-count', m.totalCount || 0);
+        setVal('completed-tx-count', m.completedCount || 0);
+        setVal('pending-tx-count', m.pendingCount || 0);
+        setVal('failed-tx-count', m.failedCount || 0);
 
-        updateText(
-            "rev-month",
-            (m.collectedThisMonth || 0).toFixed(2)
-        );
-
-        // Counters
-        updateText("cnt-total", m.totalCount || 0);
-        updateText("cnt-completed", m.completedCount || 0);
-        updateText("cnt-pending", m.pendingCount || 0);
-        updateText("cnt-failed", m.failedCount || 0);
-
-        // Refresh gateway / settlement information
-        fetchDashboardEarningsStats(tenantId);
-
-        // Render table
-        filterTxTable(currentFilter || "all");
+        // 3. RENDER TABLE WITH RECENT DATA
+        renderTransactionTable(allTransactionsCache);
 
     } catch (error) {
-
-        console.error("Error loading payment history:", error);
-
-        const tbody = document.getElementById("tbl-body-transactions");
-
+        console.error("Error rendering payment ledger:", error);
+        const tbody = document.getElementById('tbl-body-transactions');
         if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" class="p-6 text-center text-red-400 font-sans">
-                        Failed to load payment records:<br>
-                        ${error.message}
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-400 font-sans">Failed to load transactions: ${error.message}</td></tr>`;
         }
-
     }
 }
         
