@@ -2041,32 +2041,26 @@ let ispPackagesCache = [];
 let currentFilter = 'all';
 
 /**
- * Cleanly sets text content while avoiding duplicate "KSh KSh" prefixes
+ * Robust DOM Updater that handles plain text AND badge spans inside buttons
  */
-function setDOMValues(idVariants, text) {
+function setDOMValues(idVariants, value) {
     const list = Array.isArray(idVariants) ? idVariants : [idVariants];
     
-    // Clean string if KSh is repeated
-    let cleanText = String(text);
-    if (cleanText.startsWith("KSh KSh")) {
-        cleanText = cleanText.replace("KSh KSh", "KSh ");
-    }
-
     list.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            // Check if element HTML already includes hardcoded currency text
-            if (cleanText.startsWith("KSh ") && el.innerText.includes("KSh") && !el.innerText.includes("(")) {
-                el.textContent = cleanText.replace("KSh ", "").trim();
+            // If updating tab pill badges specifically
+            if (id.startsWith('tab-cnt-') || id.startsWith('cnt-tab-')) {
+                el.textContent = `(${value})`;
             } else {
-                el.textContent = cleanText;
+                el.textContent = value;
             }
         }
     });
 }
 
 /**
- * Custom AudiSpot Modern Confirmation Modal
+ * Custom Modern Modal
  */
 function showModernConfirmModal(title, message, onConfirm) {
     const oldModal = document.getElementById('audispot-custom-modal');
@@ -2096,10 +2090,7 @@ function showModernConfirmModal(title, message, onConfirm) {
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    document.getElementById('btn-modal-cancel').onclick = () => {
-        document.getElementById('audispot-custom-modal').remove();
-    };
-
+    document.getElementById('btn-modal-cancel').onclick = () => document.getElementById('audispot-custom-modal').remove();
     document.getElementById('btn-modal-confirm').onclick = () => {
         document.getElementById('audispot-custom-modal').remove();
         if (typeof onConfirm === 'function') onConfirm();
@@ -2107,86 +2098,42 @@ function showModernConfirmModal(title, message, onConfirm) {
 }
 
 /**
- * Fetch ISP User's configured packages catalog
+ * Client-side fallback accumulator for Today, Week, Month totals
  */
-async function fetchIspPackageCatalog(tenantId) {
-    try {
-        const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-        const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`);
-        if (res.ok) {
-            ispPackagesCache = await res.json();
-        }
-    } catch (err) {
-        ispPackagesCache = [];
-    }
-}
-
-/**
- * Resolves raw package key/ID to actual display package
- */
-function resolvePackageDisplayName(rawPackage, amount) {
-    if (!rawPackage) return 'Standard Access';
-
-    if (ispPackagesCache && ispPackagesCache.length > 0) {
-        const matched = ispPackagesCache.find(p => 
-            p.id === rawPackage || 
-            p.docId === rawPackage || 
-            (p.packageName && p.packageName.toLowerCase() === rawPackage.toLowerCase()) ||
-            (p.price && Number(p.price) === Number(amount))
-        );
-
-        if (matched && matched.packageName) {
-            return matched.packageName;
-        }
-    }
-
-    if (rawPackage.toLowerCase() === 'default') {
-        if (amount === 5) return '1 hr time';
-        if (amount === 10) return '2hrs Net';
-        if (amount === 20) return '24hrs Unlimited';
-        return 'Hotspot Voucher';
-    }
-
-    return rawPackage;
-}
-
-/**
- * Client-side metric accumulator fallback for Today/Week/Month totals
- */
-function calculatePeriodicTotals(transactions) {
+function calculatePeriodicTotals(records) {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStr = now.toLocaleDateString('en-US'); // Matches "7/22/2026"
 
-    // Start of week (Sunday or Monday depending on standard)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    let todayTotal = 0;
-    let weekTotal = 0;
-    let monthTotal = 0;
+    let today = 0, week = 0, month = 0;
 
-    transactions.forEach(tx => {
+    records.forEach(tx => {
         if (tx.status === 'completed' || tx.status === 'success') {
-            const txDate = new Date(tx.date);
             const amt = parseFloat(tx.amount || 0);
+            const d = new Date(tx.date);
 
-            if (txDate >= startOfToday) todayTotal += amt;
-            if (txDate >= startOfWeek) weekTotal += amt;
-            if (txDate >= startOfMonth) monthTotal += amt;
+            // Today check using String match or Timestamp
+            if (d.toLocaleDateString('en-US') === todayStr || d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+                today += amt;
+            }
+            if (d >= startOfWeek) week += amt;
+            if (d >= startOfMonth) month += amt;
         }
     });
 
-    return { todayTotal, weekTotal, monthTotal };
+    return { today, week, month };
 }
 
 /**
  * MAIN PAYMENTS LEDGER LOADER
  */
 async function loadPaymentHistoryView(overrideIspId) {
-    console.log("[PAYMENT FETCH] Starting ledger initialization...");
+    console.log("[PAYMENT FETCH] Starting ledger sync...");
 
     const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
 
@@ -2200,17 +2147,11 @@ async function loadPaymentHistoryView(overrideIspId) {
     }
 
     if (!tenantId) {
-        console.warn("[PAYMENT FETCH] Tenant ID missing. Retrying in 800ms...");
-        setTimeout(() => {
-            const retryId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : localStorage.getItem('ispId');
-            if (retryId) loadPaymentHistoryView(retryId);
-        }, 800);
+        console.warn("[PAYMENT FETCH] Missing tenant session ID.");
         return;
     }
 
     try {
-        await fetchIspPackageCatalog(tenantId);
-
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         const response = await fetch(url);
 
@@ -2219,67 +2160,83 @@ async function loadPaymentHistoryView(overrideIspId) {
         const data = await response.json();
         if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
-        allTransactionsCache = (data.transactions || []).map(tx => ({
-            ...tx,
-            displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
-        }));
+        allTransactionsCache = data.transactions || [];
 
         const m = data.metrics || {};
         const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
 
-        // 1. REVENUE & SETTLED BALANCE
-        const grossEarnedVal = (m.grossEarnedAllTime != null) 
-            ? m.grossEarnedAllTime 
-            : allTransactionsCache.reduce((acc, t) => acc + (t.amount || 0), 0);
+        // 1. REVENUE CARDS
+        const grossEarned = m.grossEarnedAllTime != null ? m.grossEarnedAllTime : allTransactionsCache.reduce((a, c) => a + (c.amount || 0), 0);
+        
+        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], `KSh ${grossEarned.toFixed(2)}`);
 
-        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], `${grossEarnedVal.toFixed(2)}`);
-
+        // Settled Funds Box
         if (isDaraja) {
-            const tillLabel = data.tillNumber ? ` (Till #${data.tillNumber})` : ' (Direct Till)';
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `${grossEarnedVal.toFixed(2)}${tillLabel}`);
-            setDOMValues('lbl-earnings-withdrawable', grossEarnedVal.toFixed(2));
+            const tillStr = data.tillNumber && data.tillNumber !== 'N/A' ? ` (Till #${data.tillNumber})` : ' (Custom Daraja)';
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${grossEarned.toFixed(2)}${tillStr}`);
+            
+            // Badge
+            const badge = document.getElementById('badge-gateway-type');
+            if (badge) {
+                badge.innerText = `CUSTOM DARAJA (TILL #${data.tillNumber || '4030905'})`;
+                badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+            }
         } else {
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `${(data.withdrawableBalance || 0).toFixed(2)}`);
-            setDOMValues('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
         }
 
-        // 2. COUNTS
-        const completedTx = allTransactionsCache.filter(t => t.status === 'completed' || t.status === 'success').length;
-        const pendingTx = allTransactionsCache.filter(t => t.status === 'pending').length;
-        const failedTx = allTransactionsCache.filter(t => t.status === 'failed').length;
+        // 2. COUNTS (Top Cards)
+        const total = m.totalCount || allTransactionsCache.length;
+        const completed = m.completedCount || allTransactionsCache.filter(t => t.status === 'completed').length;
+        const pending = m.pendingCount || allTransactionsCache.filter(t => t.status === 'pending').length;
+        const failed = m.failedCount || allTransactionsCache.filter(t => t.status === 'failed').length;
 
-        setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], m.totalCount || allTransactionsCache.length);
-        setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], m.completedCount || completedTx);
-        setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], m.pendingCount || pendingTx);
-        setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], m.failedCount || failedTx);
+        setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], total);
+        setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], completed);
+        setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], pending);
+        setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], failed);
 
-        // Filter tabs counts
-        setDOMValues('tab-cnt-all', allTransactionsCache.length);
-        setDOMValues('tab-cnt-completed', completedTx);
-        setDOMValues('tab-cnt-pending', pendingTx);
-        setDOMValues('tab-cnt-failed', failedTx);
+        // 3. TAB PILL BADGES FIX
+        updateTabBadges(total, completed, pending, failed);
 
-        // 3. PERIODIC EARNINGS (Collected Today, This Week, This Month)
-        const computed = calculatePeriodicTotals(allTransactionsCache);
-        const todayVal = m.collectedToday != null ? m.collectedToday : computed.todayTotal;
-        const weekVal = m.collectedThisWeek != null ? m.collectedThisWeek : computed.weekTotal;
-        const monthVal = m.collectedThisMonth != null ? m.collectedThisMonth : computed.monthTotal;
+        // 4. PERIODIC METRICS (Today, Week, Month)
+        const periodic = calculatePeriodicTotals(allTransactionsCache);
+        const todayVal = (m.collectedToday && m.collectedToday > 0) ? m.collectedToday : periodic.today;
+        const weekVal = (m.collectedThisWeek && m.collectedThisWeek > 0) ? m.collectedThisWeek : periodic.week;
+        const monthVal = (m.collectedThisMonth && m.collectedThisMonth > 0) ? m.collectedThisMonth : periodic.month;
 
         setDOMValues(['collected-today', 'stat-collected-today', 'lbl-collected-today'], `KSh ${todayVal.toFixed(2)}`);
         setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], `KSh ${weekVal.toFixed(2)}`);
         setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${monthVal.toFixed(2)}`);
 
-        // 4. DRAW TABLE
+        // 5. RENDER TABLE
         renderTransactionTable(allTransactionsCache);
 
     } catch (error) {
-        console.error("[PAYMENT FETCH] Error loading ledger:", error);
+        console.error("[PAYMENT FETCH] Sync failed:", error);
     }
 }
 
-// ====================================================================
-// RENDER TABLE
-// ====================================================================
+/**
+ * Updates Tab Button Texts accurately (All (4), Completed (4), etc.)
+ */
+function updateTabBadges(all, completed, pending, failed) {
+    const btnAll = document.getElementById('btn-filter-all');
+    if (btnAll) btnAll.innerHTML = `All (${all})`;
+
+    const btnCompleted = document.getElementById('btn-filter-completed');
+    if (btnCompleted) btnCompleted.innerHTML = `Completed (${completed})`;
+
+    const btnPending = document.getElementById('btn-filter-pending');
+    if (btnPending) btnPending.innerHTML = `Pending (${pending})`;
+
+    const btnFailed = document.getElementById('btn-filter-failed');
+    if (btnFailed) btnFailed.innerHTML = `Failed (${failed})`;
+}
+
+/**
+ * RENDER TABLE
+ */
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
     if (!tbody) return;
@@ -2287,7 +2244,7 @@ function renderTransactionTable(records) {
     tbody.innerHTML = '';
 
     if (!records || records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded for this ISP yet.</td></tr>`;
         return;
     }
 
@@ -2311,7 +2268,7 @@ function renderTransactionTable(records) {
                 <td class="p-3.5 text-slate-400 text-xs">${formattedDate}</td>
                 <td class="p-3.5 font-bold text-slate-900 dark:text-white text-xs">${tx.phone}</td>
                 <td class="p-3.5 text-slate-400 text-xs">${tx.customer}</td>
-                <td class="p-3.5 text-slate-200 text-xs font-semibold">${tx.displayPackage || tx.package}</td>
+                <td class="p-3.5 text-slate-200 text-xs font-semibold">${tx.package}</td>
                 <td class="p-3.5 font-bold text-emerald-500 text-xs">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
                 <td class="p-3.5">${statusBadge}</td>
                 <td class="p-3.5 text-slate-400 text-xs font-mono">${tx.receipt}</td>
@@ -2327,18 +2284,9 @@ function renderTransactionTable(records) {
     });
 }
 
-// Filter Status Tabs
+// Filter Tabs
 function filterTxTable(status) {
     currentFilter = status;
-    
-    ['all', 'completed', 'pending', 'failed'].forEach(st => {
-        const btn = document.getElementById(`btn-filter-${st}`);
-        if (btn) {
-            btn.className = (st === status) 
-                ? "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold" 
-                : "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
-        }
-    });
 
     if (status === 'all') {
         renderTransactionTable(allTransactionsCache);
@@ -2359,14 +2307,13 @@ function searchTxTable() {
     const searched = allTransactionsCache.filter(t => {
         return (t.phone && t.phone.toLowerCase().includes(query)) ||
                (t.receipt && t.receipt.toLowerCase().includes(query)) ||
-               (t.displayPackage && t.displayPackage.toLowerCase().includes(query)) ||
                (t.package && t.package.toLowerCase().includes(query));
     });
 
     renderTransactionTable(searched);
 }
 
-// Void Action Helper
+// Void Action
 function voidTransaction(txId) {
     showModernConfirmModal(
         "Void Transaction Record?",
@@ -2380,20 +2327,21 @@ function voidTransaction(txId) {
 }
 
 /**
- * Disabled dashboard stats override to stop wiping Daraja info
+ * PREVENT DUP/OVERWRITE CALLS
+ * Completely overrides fetchDashboardEarningsStats to stop background timers from wiping Till data
  */
-async function fetchDashboardEarningsStats(ispId) {
-    // Left empty intentionally to prevent overwriting loadPaymentHistoryView values
-}
+window.fetchDashboardEarningsStats = function() {
+    // Intentionally no-op to protect rendered ledger state
+    return Promise.resolve();
+};
+
+// Initial Auto-run
+document.addEventListener('DOMContentLoaded', () => {
+    loadPaymentHistoryView();
+});
 
 function openSettlementsTab() {
-    const view = document.getElementById('view-settlements');
-    if (view) view.classList.remove('hidden');
     loadPaymentHistoryView();
-}
-
-async function onPaymentsTabOpened() {
-    await loadPaymentHistoryView();
 }
         
 // ==========================================
