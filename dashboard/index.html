@@ -2040,46 +2040,57 @@ let allTransactionsCache = [];
 let currentFilter = 'all';
 
 async function loadPaymentHistoryView(ispId) {
-    // Dynamically resolve tenant strictly from the current user session
+    console.log("[PAYMENT FETCH] loadPaymentHistoryView triggered!");
+
+    // 1. DYNAMIC TENANT ID RESOLUTION
     const tenantId = ispId 
         || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')) : null) 
         || localStorage.getItem('ispId')
         || window.currentIspId;
 
-    // Safety check: Don't fetch if no valid session exists
+    console.log("[PAYMENT FETCH] Resolved Tenant ID:", tenantId);
+
     if (!tenantId) {
-        console.error("[PAYMENT FETCH] No active ISP session found. Please authenticate.");
+        console.warn("[PAYMENT FETCH] Aborted: No valid tenant ID found in session or localStorage.");
         const tbody = document.getElementById('tbl-body-transactions');
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-amber-400 font-sans">Please log in to view transaction records.</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="p-6 text-center text-amber-400 font-sans">
+                        Unable to identify user session. Please log in again.
+                    </td>
+                </tr>`;
         }
         return;
     }
 
-    console.log(`[PAYMENT FETCH] Requesting transaction ledger for active tenant: ${tenantId}`);
-
     try {
-        const response = await fetch(`/api/isp/payment-history/${encodeURIComponent(tenantId)}`);
+        const url = `/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
+        console.log(`[PAYMENT FETCH] Sending GET request to: ${url}`);
+
+        const response = await fetch(url);
         const data = await response.json();
+
+        console.log("[PAYMENT FETCH] Response received:", data);
 
         if (!data.success) {
             throw new Error(data.error || "Failed to load payment history");
         }
 
-        // 1. UPDATE GLOBAL CACHE FOR SEARCH/FILTER
+        // 2. STORE DATA IN GLOBAL CACHE
         allTransactionsCache = data.transactions || [];
+        console.log(`[PAYMENT FETCH] Loaded ${allTransactionsCache.length} transactions into cache.`);
 
         const m = data.metrics || {};
 
-        // Safe DOM updater
+        // Helper for safe DOM updates
         const setVal = (id, text) => {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
         };
 
-        // 2. MAP FINANCIAL CARDS DYNAMICALLY
-        const grossText = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
-        setVal('gross-revenue-earned', grossText);
+        // 3. UPDATE CARDS
+        setVal('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
         setVal('lbl-gross-earned', (m.grossEarnedAllTime || 0).toFixed(2));
 
         const settledText = data.gatewayType === 'daraja' 
@@ -2089,27 +2100,65 @@ async function loadPaymentHistoryView(ispId) {
         setVal('settled-funds-balance', settledText);
         setVal('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
 
-        // Periodic Collections
         setVal('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
         setVal('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
         setVal('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
-        // Transaction Counts
         setVal('total-tx-count', m.totalCount || 0);
         setVal('completed-tx-count', m.completedCount || 0);
         setVal('pending-tx-count', m.pendingCount || 0);
         setVal('failed-tx-count', m.failedCount || 0);
 
-        // 3. RENDER TABLE WITH RECENT DATA
-        renderTransactionTable(allTransactionsCache);
+        // 4. DRAW TABLE
+        if (typeof renderTransactionTable === 'function') {
+            renderTransactionTable(allTransactionsCache);
+        } else if (typeof filterTxTable === 'function') {
+            filterTxTable('all');
+        } else {
+            // DIRECT TABLE FALLBACK IN CASE RENDER FUNCTION IS MISSING
+            renderDirectTableFallback(allTransactionsCache);
+        }
 
     } catch (error) {
-        console.error("Error rendering payment ledger:", error);
+        console.error("[PAYMENT FETCH] Error:", error);
         const tbody = document.getElementById('tbl-body-transactions');
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-400 font-sans">Failed to load transactions: ${error.message}</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="p-6 text-center text-red-400 font-sans">
+                        Failed to render ledger: ${error.message}
+                    </td>
+                </tr>`;
         }
     }
+}
+
+// Fallback renderer to ensure rows print even if table functions are missing
+function renderDirectTableFallback(transactions) {
+    const tbody = document.getElementById('tbl-body-transactions');
+    if (!tbody) return;
+
+    if (!transactions || transactions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-gray-400">No transactions recorded yet.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = transactions.map(tx => `
+        <tr class="border-b border-gray-700/50 hover:bg-gray-800/40 transition">
+            <td class="p-3 text-xs text-gray-300">${new Date(tx.date).toLocaleString()}</td>
+            <td class="p-3 text-xs font-mono text-cyan-400">${tx.receipt}</td>
+            <td class="p-3 text-xs text-gray-200">${tx.customer}</td>
+            <td class="p-3 text-xs text-gray-300">${tx.phone}</td>
+            <td class="p-3 text-xs text-gray-300">${tx.package}</td>
+            <td class="p-3 text-xs font-semibold text-emerald-400">KSh ${tx.amount.toFixed(2)}</td>
+            <td class="p-3 text-xs text-gray-400">${tx.voucher}</td>
+            <td class="p-3 text-xs">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    ${tx.status}
+                </span>
+            </td>
+        </tr>
+    `).join('');
 }
         
 // ====================================================================
@@ -2297,6 +2346,15 @@ async function fetchDashboardEarningsStats(ispId) {
         console.error("Error fetching earnings stats:", err);
     }
 
+}
+
+// Example tab-switch handler
+function openSettlementsTab() {
+    // Show tab content element
+    document.getElementById('view-settlements').classList.remove('hidden');
+
+    // Trigger loader immediately
+    loadPaymentHistoryView();
 }
 
 async function onPaymentsTabOpened() {
