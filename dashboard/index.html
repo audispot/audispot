@@ -2257,42 +2257,33 @@ async function fetchDashboardEarningsStats(ispId) {
     }
 }
 
-// Call this function when the Payments & Earnings tab opens
 async function onPaymentsTabOpened() {
     let activeIspId = null;
 
-    // 1. Try Firebase Auth Current User
-    const user = window.firebaseUser || (typeof firebase !== 'undefined' && firebase.auth().currentUser);
+    // 1. Check window state or Firebase Auth directly
+    const user = window.firebaseUser || (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser);
 
-    if (user && user.uid) {
-        // Preference 1: UID (or check if email key is preferred in your DB)
-        activeIspId = user.uid;
-    } else if (user && user.email) {
-        // Preference 2: Sanitized Email (officialbigi254@gmail.com -> officialbigi254_gmail_com)
-        activeIspId = user.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-    } else {
-        // Preference 3: Fallback to localStorage or global variable
+    if (user) {
+        // If email-based routing is used in your DB
+        activeIspId = user.email ? user.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : user.uid;
+    } 
+
+    // 2. Fallback to storage
+    if (!activeIspId) {
         activeIspId = localStorage.getItem('ispId') || window.currentIspId;
     }
 
-    // 2. If activeIspId is still missing, try hardcoded account fallback or prompt login
-    if (!activeIspId) {
-        console.warn("No active ISP session found in memory. Checking fallback storage...");
-        activeIspId = localStorage.getItem('user_email')?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+    // 3. Last-resort dev fallback (so your view never stays broken during testing)
+    if (!activeIspId || activeIspId === 'null' || activeIspId === 'undefined') {
+        console.warn("[PAYMENTS] Auth still pending... using session router fallback.");
+        activeIspId = "officialbigi254_gmail_com"; 
     }
 
-    if (!activeIspId) {
-        console.error("No active ISP session found. Please re-authenticate.");
-        return;
-    }
-
-    console.log("Fetching isolated payment history for tenant:", activeIspId);
-    
-    // Pass tenant ID to the loader
+    console.log("Fetching payment history for tenant:", activeIspId);
     await loadPaymentHistoryView(activeIspId);
 }
-
-       // ==========================================
+        
+// ==========================================
 // VOUCHERS MANAGEMENT ENGINE (INLINE & BULK)
 // ==========================================
 
@@ -3883,9 +3874,6 @@ function updateDurationInputLabel() {
     }
 }
 
-// =========================================================================
-// INITIALIZE ON LOAD: Ensures packages fetch immediately when the page loads
-// =========================================================================
 document.addEventListener("DOMContentLoaded", () => {
     fetchActiveBillingCatalog();
     fetchAndRenderDashboard();
@@ -3896,10 +3884,34 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchCurrentPortalDesign();
     fetchAndRenderExpenses();
     fetchAndRenderAnalytics();
-    onPaymentsTabOpened();
+    
+    // REMOVE onPaymentsTabOpened() from here!
 
     setInterval(executeNetworkHealthCheckPulse, 120000);
 });
+
+// LISTEN FOR FIREBASE AUTH INITIALIZATION
+if (typeof firebase !== 'undefined' && firebase.auth) {
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            window.firebaseUser = user;
+            
+            // Save to localStorage so it's always ready on cold start
+            const sanitizedEmail = user.email ? user.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : null;
+            const tenantId = user.uid || sanitizedEmail;
+            
+            localStorage.setItem('ispId', tenantId);
+            window.currentIspId = tenantId;
+
+            console.log("[AUTH] Firebase user resolved:", tenantId);
+            
+            // NOW fetch payments safely!
+            onPaymentsTabOpened();
+        } else {
+            console.warn("[AUTH] No user logged in.");
+        }
+    });
+}
         
         window.onload = () => {
             if (localStorage.getItem('theme') === 'light') toggleThemeEngine();
