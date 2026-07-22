@@ -2037,12 +2037,74 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         }
 
 let allTransactionsCache = [];
+let ispPackagesCache = [];
 let currentFilter = 'all';
 
+/**
+ * Helper function to update text across multiple element IDs safely
+ */
+function setDOMValues(idOrList, text) {
+    const ids = Array.isArray(idOrList) ? idOrList : [idOrList];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    });
+}
+
+/**
+ * Fetch ISP User's configured packages to resolve "default" / raw package names
+ */
+async function fetchIspPackageCatalog(tenantId) {
+    try {
+        const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`);
+        if (res.ok) {
+            ispPackagesCache = await res.json();
+            console.log(`[PACKAGE MAP] Loaded ${ispPackagesCache.length} packages for name resolution.`);
+        }
+    } catch (err) {
+        console.warn("[PACKAGE MAP] Could not fetch catalog for package mapping:", err.message);
+        ispPackagesCache = [];
+    }
+}
+
+/**
+ * Resolves raw package string/ID to the ISP's actual package name
+ */
+function resolvePackageDisplayName(rawPackage, amount) {
+    if (!rawPackage) return 'Standard Access';
+
+    // 1. Check if we have an exact match by packageName, id, docId, or price match
+    if (ispPackagesCache && ispPackagesCache.length > 0) {
+        const matched = ispPackagesCache.find(p => 
+            p.id === rawPackage || 
+            p.docId === rawPackage || 
+            (p.packageName && p.packageName.toLowerCase() === rawPackage.toLowerCase()) ||
+            (p.price && Number(p.price) === Number(amount))
+        );
+
+        if (matched && matched.packageName) {
+            return matched.packageName;
+        }
+    }
+
+    // 2. Formatting fallbacks if 'default' or raw bandwidth was stored
+    if (rawPackage.toLowerCase() === 'default') {
+        if (amount === 5) return '1 Hour Access (KSh 5)';
+        if (amount === 10) return '3 Hours Access (KSh 10)';
+        if (amount === 20) return '24 Hours Access (KSh 20)';
+        return 'Hotspot Voucher';
+    }
+
+    return rawPackage;
+}
+
+/**
+ * MAIN PAYMENTS & EARNINGS LOADER
+ */
 async function loadPaymentHistoryView(ispId) {
     console.log("[PAYMENT FETCH] loadPaymentHistoryView triggered!");
 
-    // 1. DYNAMIC TENANT ID RESOLUTION (Matches your working package module)
     const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const tenantId = ispId 
         || (typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : null)
@@ -2067,7 +2129,10 @@ async function loadPaymentHistoryView(ispId) {
     }
 
     try {
-        // 2. CONSTRUCT FULL API ROUTE WITH API_BASE_URL
+        // 1. FETCH ISP PACKAGES IN PARALLEL FOR NAME RESOLUTION
+        await fetchIspPackageCatalog(tenantId);
+
+        // 2. CONSTRUCT FULL API ROUTE
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         console.log(`[PAYMENT FETCH] Sending GET request to: ${url}`);
 
@@ -2085,46 +2150,54 @@ async function loadPaymentHistoryView(ispId) {
             throw new Error(data.error || "Failed to load payment history");
         }
 
-        // 3. STORE DATA IN GLOBAL CACHE
-        allTransactionsCache = data.transactions || [];
+        // 3. STORE DATA IN GLOBAL CACHE WITH MAP
+        allTransactionsCache = (data.transactions || []).map(tx => ({
+            ...tx,
+            displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
+        }));
+
         console.log(`[PAYMENT FETCH] Loaded ${allTransactionsCache.length} transactions into cache.`);
 
         const m = data.metrics || {};
+        const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
+        const grossEarnedFormatted = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
 
-        // Helper for safe DOM updates
-        const setVal = (id, text) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = text;
-        };
+        // 4. MAP FINANCIAL STAT CARDS (Daraja & Platform)
+        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], grossEarnedFormatted);
 
-        // 4. MAP FINANCIAL CARDS
-        setVal('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
-        setVal('lbl-gross-earned', (m.grossEarnedAllTime || 0).toFixed(2));
-
-        const settledText = data.gatewayType === 'daraja' 
-            ? `Direct Till #${data.tillNumber}` 
-            : `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`;
-        
-        setVal('settled-funds-balance', settledText);
-        setVal('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
-
-        setVal('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
-        setVal('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
-        setVal('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
-
-        setVal('total-tx-count', m.totalCount || 0);
-        setVal('completed-tx-count', m.completedCount || 0);
-        setVal('pending-tx-count', m.pendingCount || 0);
-        setVal('failed-tx-count', m.failedCount || 0);
-
-        // 5. DRAW TABLE
-        if (typeof renderTransactionTable === 'function') {
-            renderTransactionTable(allTransactionsCache);
-        } else if (typeof filterTxTable === 'function') {
-            filterTxTable('all');
+        if (isDaraja) {
+            // For Daraja: Show earnings in balance box with Till number tag
+            setDOMValues(
+                ['settled-funds-balance', 'stat-settled-balance'], 
+                `${grossEarnedFormatted} (Till #${data.tillNumber || 'Direct'})`
+            );
+            setDOMValues('lbl-earnings-withdrawable', (m.grossEarnedAllTime || 0).toFixed(2));
         } else {
-            renderDirectTableFallback(allTransactionsCache);
+            // For Platform Gateway
+            const withdrawableFormatted = `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`;
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], withdrawableFormatted);
+            setDOMValues('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
         }
+
+        // 5. COUNTS (Total, Completed, Pending, Failed)
+        setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], m.totalCount || 0);
+        setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], m.completedCount || 0);
+        setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], m.pendingCount || 0);
+        setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], m.failedCount || 0);
+
+        // Filter Tab Badges
+        setDOMValues('tab-cnt-all', m.totalCount || 0);
+        setDOMValues('tab-cnt-completed', m.completedCount || 0);
+        setDOMValues('tab-cnt-pending', m.pendingCount || 0);
+        setDOMValues('tab-cnt-failed', m.failedCount || 0);
+
+        // 6. PERIODIC EARNINGS CARDS
+        setDOMValues(['collected-today', 'stat-collected-today'], `KSh ${(m.collectedToday || 0).toFixed(2)}`);
+        setDOMValues(['collected-this-week', 'stat-collected-week'], `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
+        setDOMValues(['collected-this-month', 'stat-collected-month'], `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
+
+        // 7. DRAW TABLE
+        renderTransactionTable(allTransactionsCache);
 
     } catch (error) {
         console.error("[PAYMENT FETCH] Error:", error);
@@ -2140,36 +2213,13 @@ async function loadPaymentHistoryView(ispId) {
     }
 }
 
-// Fallback renderer to guarantee rows display
+// Fallback renderer
 function renderDirectTableFallback(transactions) {
-    const tbody = document.getElementById('tbl-body-transactions');
-    if (!tbody) return;
-
-    if (!transactions || transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-gray-400">No transactions recorded yet.</td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = transactions.map(tx => `
-        <tr class="border-b border-gray-700/50 hover:bg-gray-800/40 transition">
-            <td class="p-3 text-xs text-gray-300">${new Date(tx.date).toLocaleString()}</td>
-            <td class="p-3 text-xs font-mono text-cyan-400">${tx.receipt}</td>
-            <td class="p-3 text-xs text-gray-200">${tx.customer}</td>
-            <td class="p-3 text-xs text-gray-300">${tx.phone}</td>
-            <td class="p-3 text-xs text-gray-300">${tx.package}</td>
-            <td class="p-3 text-xs font-semibold text-emerald-400">KSh ${tx.amount.toFixed(2)}</td>
-            <td class="p-3 text-xs text-gray-400">${tx.voucher}</td>
-            <td class="p-3 text-xs">
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    ${tx.status}
-                </span>
-            </td>
-        </tr>
-    `).join('');
+    renderTransactionTable(transactions);
 }
-        
+
 // ====================================================================
-// YOUR ORIGINAL RENDER FUNCTION (UNTOUCHED)
+// RENDER TRANSACTION TABLE (UPDATED WITH RESOLVED PACKAGES)
 // ====================================================================
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
@@ -2192,21 +2242,23 @@ function renderTransactionTable(records) {
         if (tx.status === 'completed' || tx.status === 'success') {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">• completed</span>`;
         } else if (tx.status === 'pending') {
-            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-amber-500/20">• pending</span>`;
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">• pending</span>`;
         } else {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">• failed</span>`;
         }
 
+        const displayPkgName = tx.displayPackage || resolvePackageDisplayName(tx.package, tx.amount);
+
         const rowHtml = `
             <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                <td class="p-3.5 text-slate-400">${formattedDate}</td>
-                <td class="p-3.5 font-bold text-slate-900 dark:text-white">${tx.phone}</td>
-                <td class="p-3.5 text-slate-400">${tx.customer}</td>
-                <td class="p-3.5 text-slate-300">${tx.package}</td>
-                <td class="p-3.5 font-bold text-emerald-500">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
+                <td class="p-3.5 text-slate-400 text-xs">${formattedDate}</td>
+                <td class="p-3.5 font-bold text-slate-900 dark:text-white text-xs">${tx.phone}</td>
+                <td class="p-3.5 text-slate-400 text-xs">${tx.customer}</td>
+                <td class="p-3.5 text-slate-200 text-xs font-semibold">${displayPkgName}</td>
+                <td class="p-3.5 font-bold text-emerald-500 text-xs">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
                 <td class="p-3.5">${statusBadge}</td>
-                <td class="p-3.5 text-slate-400">${tx.receipt}</td>
-                <td class="p-3.5 text-slate-400">${tx.voucher}</td>
+                <td class="p-3.5 text-slate-400 text-xs font-mono">${tx.receipt}</td>
+                <td class="p-3.5 text-slate-400 text-xs">${tx.voucher || '—'}</td>
                 <td class="p-3.5 text-right font-sans">
                     <button onclick="voidTransaction('${tx.id}')" class="px-2.5 py-1 text-[10px] border border-slate-300 dark:border-slate-700 rounded text-slate-400 hover:text-white hover:bg-slate-700 transition">
                         Void
@@ -2225,10 +2277,12 @@ function filterTxTable(status) {
     // Update active tab styling
     ['all', 'completed', 'pending', 'failed'].forEach(st => {
         const btn = document.getElementById(`btn-filter-${st}`);
-        if (st === status) {
-            btn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold";
-        } else {
-            btn.className = "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
+        if (btn) {
+            if (st === status) {
+                btn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold";
+            } else {
+                btn.className = "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
+            }
         }
     });
 
@@ -2251,6 +2305,7 @@ function searchTxTable() {
     const searched = allTransactionsCache.filter(t => {
         return (t.phone && t.phone.toLowerCase().includes(query)) ||
                (t.receipt && t.receipt.toLowerCase().includes(query)) ||
+               (t.displayPackage && t.displayPackage.toLowerCase().includes(query)) ||
                (t.package && t.package.toLowerCase().includes(query));
     });
 
@@ -2261,43 +2316,38 @@ function searchTxTable() {
 function triggerMonthlySettlementDisbursal() {
     const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
     if (currentAmountValue === "0.00") {
-        triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
+        }
         return;
     }
-    triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
+    if (typeof triggerToastDisplay === 'function') {
+        triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
+    }
 }
 
 // Void Action Helper
 function voidTransaction(txId) {
     if (confirm("Are you sure you want to void this record from active logs?")) {
-        triggerToastDisplay(`Transaction record ${txId} voided.`);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay(`Transaction record ${txId} voided.`);
+        }
     }
 }
 
-// Function to refresh dashboard stats dynamically
+// Dynamic dashboard stats fetcher
 async function fetchDashboardEarningsStats(ispId) {
-
     try {
+        const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+        const response = await fetch(`${activeBaseUrl}/api/isp/dashboard-stats/${ispId}`);
 
-        const response = await fetch(
-            `${API_BASE_URL}/api/isp/dashboard-stats/${ispId}`
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
+        if (!response.ok) return;
         const data = await response.json();
-
-        if (!data.success) {
-            return;
-        }
+        if (!data.success) return;
 
         const grossEarnedLabel = document.getElementById("lbl-gross-earned");
-
         if (grossEarnedLabel && data.totalGrossEarned != null) {
-            grossEarnedLabel.innerText =
-                parseFloat(data.totalGrossEarned).toFixed(2);
+            grossEarnedLabel.innerText = parseFloat(data.totalGrossEarned).toFixed(2);
         }
 
         const badgeGateway = document.getElementById("badge-gateway-type");
@@ -2305,74 +2355,52 @@ async function fetchDashboardEarningsStats(ispId) {
         const descLabel = document.getElementById("lbl-settlement-desc");
         const withdrawBtn = document.getElementById("btn-request-settlement");
 
-        if (data.gatewayType === "custom_daraja") {
+        const isDaraja = data.gatewayType === "custom_daraja" || data.gatewayType === "daraja";
 
-            badgeGateway.className =
-                "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+        if (isDaraja) {
+            if (badgeGateway) {
+                badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+                badgeGateway.innerText = `Custom Daraja (Till #${data.tillNumber || ''})`;
+            }
 
-            badgeGateway.innerText =
-                `Custom Daraja (Till #${data.tillNumber})`;
+            if (withdrawableLabel) withdrawableLabel.innerText = parseFloat(data.totalGrossEarned || 0).toFixed(2);
+            if (descLabel) descLabel.innerText = "Funds settled directly to your Till/Paybill by Safaricom.";
 
-            withdrawableLabel.innerText = "0.00";
-
-            descLabel.innerText =
-                "Funds settled directly to your Till/Paybill by Safaricom.";
-
-            withdrawBtn.disabled = true;
-
-            withdrawBtn.className =
-                "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
-
-            withdrawBtn.innerText =
-                "Settled Directly to Till";
-
+            if (withdrawBtn) {
+                withdrawBtn.disabled = true;
+                withdrawBtn.className = "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
+                withdrawBtn.innerText = "Settled Directly to Till";
+            }
         } else {
+            if (badgeGateway) {
+                badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
+                badgeGateway.innerText = "Platform Shared Gateway";
+            }
 
-            badgeGateway.className =
-                "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
+            if (withdrawableLabel) withdrawableLabel.innerText = parseFloat(data.withdrawableBalance || 0).toFixed(2);
+            if (descLabel) descLabel.innerText = "Disbursals clear directly via Safaricom B2C.";
 
-            badgeGateway.innerText =
-                "Platform Shared Gateway";
-
-            withdrawableLabel.innerText =
-                parseFloat(data.withdrawableBalance || 0).toFixed(2);
-
-            descLabel.innerText =
-                "Disbursals clear directly via Safaricom B2C.";
-
-            withdrawBtn.disabled = false;
-
-            withdrawBtn.className =
-                "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
-
-            withdrawBtn.innerText =
-                "Request Monthly Settlement";
+            if (withdrawBtn) {
+                withdrawBtn.disabled = false;
+                withdrawBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
+                withdrawBtn.innerText = "Request Monthly Settlement";
+            }
         }
-
     } catch (err) {
         console.error("Error fetching earnings stats:", err);
     }
-
 }
 
-// Example tab-switch handler
+// Tab handlers
 function openSettlementsTab() {
-    // Show tab content element
-    document.getElementById('view-settlements').classList.remove('hidden');
-
-    // Trigger loader immediately
+    const view = document.getElementById('view-settlements');
+    if (view) view.classList.remove('hidden');
     loadPaymentHistoryView();
 }
 
 async function onPaymentsTabOpened() {
-
-    console.log(
-        "Fetching payment history for tenant:",
-        CURRENT_ISP_ID
-    );
-
-    await loadPaymentHistoryView(CURRENT_ISP_ID);
-
+    console.log("Fetching payment history for tenant:", typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'active');
+    await loadPaymentHistoryView();
 }
         
 // ==========================================
