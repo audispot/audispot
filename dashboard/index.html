@@ -2055,6 +2055,7 @@ async function loadPaymentHistoryView(ispId) {
     try {
         const response = await fetch(`/api/isp/payment-history/${encodeURIComponent(tenantId)}`);
         const data = await response.json();
+        console.log("PAYMENT DATA", data);
 
         if (!data.success) {
             throw new Error(data.error || "Failed to retrieve transaction records");
