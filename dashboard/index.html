@@ -2039,11 +2039,7 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
 let allTransactionsCache = [];
 let currentFilter = 'all';
 
-// ====================================================================
-// UPDATED MULTI-TENANT PAYMENT LOADER
-// ====================================================================
 async function loadPaymentHistoryView(ispId) {
-    // 1. Safely resolve active tenant ID without hardcoding
     const tenantId = ispId 
         || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.replace(/[^a-zA-Z0-9]/g, '_')) : null) 
         || localStorage.getItem('ispId')
@@ -2057,7 +2053,6 @@ async function loadPaymentHistoryView(ispId) {
     console.log(`[PAYMENT FETCH] Fetching transaction history for tenant: ${tenantId}`);
 
     try {
-        // 2. Query backend multi-tenant endpoint
         const response = await fetch(`/api/isp/payment-history/${encodeURIComponent(tenantId)}`);
         const data = await response.json();
 
@@ -2065,31 +2060,39 @@ async function loadPaymentHistoryView(ispId) {
             throw new Error(data.error || "Failed to retrieve transaction records");
         }
 
+        // 1. CRITICAL FIX: POPULATE CACHE SO FILTER/SEARCH WORKS
+        allTransactionsCache = data.transactions || [];
+
         const m = data.metrics || {};
 
-        // 3. Update top financial summary cards (with safety checks for missing DOM elements)
+        // Helper function for safe DOM updates
         const updateText = (id, text) => {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
         };
 
-        // Revenue Totals
+        // 2. UPDATE TOP REVENUE SUMMARY CARDS
+        updateText('lbl-gross-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
+        updateText('lbl-earnings-withdrawable', `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
         updateText('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
         updateText('settled-funds-balance', `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
 
-        // Periodic Collections
+        // 3. UPDATE PERIODIC STATS
         updateText('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
         updateText('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
         updateText('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
-        // Transaction Counts
+        // 4. UPDATE TRANSACTION COUNTERS
         updateText('total-tx-count', m.totalCount || 0);
         updateText('completed-tx-count', m.completedCount || 0);
         updateText('pending-tx-count', m.pendingCount || 0);
         updateText('failed-tx-count', m.failedCount || 0);
 
-        // 4. Pass the fetched transactions straight to YOUR existing renderer
-        renderTransactionTable(data.transactions || []);
+        // 5. ALSO UPDATE YOUR DASHBOARD EARNINGS STATS
+        fetchDashboardEarningsStats(tenantId);
+
+        // 6. RENDER TRANSACTIONS INTO TABLE
+        filterTxTable(currentFilter || 'all');
 
     } catch (error) {
         console.error("Error loading payment history:", error);
@@ -2105,7 +2108,7 @@ async function loadPaymentHistoryView(ispId) {
         }
     }
 }
-
+        
 // ====================================================================
 // YOUR ORIGINAL RENDER FUNCTION (UNTOUCHED)
 // ====================================================================
