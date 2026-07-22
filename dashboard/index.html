@@ -2041,18 +2041,60 @@ let ispPackagesCache = [];
 let currentFilter = 'all';
 
 /**
- * Helper function to update text across multiple element IDs safely
+ * Robust DOM Updater: Finds elements by any matching ID variant in the DOM
  */
-function setDOMValues(idOrList, text) {
-    const ids = Array.isArray(idOrList) ? idOrList : [idOrList];
-    ids.forEach(id => {
+function setDOMValues(idVariants, text) {
+    const list = Array.isArray(idVariants) ? idVariants : [idVariants];
+    list.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = text;
     });
 }
 
 /**
- * Fetch ISP User's configured packages to resolve "default" / raw package names
+ * Custom AudiSpot Modern Confirmation Modal (Replaces browser confirm)
+ */
+function showModernConfirmModal(title, message, onConfirm) {
+    // Remove existing modal if any
+    const oldModal = document.getElementById('audispot-custom-modal');
+    if (oldModal) oldModal.remove();
+
+    const modalHtml = `
+        <div id="audispot-custom-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl text-center space-y-4">
+                <div class="w-12 h-12 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white">${title}</h3>
+                    <p class="text-xs text-slate-400 mt-1">${message}</p>
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button id="btn-modal-cancel" class="w-1/2 py-2 text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition">
+                        Cancel
+                    </button>
+                    <button id="btn-modal-confirm" class="w-1/2 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl transition">
+                        Confirm Void
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('btn-modal-cancel').onclick = () => {
+        document.getElementById('audispot-custom-modal').remove();
+    };
+
+    document.getElementById('btn-modal-confirm').onclick = () => {
+        document.getElementById('audispot-custom-modal').remove();
+        if (typeof onConfirm === 'function') onConfirm();
+    };
+}
+
+/**
+ * Fetch ISP User's configured packages to resolve default/raw package names
  */
 async function fetchIspPackageCatalog(tenantId) {
     try {
@@ -2060,21 +2102,18 @@ async function fetchIspPackageCatalog(tenantId) {
         const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`);
         if (res.ok) {
             ispPackagesCache = await res.json();
-            console.log(`[PACKAGE MAP] Loaded ${ispPackagesCache.length} packages for name resolution.`);
         }
     } catch (err) {
-        console.warn("[PACKAGE MAP] Could not fetch catalog for package mapping:", err.message);
         ispPackagesCache = [];
     }
 }
 
 /**
- * Resolves raw package string/ID to the ISP's actual package name
+ * Resolves raw package key to the ISP's specific package name
  */
 function resolvePackageDisplayName(rawPackage, amount) {
     if (!rawPackage) return 'Standard Access';
 
-    // 1. Check if we have an exact match by packageName, id, docId, or price match
     if (ispPackagesCache && ispPackagesCache.length > 0) {
         const matched = ispPackagesCache.find(p => 
             p.id === rawPackage || 
@@ -2088,138 +2127,103 @@ function resolvePackageDisplayName(rawPackage, amount) {
         }
     }
 
-    // 2. Formatting fallbacks if 'default' or raw bandwidth was stored
     if (rawPackage.toLowerCase() === 'default') {
         if (amount === 5) return '1 Hour Access (KSh 5)';
         if (amount === 10) return '3 Hours Access (KSh 10)';
         if (amount === 20) return '24 Hours Access (KSh 20)';
-        return 'Hotspot Voucher';
+        return 'Hotspot Access';
     }
 
     return rawPackage;
 }
 
 /**
- * MAIN PAYMENTS & EARNINGS LOADER
+ * MAIN LOADER - Automatically extracts active ISP tenant ID strictly
  */
-async function loadPaymentHistoryView(ispId) {
-    console.log("[PAYMENT FETCH] loadPaymentHistoryView triggered!");
+async function loadPaymentHistoryView(overrideIspId) {
+    console.log("[PAYMENT FETCH] Starting ledger initialization...");
 
     const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-    const tenantId = ispId 
-        || (typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : null)
-        || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')) : null) 
+
+    // STRICT ISP TENANT RESOLUTION (Ensures privacy - only active ISP user data)
+    let tenantId = overrideIspId 
+        || (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID ? CURRENT_ISP_ID : null)
         || localStorage.getItem('ispId')
         || window.currentIspId;
 
-    console.log("[PAYMENT FETCH] Resolved Tenant ID:", tenantId);
+    // Fallback attempt: Wait for Firebase Auth state if loading during boot
+    if (!tenantId && window.firebaseUser) {
+        tenantId = window.firebaseUser.uid || (window.firebaseUser.email ? window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : null);
+    }
 
     if (!tenantId) {
-        console.warn("[PAYMENT FETCH] Aborted: No valid tenant ID found in session or global scope.");
-        const tbody = document.getElementById('tbl-body-transactions');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" class="p-6 text-center text-amber-400 font-sans">
-                        Unable to identify user session. Please log in again.
-                    </td>
-                </tr>`;
-        }
+        console.warn("[PAYMENT FETCH] Active tenant ID missing from state. Delaying fetch for 800ms...");
+        setTimeout(() => {
+            const retryId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : localStorage.getItem('ispId');
+            if (retryId) loadPaymentHistoryView(retryId);
+        }, 800);
         return;
     }
 
     try {
-        // 1. FETCH ISP PACKAGES IN PARALLEL FOR NAME RESOLUTION
+        // Fetch Packages catalog for exact naming
         await fetchIspPackageCatalog(tenantId);
 
-        // 2. CONSTRUCT FULL API ROUTE
+        // Fetch strictly this ISP User's ledger
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
-        console.log(`[PAYMENT FETCH] Sending GET request to: ${url}`);
-
         const response = await fetch(url);
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Server responded with HTTP ${response.status}: ${errText.substring(0, 100)}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        console.log("[PAYMENT FETCH] Response received:", data);
+        if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
-        if (!data.success) {
-            throw new Error(data.error || "Failed to load payment history");
-        }
-
-        // 3. STORE DATA IN GLOBAL CACHE WITH MAP
+        // Map transactions strictly for this ISP
         allTransactionsCache = (data.transactions || []).map(tx => ({
             ...tx,
             displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
         }));
 
-        console.log(`[PAYMENT FETCH] Loaded ${allTransactionsCache.length} transactions into cache.`);
-
         const m = data.metrics || {};
         const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
-        const grossEarnedFormatted = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
+        const grossEarned = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
 
-        // 4. MAP FINANCIAL STAT CARDS (Daraja & Platform)
-        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], grossEarnedFormatted);
+        // 1. REVENUE & SETTLED CARDS
+        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], grossEarned);
 
         if (isDaraja) {
-            // For Daraja: Show earnings in balance box with Till number tag
-            setDOMValues(
-                ['settled-funds-balance', 'stat-settled-balance'], 
-                `${grossEarnedFormatted} (Till #${data.tillNumber || 'Direct'})`
-            );
-            setDOMValues('lbl-earnings-withdrawable', (m.grossEarnedAllTime || 0).toFixed(2));
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `${grossEarned} (Till #${data.tillNumber || 'Direct'})`);
         } else {
-            // For Platform Gateway
-            const withdrawableFormatted = `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`;
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], withdrawableFormatted);
-            setDOMValues('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
         }
 
-        // 5. COUNTS (Total, Completed, Pending, Failed)
+        // 2. COUNTS (Total, Completed, Pending, Failed)
         setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], m.totalCount || 0);
         setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], m.completedCount || 0);
         setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], m.pendingCount || 0);
         setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], m.failedCount || 0);
 
-        // Filter Tab Badges
+        // Filter tab pill numbers
         setDOMValues('tab-cnt-all', m.totalCount || 0);
         setDOMValues('tab-cnt-completed', m.completedCount || 0);
         setDOMValues('tab-cnt-pending', m.pendingCount || 0);
         setDOMValues('tab-cnt-failed', m.failedCount || 0);
 
-        // 6. PERIODIC EARNINGS CARDS
-        setDOMValues(['collected-today', 'stat-collected-today'], `KSh ${(m.collectedToday || 0).toFixed(2)}`);
-        setDOMValues(['collected-this-week', 'stat-collected-week'], `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
-        setDOMValues(['collected-this-month', 'stat-collected-month'], `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
+        // 3. PERIODIC EARNINGS CARDS (Collected Today, Week, Month)
+        setDOMValues(['collected-today', 'stat-collected-today', 'lbl-collected-today'], `KSh ${(m.collectedToday || 0).toFixed(2)}`);
+        setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
+        setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
-        // 7. DRAW TABLE
+        // 4. DRAW TABLE
         renderTransactionTable(allTransactionsCache);
 
     } catch (error) {
-        console.error("[PAYMENT FETCH] Error:", error);
-        const tbody = document.getElementById('tbl-body-transactions');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" class="p-6 text-center text-red-400 font-sans">
-                        Failed to render ledger: ${error.message}
-                    </td>
-                </tr>`;
-        }
+        console.error("[PAYMENT FETCH] Error loading ledger:", error);
     }
 }
 
-// Fallback renderer
-function renderDirectTableFallback(transactions) {
-    renderTransactionTable(transactions);
-}
-
 // ====================================================================
-// RENDER TRANSACTION TABLE (UPDATED WITH RESOLVED PACKAGES)
+// TABLE RENDERER
 // ====================================================================
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
@@ -2228,7 +2232,7 @@ function renderTransactionTable(records) {
     tbody.innerHTML = '';
 
     if (!records || records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded for this ISP yet.</td></tr>`;
         return;
     }
 
@@ -2247,14 +2251,12 @@ function renderTransactionTable(records) {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">• failed</span>`;
         }
 
-        const displayPkgName = tx.displayPackage || resolvePackageDisplayName(tx.package, tx.amount);
-
         const rowHtml = `
             <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                 <td class="p-3.5 text-slate-400 text-xs">${formattedDate}</td>
                 <td class="p-3.5 font-bold text-slate-900 dark:text-white text-xs">${tx.phone}</td>
                 <td class="p-3.5 text-slate-400 text-xs">${tx.customer}</td>
-                <td class="p-3.5 text-slate-200 text-xs font-semibold">${displayPkgName}</td>
+                <td class="p-3.5 text-slate-200 text-xs font-semibold">${tx.displayPackage || tx.package}</td>
                 <td class="p-3.5 font-bold text-emerald-500 text-xs">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
                 <td class="p-3.5">${statusBadge}</td>
                 <td class="p-3.5 text-slate-400 text-xs font-mono">${tx.receipt}</td>
@@ -2274,15 +2276,12 @@ function renderTransactionTable(records) {
 function filterTxTable(status) {
     currentFilter = status;
     
-    // Update active tab styling
     ['all', 'completed', 'pending', 'failed'].forEach(st => {
         const btn = document.getElementById(`btn-filter-${st}`);
         if (btn) {
-            if (st === status) {
-                btn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold";
-            } else {
-                btn.className = "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
-            }
+            btn.className = (st === status) 
+                ? "px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold" 
+                : "px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-vunainput text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200";
         }
     });
 
@@ -2294,9 +2293,9 @@ function filterTxTable(status) {
     }
 }
 
-// Search Functionality
+// Search
 function searchTxTable() {
-    const query = document.getElementById('input-tx-search').value.toLowerCase().trim();
+    const query = document.getElementById('input-tx-search')?.value.toLowerCase().trim();
     if (!query) {
         filterTxTable(currentFilter);
         return;
@@ -2312,86 +2311,20 @@ function searchTxTable() {
     renderTransactionTable(searched);
 }
 
-// Settlement Request Action
-function triggerMonthlySettlementDisbursal() {
-    const currentAmountValue = document.getElementById('lbl-earnings-withdrawable').innerText;
-    if (currentAmountValue === "0.00") {
-        if (typeof triggerToastDisplay === 'function') {
-            triggerToastDisplay("Action Refused: Ledger contains zero clear monthly statements.", true);
-        }
-        return;
-    }
-    if (typeof triggerToastDisplay === 'function') {
-        triggerToastDisplay(`Monthly B2C dispersal sequence signed and committed for KSh ${currentAmountValue}`);
-    }
-}
-
-// Void Action Helper
+// Void Action Helper (Now uses custom sleek modal)
 function voidTransaction(txId) {
-    if (confirm("Are you sure you want to void this record from active logs?")) {
-        if (typeof triggerToastDisplay === 'function') {
-            triggerToastDisplay(`Transaction record ${txId} voided.`);
+    showModernConfirmModal(
+        "Void Transaction Record?",
+        `Are you sure you want to remove record ${txId} from active logs?`,
+        () => {
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(`Transaction record ${txId} voided successfully.`);
+            }
         }
-    }
+    );
 }
 
-// Dynamic dashboard stats fetcher
-async function fetchDashboardEarningsStats(ispId) {
-    try {
-        const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-        const response = await fetch(`${activeBaseUrl}/api/isp/dashboard-stats/${ispId}`);
-
-        if (!response.ok) return;
-        const data = await response.json();
-        if (!data.success) return;
-
-        const grossEarnedLabel = document.getElementById("lbl-gross-earned");
-        if (grossEarnedLabel && data.totalGrossEarned != null) {
-            grossEarnedLabel.innerText = parseFloat(data.totalGrossEarned).toFixed(2);
-        }
-
-        const badgeGateway = document.getElementById("badge-gateway-type");
-        const withdrawableLabel = document.getElementById("lbl-earnings-withdrawable");
-        const descLabel = document.getElementById("lbl-settlement-desc");
-        const withdrawBtn = document.getElementById("btn-request-settlement");
-
-        const isDaraja = data.gatewayType === "custom_daraja" || data.gatewayType === "daraja";
-
-        if (isDaraja) {
-            if (badgeGateway) {
-                badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-                badgeGateway.innerText = `Custom Daraja (Till #${data.tillNumber || ''})`;
-            }
-
-            if (withdrawableLabel) withdrawableLabel.innerText = parseFloat(data.totalGrossEarned || 0).toFixed(2);
-            if (descLabel) descLabel.innerText = "Funds settled directly to your Till/Paybill by Safaricom.";
-
-            if (withdrawBtn) {
-                withdrawBtn.disabled = true;
-                withdrawBtn.className = "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
-                withdrawBtn.innerText = "Settled Directly to Till";
-            }
-        } else {
-            if (badgeGateway) {
-                badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
-                badgeGateway.innerText = "Platform Shared Gateway";
-            }
-
-            if (withdrawableLabel) withdrawableLabel.innerText = parseFloat(data.withdrawableBalance || 0).toFixed(2);
-            if (descLabel) descLabel.innerText = "Disbursals clear directly via Safaricom B2C.";
-
-            if (withdrawBtn) {
-                withdrawBtn.disabled = false;
-                withdrawBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
-                withdrawBtn.innerText = "Request Monthly Settlement";
-            }
-        }
-    } catch (err) {
-        console.error("Error fetching earnings stats:", err);
-    }
-}
-
-// Tab handlers
+// AUTO TRIGGER WHEN TAB IS SWITCHED TO PAYMENTS & EARNINGS
 function openSettlementsTab() {
     const view = document.getElementById('view-settlements');
     if (view) view.classList.remove('hidden');
@@ -2399,7 +2332,6 @@ function openSettlementsTab() {
 }
 
 async function onPaymentsTabOpened() {
-    console.log("Fetching payment history for tenant:", typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'active');
     await loadPaymentHistoryView();
 }
         
@@ -4004,6 +3936,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchCurrentPortalDesign();
     fetchAndRenderExpenses();
     fetchAndRenderAnalytics();
+    loadPaymentHistoryView();
     
     // REMOVE onPaymentsTabOpened() from here!
 
