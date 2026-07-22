@@ -2072,22 +2072,20 @@ async function loadPaymentHistoryView(ispId) {
             if (el) el.textContent = text;
         };
 
-        // 2. UPDATE TOP REVENUE SUMMARY CARDS
+                // 2. UPDATE TOP REVENUE SUMMARY CARDS
         updateText('lbl-gross-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
         updateText('lbl-earnings-withdrawable', `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
-        updateText('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
-        updateText('settled-funds-balance', `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
 
         // 3. UPDATE PERIODIC STATS
-        updateText('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
-        updateText('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
-        updateText('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
+        updateText('rev-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
+        updateText('rev-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
+        updateText('rev-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
         // 4. UPDATE TRANSACTION COUNTERS
-        updateText('total-tx-count', m.totalCount || 0);
-        updateText('completed-tx-count', m.completedCount || 0);
-        updateText('pending-tx-count', m.pendingCount || 0);
-        updateText('failed-tx-count', m.failedCount || 0);
+        updateText('cnt-total', m.totalCount || 0);
+        updateText('cnt-completed', m.completedCount || 0);
+        updateText('cnt-pending', m.pendingCount || 0);
+        updateText('cnt-failed', m.failedCount || 0);
 
         // 5. ALSO UPDATE YOUR DASHBOARD EARNINGS STATS
         fetchDashboardEarningsStats(tenantId);
