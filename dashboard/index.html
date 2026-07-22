@@ -2250,9 +2250,25 @@ async function fetchDashboardEarningsStats(ispId) {
 
 // Call this function when the Payments & Earnings tab opens
 function onPaymentsTabOpened() {
-    // Get logged in ISP User ID
-    const ispId = window.currentIspId || localStorage.getItem('ispId') || 'default_isp';
-    loadPaymentHistoryView(ispId);
+    // Determine logged in ISP User ID safely from active session
+    let activeIspId = null;
+
+    if (window.firebaseUser && window.firebaseUser.uid) {
+        activeIspId = window.firebaseUser.uid;
+    } else if (window.firebaseUser && window.firebaseUser.email) {
+        // Sanitize email if used as document ID (e.g. officialbigi254_gmail_com)
+        activeIspId = window.firebaseUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+    } else {
+        activeIspId = localStorage.getItem('ispId') || window.currentIspId;
+    }
+
+    if (!activeIspId) {
+        console.error("No active ISP session found. Please re-authenticate.");
+        return;
+    }
+
+    console.log("Fetching isolated payment history for tenant:", activeIspId);
+    loadPaymentHistoryView(activeIspId);
 }
 
        // ==========================================
