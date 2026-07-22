@@ -1882,7 +1882,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 
     try {
-        // 1. Fetch ISP User Profile
+        // 1. Fetch ISP User Profile & Settings
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
@@ -1952,15 +1952,17 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
                 failedTx++;
             }
 
+            const customerPhone = tx.phoneNumber || tx.customerPhone || tx.phone || '—';
+
             transactions.push({
                 id: docId,
                 date: dateStr,
-                phone: tx.phoneNumber || tx.customerPhone || '—',
-                customer: tx.customerName || '—',
+                phone: customerPhone,
+                customer: tx.customerName || customerPhone,
                 package: tx.profileName || tx.package || `${tx.durationHours || 1} Hr Pass`,
                 amount: amount,
                 status: isSuccess ? 'completed' : (isPending ? 'pending' : 'failed'),
-                receipt: tx.mpesaReceipt || tx.receipt || '—',
+                receipt: tx.mpesaReceipt || tx.receipt || docId,
                 voucher: tx.voucher || '—'
             });
         });
@@ -1972,7 +1974,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             success: true,
             gatewayType: settings.mpesaIntegrationType || 'platform',
             tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
-            withdrawableBalance: ispData.walletBalance || grossEarnedAllTime,
+            withdrawableBalance: ispData.walletBalance !== undefined ? ispData.walletBalance : grossEarnedAllTime,
             metrics: {
                 totalCount: totalTx,
                 completedCount: completedTx,
