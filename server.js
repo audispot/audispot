@@ -1872,7 +1872,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FIXED)
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
@@ -1890,7 +1890,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
 
         // 2. Discover all Router IDs registered to THIS specific tenant
         const routerDocs = await db.collection('routers').where('ispId', '==', ispId).get();
-        const tenantRouterIds = new Set([ispId]); // include ispId itself as a potential routerId
+        const tenantRouterIds = new Set([ispId]);
 
         routerDocs.forEach(r => {
             tenantRouterIds.add(r.id);
@@ -1902,24 +1902,23 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         const collections = ['global_transactions', 'transactions'];
 
         for (const col of collections) {
-            // A. Query by explicit ispId
             const snapByIsp = await db.collection(col).where('ispId', '==', ispId).get();
             snapByIsp.forEach(d => rawDocsMap.set(d.id, d.data()));
 
-            // B. Query by any routerId owned by this tenant
             for (const rId of tenantRouterIds) {
                 const snapByRouter = await db.collection(col).where('routerId', '==', rId).get();
                 snapByRouter.forEach(d => rawDocsMap.set(d.id, d.data()));
             }
         }
 
-        // 4. Calculate isolated financial metrics
+        // 4. Calculate isolated financial metrics with ROBUST DATE PARSING
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
+        const startOfWeekTime = startOfWeek.getTime();
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
@@ -1936,15 +1935,38 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             const isPending = rawStatus === 'PENDING';
 
             const amount = parseFloat(tx.grossAmount || tx.amount || 0);
-            const dateStr = tx.createdAt || tx.timestamp || new Date().toISOString();
-            const txTime = new Date(dateStr).getTime();
+
+            // --- ROBUST DATE PARSER (Handles Firestore Timestamps & Strings) ---
+            let txDateObj;
+            const rawTime = tx.createdAt || tx.timestamp || tx.date;
+
+            if (rawTime && typeof rawTime.toDate === 'function') {
+                // Native Firestore Timestamp
+                txDateObj = rawTime.toDate();
+            } else if (rawTime && rawTime._seconds) {
+                // Serialized Firestore Timestamp
+                txDateObj = new Date(rawTime._seconds * 1000);
+            } else if (rawTime) {
+                // String or numeric epoch
+                txDateObj = new Date(rawTime);
+            } else {
+                txDateObj = new Date();
+            }
+
+            // Fallback if Date parsing fails
+            if (isNaN(txDateObj.getTime())) {
+                txDateObj = new Date();
+            }
+
+            const txTime = txDateObj.getTime();
+            const isoDateStr = txDateObj.toISOString();
 
             if (isSuccess) {
                 completedTx++;
                 grossEarnedAllTime += amount;
 
                 if (txTime >= startOfDay) collectedToday += amount;
-                if (txTime >= startOfWeek.getTime()) collectedThisWeek += amount;
+                if (txTime >= startOfWeekTime) collectedThisWeek += amount;
                 if (txTime >= startOfMonth) collectedThisMonth += amount;
             } else if (isPending) {
                 pendingTx++;
@@ -1956,7 +1978,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
 
             transactions.push({
                 id: docId,
-                date: dateStr,
+                date: isoDateStr,
                 phone: customerPhone,
                 customer: tx.customerName || customerPhone,
                 package: tx.profileName || tx.package || `${tx.durationHours || 1} Hr Pass`,
@@ -1970,10 +1992,15 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         // Sort descending by date
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+        // Resolve normalized Gateway Type
+        const rawIntegration = String(settings.mpesaIntegrationType || settings.gatewayType || 'platform').toLowerCase();
+        const isDarajaType = rawIntegration.includes('daraja') || settings.tillNumber || settings.mpesaShortcode;
+        const normalizedGateway = isDarajaType ? 'daraja' : 'platform';
+
         return res.status(200).json({
             success: true,
-            gatewayType: settings.mpesaIntegrationType || 'platform',
-            tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
+            gatewayType: normalizedGateway,
+            tillNumber: settings.tillNumber || settings.mpesaShortcode || '4030905',
             withdrawableBalance: ispData.walletBalance !== undefined ? ispData.walletBalance : grossEarnedAllTime,
             metrics: {
                 totalCount: totalTx,
