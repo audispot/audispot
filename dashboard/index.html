@@ -2386,11 +2386,6 @@ async function fetchDashboardEarningsStats(ispId) {
     // Left empty intentionally to prevent overwriting loadPaymentHistoryView values
 }
 
-// Auto Bootstrapping
-document.addEventListener('DOMContentLoaded', () => {
-    loadPaymentHistoryView();
-});
-
 function openSettlementsTab() {
     const view = document.getElementById('view-settlements');
     if (view) view.classList.remove('hidden');
