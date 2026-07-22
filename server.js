@@ -1856,61 +1856,48 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// SMART ROUTER-AWARE TRANSACTION FETCH
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
-    let { ispId } = req.params;
+    const { ispId } = req.params;
 
-    // Handle null/undefined fallback gracefully
     if (!ispId || ispId === 'null' || ispId === 'undefined') {
-        ispId = 'default_isp';
+        return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID provided." });
     }
 
     try {
-        console.log(`[PAYMENT FETCH] Querying transactions for ISP/User: ${ispId}`);
-
-        // 1. Fetch ISP Profile & Settings
+        // 1. Fetch ISP User Profile
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
         const ispData = ispDoc.exists ? ispDoc.data() : {};
 
-        // 2. Build list of identifier keys for this user (e.g. ispId, email, routerIds)
-        const userIdentifiers = new Set([ispId, 'default_isp']);
-        
-        if (ispData.email) userIdentifiers.add(ispData.email);
-        if (ispData.ispEmail) userIdentifiers.add(ispData.ispEmail);
-
-        // Fetch routers belonging to this ISP
+        // 2. Discover all Router IDs registered to THIS specific tenant
         const routerDocs = await db.collection('routers').where('ispId', '==', ispId).get();
+        const tenantRouterIds = new Set([ispId]); // include ispId itself as a potential routerId
+
         routerDocs.forEach(r => {
-            userIdentifiers.add(r.id);
-            if (r.data().routerId) userIdentifiers.add(r.data().routerId);
+            tenantRouterIds.add(r.id);
+            if (r.data().routerId) tenantRouterIds.add(r.data().routerId);
         });
 
-        // 3. Query `transactions` & `global_transactions` collections
+        // 3. Query transactions for THIS TENANT ONLY
         const rawDocsMap = new Map();
-        const collections = ['transactions', 'global_transactions'];
+        const collections = ['global_transactions', 'transactions'];
 
         for (const col of collections) {
-            // Match by ispId
-            const snap1 = await db.collection(col).where('ispId', '==', ispId).get();
-            snap1.forEach(d => rawDocsMap.set(d.id, d.data()));
+            // A. Query by explicit ispId
+            const snapByIsp = await db.collection(col).where('ispId', '==', ispId).get();
+            snapByIsp.forEach(d => rawDocsMap.set(d.id, d.data()));
 
-            // Match by routerId (e.g. "officialbigi254_gmail_com")
-            const snap2 = await db.collection(col).where('routerId', '==', ispId).get();
-            snap2.forEach(d => rawDocsMap.set(d.id, d.data()));
-
-            // Match if routerId equals "officialbigi254_gmail_com" or email
-            for (const identifier of userIdentifiers) {
-                const snap3 = await db.collection(col).where('routerId', '==', identifier).get();
-                snap3.forEach(d => rawDocsMap.set(d.id, d.data()));
+            // B. Query by any routerId owned by this tenant
+            for (const rId of tenantRouterIds) {
+                const snapByRouter = await db.collection(col).where('routerId', '==', rId).get();
+                snapByRouter.forEach(d => rawDocsMap.set(d.id, d.data()));
             }
         }
 
-        console.log(`[PAYMENT FETCH] Retrieved ${rawDocsMap.size} transactions for ${ispId}`);
-
-        // 4. Calculate Revenue Metrics
+        // 4. Calculate isolated financial metrics
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
@@ -1920,15 +1907,8 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-        let totalTx = 0;
-        let completedTx = 0;
-        let pendingTx = 0;
-        let failedTx = 0;
-
-        let collectedToday = 0;
-        let collectedThisWeek = 0;
-        let collectedThisMonth = 0;
-        let grossEarnedAllTime = 0;
+        let totalTx = 0, completedTx = 0, pendingTx = 0, failedTx = 0;
+        let collectedToday = 0, collectedThisWeek = 0, collectedThisMonth = 0, grossEarnedAllTime = 0;
 
         const transactions = [];
 
@@ -1940,7 +1920,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             const isPending = rawStatus === 'PENDING';
 
             const amount = parseFloat(tx.grossAmount || tx.amount || 0);
-
             const dateStr = tx.createdAt || tx.timestamp || new Date().toISOString();
             const txTime = new Date(dateStr).getTime();
 
@@ -1970,7 +1949,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             });
         });
 
-        // Sort descending by date (newest first)
+        // Sort descending by date
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         return res.status(200).json({
@@ -1992,7 +1971,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error fetching payment history:", error);
+        console.error("Multi-tenant transaction fetch error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
