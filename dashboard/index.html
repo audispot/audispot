@@ -2222,8 +2222,13 @@ async function fetchDashboardEarningsStats(ispId) {
 
         if (!data.success) return;
 
-        // Update Amounts
-        document.getElementById('lbl-gross-earned').innerText = parseFloat(data.totalGrossEarned).toFixed(2);
+       // Update Amounts SAFELY
+       const grossEarnedLabel = document.getElementById('lbl-gross-earned');
+
+       if (grossEarnedLabel && data.totalGrossEarned != null) {
+           grossEarnedLabel.innerText =
+               `KSh ${parseFloat(data.totalGrossEarned).toFixed(2)}`;
+    }
         
         const badgeGateway = document.getElementById('badge-gateway-type');
         const withdrawableLabel = document.getElementById('lbl-earnings-withdrawable');
