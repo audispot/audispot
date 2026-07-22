@@ -2041,21 +2041,34 @@ let ispPackagesCache = [];
 let currentFilter = 'all';
 
 /**
- * Robust DOM Updater: Finds elements by any matching ID variant in the DOM
+ * Cleanly sets text content while avoiding duplicate "KSh KSh" prefixes
  */
 function setDOMValues(idVariants, text) {
     const list = Array.isArray(idVariants) ? idVariants : [idVariants];
+    
+    // Clean string if KSh is repeated
+    let cleanText = String(text);
+    if (cleanText.startsWith("KSh KSh")) {
+        cleanText = cleanText.replace("KSh KSh", "KSh ");
+    }
+
     list.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.textContent = text;
+        if (el) {
+            // Check if element HTML already includes hardcoded currency text
+            if (cleanText.startsWith("KSh ") && el.innerText.includes("KSh") && !el.innerText.includes("(")) {
+                el.textContent = cleanText.replace("KSh ", "").trim();
+            } else {
+                el.textContent = cleanText;
+            }
+        }
     });
 }
 
 /**
- * Custom AudiSpot Modern Confirmation Modal (Replaces browser confirm)
+ * Custom AudiSpot Modern Confirmation Modal
  */
 function showModernConfirmModal(title, message, onConfirm) {
-    // Remove existing modal if any
     const oldModal = document.getElementById('audispot-custom-modal');
     if (oldModal) oldModal.remove();
 
@@ -2094,7 +2107,7 @@ function showModernConfirmModal(title, message, onConfirm) {
 }
 
 /**
- * Fetch ISP User's configured packages to resolve default/raw package names
+ * Fetch ISP User's configured packages catalog
  */
 async function fetchIspPackageCatalog(tenantId) {
     try {
@@ -2109,7 +2122,7 @@ async function fetchIspPackageCatalog(tenantId) {
 }
 
 /**
- * Resolves raw package key to the ISP's specific package name
+ * Resolves raw package key/ID to actual display package
  */
 function resolvePackageDisplayName(rawPackage, amount) {
     if (!rawPackage) return 'Standard Access';
@@ -2128,36 +2141,66 @@ function resolvePackageDisplayName(rawPackage, amount) {
     }
 
     if (rawPackage.toLowerCase() === 'default') {
-        if (amount === 5) return '1 Hour Access (KSh 5)';
-        if (amount === 10) return '3 Hours Access (KSh 10)';
-        if (amount === 20) return '24 Hours Access (KSh 20)';
-        return 'Hotspot Access';
+        if (amount === 5) return '1 hr time';
+        if (amount === 10) return '2hrs Net';
+        if (amount === 20) return '24hrs Unlimited';
+        return 'Hotspot Voucher';
     }
 
     return rawPackage;
 }
 
 /**
- * MAIN LOADER - Automatically extracts active ISP tenant ID strictly
+ * Client-side metric accumulator fallback for Today/Week/Month totals
+ */
+function calculatePeriodicTotals(transactions) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Start of week (Sunday or Monday depending on standard)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let todayTotal = 0;
+    let weekTotal = 0;
+    let monthTotal = 0;
+
+    transactions.forEach(tx => {
+        if (tx.status === 'completed' || tx.status === 'success') {
+            const txDate = new Date(tx.date);
+            const amt = parseFloat(tx.amount || 0);
+
+            if (txDate >= startOfToday) todayTotal += amt;
+            if (txDate >= startOfWeek) weekTotal += amt;
+            if (txDate >= startOfMonth) monthTotal += amt;
+        }
+    });
+
+    return { todayTotal, weekTotal, monthTotal };
+}
+
+/**
+ * MAIN PAYMENTS LEDGER LOADER
  */
 async function loadPaymentHistoryView(overrideIspId) {
     console.log("[PAYMENT FETCH] Starting ledger initialization...");
 
     const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
 
-    // STRICT ISP TENANT RESOLUTION (Ensures privacy - only active ISP user data)
     let tenantId = overrideIspId 
         || (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID ? CURRENT_ISP_ID : null)
         || localStorage.getItem('ispId')
         || window.currentIspId;
 
-    // Fallback attempt: Wait for Firebase Auth state if loading during boot
     if (!tenantId && window.firebaseUser) {
         tenantId = window.firebaseUser.uid || (window.firebaseUser.email ? window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : null);
     }
 
     if (!tenantId) {
-        console.warn("[PAYMENT FETCH] Active tenant ID missing from state. Delaying fetch for 800ms...");
+        console.warn("[PAYMENT FETCH] Tenant ID missing. Retrying in 800ms...");
         setTimeout(() => {
             const retryId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : localStorage.getItem('ispId');
             if (retryId) loadPaymentHistoryView(retryId);
@@ -2166,10 +2209,8 @@ async function loadPaymentHistoryView(overrideIspId) {
     }
 
     try {
-        // Fetch Packages catalog for exact naming
         await fetchIspPackageCatalog(tenantId);
 
-        // Fetch strictly this ISP User's ledger
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         const response = await fetch(url);
 
@@ -2178,7 +2219,6 @@ async function loadPaymentHistoryView(overrideIspId) {
         const data = await response.json();
         if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
-        // Map transactions strictly for this ISP
         allTransactionsCache = (data.transactions || []).map(tx => ({
             ...tx,
             displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
@@ -2186,33 +2226,48 @@ async function loadPaymentHistoryView(overrideIspId) {
 
         const m = data.metrics || {};
         const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
-        const grossEarned = `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`;
 
-        // 1. REVENUE & SETTLED CARDS
-        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], grossEarned);
+        // 1. REVENUE & SETTLED BALANCE
+        const grossEarnedVal = (m.grossEarnedAllTime != null) 
+            ? m.grossEarnedAllTime 
+            : allTransactionsCache.reduce((acc, t) => acc + (t.amount || 0), 0);
+
+        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], `${grossEarnedVal.toFixed(2)}`);
 
         if (isDaraja) {
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `${grossEarned} (Till #${data.tillNumber || 'Direct'})`);
+            const tillLabel = data.tillNumber ? ` (Till #${data.tillNumber})` : ' (Direct Till)';
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `${grossEarnedVal.toFixed(2)}${tillLabel}`);
+            setDOMValues('lbl-earnings-withdrawable', grossEarnedVal.toFixed(2));
         } else {
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `${(data.withdrawableBalance || 0).toFixed(2)}`);
+            setDOMValues('lbl-earnings-withdrawable', (data.withdrawableBalance || 0).toFixed(2));
         }
 
-        // 2. COUNTS (Total, Completed, Pending, Failed)
-        setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], m.totalCount || 0);
-        setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], m.completedCount || 0);
-        setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], m.pendingCount || 0);
-        setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], m.failedCount || 0);
+        // 2. COUNTS
+        const completedTx = allTransactionsCache.filter(t => t.status === 'completed' || t.status === 'success').length;
+        const pendingTx = allTransactionsCache.filter(t => t.status === 'pending').length;
+        const failedTx = allTransactionsCache.filter(t => t.status === 'failed').length;
 
-        // Filter tab pill numbers
-        setDOMValues('tab-cnt-all', m.totalCount || 0);
-        setDOMValues('tab-cnt-completed', m.completedCount || 0);
-        setDOMValues('tab-cnt-pending', m.pendingCount || 0);
-        setDOMValues('tab-cnt-failed', m.failedCount || 0);
+        setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], m.totalCount || allTransactionsCache.length);
+        setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], m.completedCount || completedTx);
+        setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], m.pendingCount || pendingTx);
+        setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], m.failedCount || failedTx);
 
-        // 3. PERIODIC EARNINGS CARDS (Collected Today, Week, Month)
-        setDOMValues(['collected-today', 'stat-collected-today', 'lbl-collected-today'], `KSh ${(m.collectedToday || 0).toFixed(2)}`);
-        setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
-        setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
+        // Filter tabs counts
+        setDOMValues('tab-cnt-all', allTransactionsCache.length);
+        setDOMValues('tab-cnt-completed', completedTx);
+        setDOMValues('tab-cnt-pending', pendingTx);
+        setDOMValues('tab-cnt-failed', failedTx);
+
+        // 3. PERIODIC EARNINGS (Collected Today, This Week, This Month)
+        const computed = calculatePeriodicTotals(allTransactionsCache);
+        const todayVal = m.collectedToday != null ? m.collectedToday : computed.todayTotal;
+        const weekVal = m.collectedThisWeek != null ? m.collectedThisWeek : computed.weekTotal;
+        const monthVal = m.collectedThisMonth != null ? m.collectedThisMonth : computed.monthTotal;
+
+        setDOMValues(['collected-today', 'stat-collected-today', 'lbl-collected-today'], `KSh ${todayVal.toFixed(2)}`);
+        setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], `KSh ${weekVal.toFixed(2)}`);
+        setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${monthVal.toFixed(2)}`);
 
         // 4. DRAW TABLE
         renderTransactionTable(allTransactionsCache);
@@ -2223,7 +2278,7 @@ async function loadPaymentHistoryView(overrideIspId) {
 }
 
 // ====================================================================
-// TABLE RENDERER
+// RENDER TABLE
 // ====================================================================
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
@@ -2232,7 +2287,7 @@ function renderTransactionTable(records) {
     tbody.innerHTML = '';
 
     if (!records || records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded for this ISP yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded yet.</td></tr>`;
         return;
     }
 
@@ -2311,7 +2366,7 @@ function searchTxTable() {
     renderTransactionTable(searched);
 }
 
-// Void Action Helper (Now uses custom sleek modal)
+// Void Action Helper
 function voidTransaction(txId) {
     showModernConfirmModal(
         "Void Transaction Record?",
@@ -2324,7 +2379,18 @@ function voidTransaction(txId) {
     );
 }
 
-// AUTO TRIGGER WHEN TAB IS SWITCHED TO PAYMENTS & EARNINGS
+/**
+ * Disabled dashboard stats override to stop wiping Daraja info
+ */
+async function fetchDashboardEarningsStats(ispId) {
+    // Left empty intentionally to prevent overwriting loadPaymentHistoryView values
+}
+
+// Auto Bootstrapping
+document.addEventListener('DOMContentLoaded', () => {
+    loadPaymentHistoryView();
+});
+
 function openSettlementsTab() {
     const view = document.getElementById('view-settlements');
     if (view) view.classList.remove('hidden');
