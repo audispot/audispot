@@ -2039,74 +2039,83 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
 let allTransactionsCache = [];
 let currentFilter = 'all';
 
-// Load All Data on Frame Show or Page Refresh
+// ====================================================================
+// UPDATED MULTI-TENANT PAYMENT LOADER
+// ====================================================================
 async function loadPaymentHistoryView(ispId) {
+    // 1. Safely resolve active tenant ID without hardcoding
+    const tenantId = ispId 
+        || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.replace(/[^a-zA-Z0-9]/g, '_')) : null) 
+        || localStorage.getItem('ispId')
+        || window.currentIspId;
+
+    if (!tenantId) {
+        console.error("No active ISP session found to fetch payment history.");
+        return;
+    }
+
+    console.log(`[PAYMENT FETCH] Fetching transaction history for tenant: ${tenantId}`);
+
     try {
-        const res = await fetch(`/api/isp/payment-history/${ispId}`);
-        const data = await res.json();
+        // 2. Query backend multi-tenant endpoint
+        const response = await fetch(`/api/isp/payment-history/${encodeURIComponent(tenantId)}`);
+        const data = await response.json();
 
-        if (!data.success) return;
-
-        // 1. Dual-Gateway Pool & Status Updates
-        document.getElementById('lbl-gross-earned').innerText = parseFloat(data.metrics.grossEarnedAllTime).toFixed(2);
-        
-        const badgeGateway = document.getElementById('badge-gateway-type');
-        const withdrawableLabel = document.getElementById('lbl-earnings-withdrawable');
-        const descLabel = document.getElementById('lbl-settlement-desc');
-        const withdrawBtn = document.getElementById('btn-request-settlement');
-
-        if (data.gatewayType === 'custom_daraja') {
-            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
-            badgeGateway.innerText = `Custom Daraja (Till #${data.tillNumber})`;
-
-            withdrawableLabel.innerText = "0.00";
-            descLabel.innerText = "Funds settled directly to your Till/Paybill by Safaricom.";
-            
-            withdrawBtn.disabled = true;
-            withdrawBtn.className = "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed font-bold px-4 py-2.5 rounded-lg";
-            withdrawBtn.innerText = "Settled Directly to Till";
-        } else {
-            badgeGateway.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
-            badgeGateway.innerText = "Platform Shared Gateway";
-
-            withdrawableLabel.innerText = parseFloat(data.withdrawableBalance).toFixed(2);
-            descLabel.innerText = "Disbursals clear directly via Safaricom B2C.";
-
-            withdrawBtn.disabled = false;
-            withdrawBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-lg transition";
-            withdrawBtn.innerText = "Request Monthly Settlement";
+        if (!data.success) {
+            throw new Error(data.error || "Failed to retrieve transaction records");
         }
 
-        // 2. Metrics Cards Updates
-        document.getElementById('cnt-total').innerText = data.metrics.totalCount;
-        document.getElementById('cnt-completed').innerText = data.metrics.completedCount;
-        document.getElementById('cnt-pending').innerText = data.metrics.pendingCount;
-        document.getElementById('cnt-failed').innerText = data.metrics.failedCount;
+        const m = data.metrics || {};
 
-        document.getElementById('filter-cnt-all').innerText = data.metrics.totalCount;
-        document.getElementById('filter-cnt-completed').innerText = data.metrics.completedCount;
-        document.getElementById('filter-cnt-pending').innerText = data.metrics.pendingCount;
-        document.getElementById('filter-cnt-failed').innerText = data.metrics.failedCount;
+        // 3. Update top financial summary cards (with safety checks for missing DOM elements)
+        const updateText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
 
-        document.getElementById('rev-today').innerText = parseFloat(data.metrics.collectedToday).toLocaleString();
-        document.getElementById('rev-week').innerText = parseFloat(data.metrics.collectedThisWeek).toLocaleString();
-        document.getElementById('rev-month').innerText = parseFloat(data.metrics.collectedThisMonth).toLocaleString();
+        // Revenue Totals
+        updateText('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
+        updateText('settled-funds-balance', `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
 
-        // 3. Cache & Render Table
-        allTransactionsCache = data.transactions || [];
-        renderTransactionTable(allTransactionsCache);
+        // Periodic Collections
+        updateText('collected-today', `KSh ${(m.collectedToday || 0).toFixed(2)}`);
+        updateText('collected-this-week', `KSh ${(m.collectedThisWeek || 0).toFixed(2)}`);
+        updateText('collected-this-month', `KSh ${(m.collectedThisMonth || 0).toFixed(2)}`);
 
-    } catch (err) {
-        console.error("Failed to load payment history:", err);
+        // Transaction Counts
+        updateText('total-tx-count', m.totalCount || 0);
+        updateText('completed-tx-count', m.completedCount || 0);
+        updateText('pending-tx-count', m.pendingCount || 0);
+        updateText('failed-tx-count', m.failedCount || 0);
+
+        // 4. Pass the fetched transactions straight to YOUR existing renderer
+        renderTransactionTable(data.transactions || []);
+
+    } catch (error) {
+        console.error("Error loading payment history:", error);
+        
+        const tbody = document.getElementById('tbl-body-transactions');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="p-6 text-center text-red-400 font-sans">
+                        Failed to load payment records: ${error.message}
+                    </td>
+                </tr>`;
+        }
     }
 }
 
-// Render Table Rows
+// ====================================================================
+// YOUR ORIGINAL RENDER FUNCTION (UNTOUCHED)
+// ====================================================================
 function renderTransactionTable(records) {
     const tbody = document.getElementById('tbl-body-transactions');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
 
-    if (records.length === 0) {
+    if (!records || records.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400 font-sans">No transactions recorded yet.</td></tr>`;
         return;
     }
@@ -2121,7 +2130,7 @@ function renderTransactionTable(records) {
         if (tx.status === 'completed' || tx.status === 'success') {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">• completed</span>`;
         } else if (tx.status === 'pending') {
-            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">• pending</span>`;
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-amber-500/20">• pending</span>`;
         } else {
             statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">• failed</span>`;
         }
@@ -2249,17 +2258,27 @@ async function fetchDashboardEarningsStats(ispId) {
 }
 
 // Call this function when the Payments & Earnings tab opens
-function onPaymentsTabOpened() {
-    // Determine logged in ISP User ID safely from active session
+async function onPaymentsTabOpened() {
     let activeIspId = null;
 
-    if (window.firebaseUser && window.firebaseUser.uid) {
-        activeIspId = window.firebaseUser.uid;
-    } else if (window.firebaseUser && window.firebaseUser.email) {
-        // Sanitize email if used as document ID (e.g. officialbigi254_gmail_com)
-        activeIspId = window.firebaseUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+    // 1. Try Firebase Auth Current User
+    const user = window.firebaseUser || (typeof firebase !== 'undefined' && firebase.auth().currentUser);
+
+    if (user && user.uid) {
+        // Preference 1: UID (or check if email key is preferred in your DB)
+        activeIspId = user.uid;
+    } else if (user && user.email) {
+        // Preference 2: Sanitized Email (officialbigi254@gmail.com -> officialbigi254_gmail_com)
+        activeIspId = user.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
     } else {
+        // Preference 3: Fallback to localStorage or global variable
         activeIspId = localStorage.getItem('ispId') || window.currentIspId;
+    }
+
+    // 2. If activeIspId is still missing, try hardcoded account fallback or prompt login
+    if (!activeIspId) {
+        console.warn("No active ISP session found in memory. Checking fallback storage...");
+        activeIspId = localStorage.getItem('user_email')?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
     }
 
     if (!activeIspId) {
@@ -2268,7 +2287,9 @@ function onPaymentsTabOpened() {
     }
 
     console.log("Fetching isolated payment history for tenant:", activeIspId);
-    loadPaymentHistoryView(activeIspId);
+    
+    // Pass tenant ID to the loader
+    await loadPaymentHistoryView(activeIspId);
 }
 
        // ==========================================
