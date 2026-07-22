@@ -2042,8 +2042,10 @@ let currentFilter = 'all';
 async function loadPaymentHistoryView(ispId) {
     console.log("[PAYMENT FETCH] loadPaymentHistoryView triggered!");
 
-    // 1. DYNAMIC TENANT ID RESOLUTION
+    // 1. DYNAMIC TENANT ID RESOLUTION (Matches your working package module)
+    const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const tenantId = ispId 
+        || (typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : null)
         || (window.firebaseUser ? (window.firebaseUser.uid || window.firebaseUser.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')) : null) 
         || localStorage.getItem('ispId')
         || window.currentIspId;
@@ -2051,7 +2053,7 @@ async function loadPaymentHistoryView(ispId) {
     console.log("[PAYMENT FETCH] Resolved Tenant ID:", tenantId);
 
     if (!tenantId) {
-        console.warn("[PAYMENT FETCH] Aborted: No valid tenant ID found in session or localStorage.");
+        console.warn("[PAYMENT FETCH] Aborted: No valid tenant ID found in session or global scope.");
         const tbody = document.getElementById('tbl-body-transactions');
         if (tbody) {
             tbody.innerHTML = `
@@ -2065,19 +2067,25 @@ async function loadPaymentHistoryView(ispId) {
     }
 
     try {
-        const url = `/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
+        // 2. CONSTRUCT FULL API ROUTE WITH API_BASE_URL
+        const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         console.log(`[PAYMENT FETCH] Sending GET request to: ${url}`);
 
         const response = await fetch(url);
-        const data = await response.json();
 
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Server responded with HTTP ${response.status}: ${errText.substring(0, 100)}`);
+        }
+
+        const data = await response.json();
         console.log("[PAYMENT FETCH] Response received:", data);
 
         if (!data.success) {
             throw new Error(data.error || "Failed to load payment history");
         }
 
-        // 2. STORE DATA IN GLOBAL CACHE
+        // 3. STORE DATA IN GLOBAL CACHE
         allTransactionsCache = data.transactions || [];
         console.log(`[PAYMENT FETCH] Loaded ${allTransactionsCache.length} transactions into cache.`);
 
@@ -2089,7 +2097,7 @@ async function loadPaymentHistoryView(ispId) {
             if (el) el.textContent = text;
         };
 
-        // 3. UPDATE CARDS
+        // 4. MAP FINANCIAL CARDS
         setVal('gross-revenue-earned', `KSh ${(m.grossEarnedAllTime || 0).toFixed(2)}`);
         setVal('lbl-gross-earned', (m.grossEarnedAllTime || 0).toFixed(2));
 
@@ -2109,13 +2117,12 @@ async function loadPaymentHistoryView(ispId) {
         setVal('pending-tx-count', m.pendingCount || 0);
         setVal('failed-tx-count', m.failedCount || 0);
 
-        // 4. DRAW TABLE
+        // 5. DRAW TABLE
         if (typeof renderTransactionTable === 'function') {
             renderTransactionTable(allTransactionsCache);
         } else if (typeof filterTxTable === 'function') {
             filterTxTable('all');
         } else {
-            // DIRECT TABLE FALLBACK IN CASE RENDER FUNCTION IS MISSING
             renderDirectTableFallback(allTransactionsCache);
         }
 
@@ -2133,7 +2140,7 @@ async function loadPaymentHistoryView(ispId) {
     }
 }
 
-// Fallback renderer to ensure rows print even if table functions are missing
+// Fallback renderer to guarantee rows display
 function renderDirectTableFallback(transactions) {
     const tbody = document.getElementById('tbl-body-transactions');
     if (!tbody) return;
