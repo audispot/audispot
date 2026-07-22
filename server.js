@@ -430,7 +430,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 await stkBatch.commit();
             }
 
-            // 2. FETCH ROUTER & ISP DETAILS
+            // 2. MULTI-TENANT ISOLATION: RESOLVE REAL ISP TENANT ID
             let ispId = "default_isp";
             let ispConfig = null;
 
@@ -438,7 +438,11 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 const routerDoc = await db.collection('routers').doc(routerId).get();
                 if (routerDoc.exists) {
                     ispConfig = routerDoc.data();
-                    ispId = ispConfig.ispId || "default_isp";
+                    // Multi-tenant resolution sequence: explicit ispId -> owner userId -> routerId identifier
+                    ispId = ispConfig.ispId || ispConfig.userId || routerId;
+                } else {
+                    // Fallback to routerId if registered directly as account email/ID
+                    ispId = routerId;
                 }
             }
 
@@ -451,11 +455,21 @@ app.post('/api/mpesa/callback', async (req, res) => {
             let bandwidthProfile = profile || "Default_Limit";
 
             try {
-                const packageQuery = await db.collection('isp_packages')
+                // Attempt to match package owned by this specific ISP tenant
+                let packageQuery = await db.collection('isp_packages')
                     .where('ispId', '==', ispId)
                     .where('price', '==', amountPaid)
                     .limit(1)
                     .get();
+
+                // Secondary query fallback using routerId
+                if (packageQuery.empty && routerId) {
+                    packageQuery = await db.collection('isp_packages')
+                        .where('routerId', '==', routerId)
+                        .where('price', '==', amountPaid)
+                        .limit(1)
+                        .get();
+                }
 
                 if (!packageQuery.empty) {
                     const matchedPkg = packageQuery.docs[0].data();
@@ -464,7 +478,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         bandwidthProfile = matchedPkg.bandwidthProfile;
                     }
                 } else {
-                    if (amountPaid >= 2000) durationHours = 720;      
+                    if (amountPaid >= 2000) durationHours = 720;     
                     else if (amountPaid >= 500) durationHours = 168;  
                     else if (amountPaid >= 50) durationHours = 12;    
                     else if (amountPaid >= 20) durationHours = 3;     
@@ -474,7 +488,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 console.error("Dynamic package lookup error:", pkgErr.message);
             }
 
-            // 4. SAVE TRANSACTION RECORD (Tracks Revenue on Dashboard for Both Modes)
+            // 4. SAVE ISOLATED TRANSACTION RECORD
             if (mpesaReceipt) {
                 const transactionPayload = {
                     mpesaReceipt: mpesaReceipt,
@@ -484,7 +498,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     customerPhone: payingPhone,
                     macAddress: cleanMac,
                     routerId: routerId || "unknown",
-                    ispId: ispId,
+                    ispId: ispId, // Strictly binds payment to the correct tenant
                     gatewayType: gatewayType, // 'platform' or 'custom_daraja'
                     profileName: bandwidthProfile,
                     timestamp: new Date().toISOString(),
@@ -497,7 +511,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
             }
 
             // 5. CREDIT ISP OWNER DASHBOARD WALLET (ONLY IF USING PLATFORM GATEWAY)
-            if (ispId && gatewayType === 'platform') {
+            if (ispId && ispId !== 'default_isp' && gatewayType === 'platform') {
                 const ispRef = db.collection('isp_users').doc(ispId);
                 await db.runTransaction(async (ts) => {
                     const iDoc = await ts.get(ispRef);
@@ -508,7 +522,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     }
                 });
             } else {
-                console.log(`ISP ${ispId} uses Custom Daraja Gateway. Funds settled directly to their Till/Paybill.`);
+                console.log(`ISP ${ispId} uses Custom Daraja Gateway or Default Pool. Funds settled directly.`);
             }
 
             // 6. UPDATE SUBSCRIBER RECORD
@@ -522,7 +536,8 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         loyaltyPoints: currentPoints + 10,
                         lastActivePackage: amountPaid,
                         lastActiveTimestamp: new Date().toISOString(),
-                        routerId: routerId || 'unknown'
+                        routerId: routerId || 'unknown',
+                        ispId: ispId
                     }, { merge: true });
                 });
             }
@@ -557,6 +572,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
 
     return res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 });
+
 // Polling Route to check payment progress inside connect.html
 app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
     try {
