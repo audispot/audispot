@@ -2082,9 +2082,11 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 });
 
+// 1. Trigger STK Push for ISP Subscription Renewal
 app.post('/api/isp/renew-subscription', async (req, res) => {
     try {
         const { phoneNumber, ispId } = req.body;
+        const db = req.db;
 
         if (!phoneNumber || !ispId) {
             return res.status(400).json({ success: false, error: "Missing required fields" });
@@ -2092,11 +2094,9 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
 
         const formattedPhone = formatPhoneNumber(phoneNumber);
 
-        // Fetch router count dynamically using req.db
-        const db = req.db;
+        // Fetch router count dynamically using plain string ispId
         const routerCount = await db.collection('routers').countDocuments({ ispId: ispId });
-        
-        const amount = routerCount * 500;
+        const amount = Math.round(routerCount * 500);
 
         if (amount <= 0) {
             return res.status(400).json({ success: false, error: "No active routers to bill." });
@@ -2135,8 +2135,8 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
         if (stkRes.data.ResponseCode === '0') {
             const checkoutId = stkRes.data.CheckoutRequestID;
             
-            // Log pending payment state
-            subscriptionTransactions.set(checkoutId, {
+            await db.collection('subscription_transactions').insertOne({
+                checkoutRequestId: checkoutId,
                 ispId: ispId,
                 status: 'PENDING',
                 amount: amount,
