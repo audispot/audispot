@@ -704,7 +704,7 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
     
     try {
         const routerRef = db.collection('routers').doc(routerId);
-        const doc = await routerRef.get();
+        let doc = await routerRef.get();
         
         if (!doc.exists) {
             await routerRef.set({
@@ -718,16 +718,19 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
                 routerUser: "admin",
                 updatedAt: new Date().toISOString()
             });
+            doc = await routerRef.get();
         }
 
-        // Script updated for gateway: connect/index.html
+        const resolvedIspId = doc.data()?.ispId || defaultIspId;
+
+        // Script targets /connect/index.html and injects the ISP context
         const provisioningScript = `/sys identity set name="${routerId}";
 /ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
 /ip hotspot profile set "AudiSpot_Prof" html-directory=flash/connect;
 /ip hotspot walled-garden add dst-host="safaricom.co.ke" action=allow;
 /ip hotspot walled-garden add dst-host="audiory.site" action=allow;
 /ip hotspot walled-garden add dst-host="audispoty-749056206562.europe-west1.run.app" action=allow;
-/tool fetch url="https://audispot.audiory.site/portal-files.html" dst-path="flash/connect/index.html";
+/tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${resolvedIspId}" dst-path="flash/connect/index.html";
 :log info "AudiSpot Capital Edge Captive Gateway Core Stack Installed Successfully Instance ID: ${routerId}";`;
 
         return res.status(200).json({ success: true, script: provisioningScript });
