@@ -2402,6 +2402,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPaymentHistoryView();
 });
 
+/**
+ * Triggers Monthly Settlement / Disbursal Request using Modern Dark UI Modals
+ */
 async function triggerMonthlySettlementDisbursal() {
     let tenantId = (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID ? CURRENT_ISP_ID : null)
         || localStorage.getItem('ispId')
@@ -2410,55 +2413,53 @@ async function triggerMonthlySettlementDisbursal() {
     if (!tenantId) {
         if (typeof triggerToastDisplay === 'function') {
             triggerToastDisplay("Unable to process request: Tenant session missing.", "error");
-        } else {
-            alert("Unable to process request: Tenant session missing.");
         }
         return;
     }
 
-    const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    // Modern Modal Confirmation instead of browser confirm()
+    showModernConfirmModal(
+        "Request Monthly Settlement?",
+        "Are you sure you want to initiate a disbursal request for your accumulated earnings?",
+        async () => {
+            const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
 
-    try {
-        // Optional confirmation prompt
-        const confirmRequest = confirm("Are you sure you want to request a monthly settlement disbursal?");
-        if (!confirmRequest) return;
+            try {
+                const response = await fetch(`${activeBaseUrl}/api/isp/request-settlement`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ispId: tenantId })
+                });
 
-        const response = await fetch(`${activeBaseUrl}/api/isp/request-settlement`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ispId: tenantId })
-        });
+                const data = await response.json();
 
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay("Settlement request submitted successfully!", "success");
-            } else {
-                alert("Settlement request submitted successfully!");
+                if (response.ok && data.success) {
+                    if (typeof triggerToastDisplay === 'function') {
+                        triggerToastDisplay("Settlement request submitted successfully!", "success");
+                    }
+                    
+                    // Refresh table/ledger view dynamically
+                    if (typeof loadPaymentHistoryView === 'function') {
+                        loadPaymentHistoryView(tenantId);
+                    }
+                } else {
+                    throw new Error(data.error || "Failed to initiate disbursal.");
+                }
+            } catch (err) {
+                console.error("[SETTLEMENT REQUEST ERROR]", err);
+                if (typeof triggerToastDisplay === 'function') {
+                    triggerToastDisplay(err.message || "Failed to submit settlement request.", "error");
+                }
             }
-            // Refresh table/ledger view
-            if (typeof loadPaymentHistoryView === 'function') {
-                loadPaymentHistoryView(tenantId);
-            }
-        } else {
-            throw new Error(data.error || "Failed to initiate disbursal.");
         }
-    } catch (err) {
-        console.error("[SETTLEMENT REQUEST ERROR]", err);
-        if (typeof triggerToastDisplay === 'function') {
-            triggerToastDisplay(err.message || "Failed to submit settlement request.", "error");
-        } else {
-            alert(err.message || "Failed to submit settlement request.");
-        }
-    }
+    );
 }
 
-// Make sure it's accessible globally on the window object
+// Global scope binding
 window.triggerMonthlySettlementDisbursal = triggerMonthlySettlementDisbursal;
-
+        
 function openSettlementsTab() {
     loadPaymentHistoryView();
 }
