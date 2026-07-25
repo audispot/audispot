@@ -510,10 +510,10 @@
 </div>
 
 <div id="viewframe-portal-designer" class="hidden space-y-6 viewframe">
-    <div class="flex flex-col lg:flex-row gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         <!-- Left Column: Customizer Controls Panel -->
-        <div class="flex-1 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-5 shadow-sm">
+        <div class="lg:col-span-7 xl:col-span-8 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-5 shadow-sm">
             <div>
                 <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> Captive Portal Customizer
@@ -522,28 +522,30 @@
             </div>
             
             <form id="portal-designer-form" onsubmit="savePortalDesignSettings(event)" class="space-y-5">
-            <!-- Section 1: Login Screen Brand Style -->
-            <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
-                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">1. Login Screen Brand Style</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Wi-Fi / Brand Name</label>
-                        <input type="text" id="input-portal-brand" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Welcome Subtext</label>
-                        <input type="text" id="input-portal-welcome" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Accent Theme Color</label>
-                        <div class="flex gap-2">
-                            <input type="color" id="input-portal-color" oninput="updateLivePortalPreview()" class="w-10 h-[34px] bg-transparent border border-slate-200 dark:border-vunaborder rounded cursor-pointer">
-                            <input type="text" id="input-portal-color-hex" readonly class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-2 text-xs font-mono text-slate-400">
+                
+                <!-- Section 1: Login Screen Brand Style -->
+                <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
+                    <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">1. Login Screen Brand Style</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Wi-Fi / Brand Name</label>
+                            <input type="text" id="input-portal-brand" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Support Phone/Contact</label>
-                        <input type="text" id="input-portal-support" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Welcome Subtext</label>
+                            <input type="text" id="input-portal-welcome" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Accent Theme Color</label>
+                            <div class="flex gap-2">
+                                <input type="color" id="input-portal-color" oninput="updateLivePortalPreview()" class="w-10 h-[34px] bg-transparent border border-slate-200 dark:border-vunaborder rounded cursor-pointer">
+                                <input type="text" id="input-portal-color-hex" readonly class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-2 text-xs font-mono text-slate-400">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Support Phone/Contact</label>
+                            <input type="text" id="input-portal-support" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                        </div>
                     </div>
                 </div>
 
@@ -640,7 +642,7 @@
         </div>
 
         <!-- Right Column: Interactive Real-Time VunaFlow Smartphone Simulator -->
-        <div class="w-full lg:w-[360px] flex flex-col items-center shrink-0">
+        <div class="lg:col-span-5 xl:col-span-4 flex flex-col items-center shrink-0 sticky top-6">
             
             <!-- Simulator Screen Preview Toggler -->
             <div class="flex bg-slate-200 dark:bg-slate-900/60 p-1 rounded-xl w-full mb-3 border border-slate-200 dark:border-vunaborder gap-1">
@@ -689,6 +691,14 @@
                                     <span class="text-[10px] font-black text-slate-400">KSh --</span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Voucher Redemption Card Preview -->
+                        <div class="bg-white border border-slate-200 p-2.5 rounded-lg text-center space-y-1 shadow-sm">
+                            <p id="sim-text-voucher-label" class="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Have a Voucher Code?</p>
+                            <button id="sim-preview-voucher-btn" disabled class="w-full text-indigo-600 border border-indigo-200 font-bold text-[9px] py-1.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed">
+                                <i class="fa-solid fa-ticket"></i> <span id="sim-text-voucher-btn">Redeem Voucher</span>
+                            </button>
                         </div>
 
                         <!-- 3. M-Pesa & Payment Submission -->
@@ -2795,6 +2805,9 @@ function updateLivePortalPreview() {
     const supportInput = document.getElementById('input-portal-support')?.value || '0700000000';
     const accentColor = document.getElementById('input-portal-color')?.value || '#4f46e5';
     
+    const voucherLabelInput = document.getElementById('input-portal-voucher-label')?.value || 'Have a Voucher Code?';
+    const voucherBtnInput = document.getElementById('input-portal-voucher-btn')?.value || 'Redeem Voucher';
+
     const earnPoints = document.getElementById('input-portal-earn-pts')?.value || '10';
     const reconnectMsg = document.getElementById('input-portal-reconnect-msg')?.value || 'Checking matching active session links...';
     const tvSetupText = document.getElementById('input-portal-tv-setup')?.value || '1. Find MAC address of TV\n2. Submit it here\n3. Device links automatically.';
@@ -2815,6 +2828,13 @@ function updateLivePortalPreview() {
 
     const elHex = document.getElementById('input-portal-color-hex');
     if (elHex) elHex.value = accentColor.toUpperCase();
+
+    // Voucher text updates
+    const elVoucherLabel = document.getElementById('sim-text-voucher-label');
+    if (elVoucherLabel) elVoucherLabel.innerText = voucherLabelInput;
+
+    const elVoucherBtn = document.getElementById('sim-text-voucher-btn');
+    if (elVoucherBtn) elVoucherBtn.innerText = voucherBtnInput;
     
     const elReconnect = document.getElementById('sim-text-reconnect');
     if (elReconnect) elReconnect.innerText = reconnectMsg;
@@ -2834,15 +2854,9 @@ function updateLivePortalPreview() {
     const elSucBtn = document.getElementById('sim-success-btn-node');
     if (elSucBtn) elSucBtn.innerText = successBtn;
 
-    // Backward-compatible check for legacy text node reference
-    const legacyRedeemNode = document.getElementById('sim-text-redeem');
-    if (legacyRedeemNode) {
-        legacyRedeemNode.innerText = rewardTiersState.length > 0 ? rewardTiersState[0].pointsRequired : '100';
-    }
-
-    // Dynamic text rendering container updates for smartphone preview layout block
+    // Loyalty points check
     const rewardWidgetParagraph = document.getElementById('sim-loyalty-desc-text');
-    if (rewardWidgetParagraph) {
+    if (rewardWidgetParagraph && typeof rewardTiersState !== 'undefined') {
         if (rewardTiersState.length > 0) {
             const lowTier = rewardTiersState[0];
             rewardWidgetParagraph.innerHTML = `Earn +<span class="font-bold text-indigo-600">${earnPoints}</span> points on every checkout! Exchange starting from <span class="font-bold text-indigo-600">${lowTier.pointsRequired} pts</span> for a <b>${lowTier.displayName}</b>.`;
@@ -2851,14 +2865,22 @@ function updateLivePortalPreview() {
         }
     }
 
-    // Safe color applications
+    // Dynamic styles application
     const elLogoBox = document.getElementById('sim-preview-logo-box');
     if (elLogoBox) elLogoBox.style.backgroundColor = accentColor;
 
     const elAccentBtn = document.getElementById('sim-preview-accent-btn');
     if (elAccentBtn) elAccentBtn.style.backgroundColor = accentColor;
 
-    loadPortalPreviewPackages();
+    const elVoucherPreviewBtn = document.getElementById('sim-preview-voucher-btn');
+    if (elVoucherPreviewBtn) {
+        elVoucherPreviewBtn.style.color = accentColor;
+        elVoucherPreviewBtn.style.borderColor = accentColor + '44'; // Add opacity
+    }
+
+    if (typeof loadPortalPreviewPackages === 'function') {
+        loadPortalPreviewPackages();
+    }
 }
 
 function toggleSimulatorSuccessState(showSuccess) {
