@@ -3986,6 +3986,10 @@ async function executeNetworkHealthCheckPulse() {
         console.error("Network dashboard was unable to query active pings:", err);
     }
 }
+
+let activeCheckoutRequestId = null;
+let pollInterval = null;
+        
 // Helper to display inline notifications instead of browser alerts
 function showModalMessage(message, type = 'error') {
     const alertBox = document.getElementById('modal-alert');
