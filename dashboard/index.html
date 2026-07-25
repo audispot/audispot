@@ -522,29 +522,46 @@
             </div>
             
             <form id="portal-designer-form" onsubmit="savePortalDesignSettings(event)" class="space-y-5">
-                <!-- Section 1: Login Screen Brand Style -->
-                <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
-                    <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">1. Login Screen Brand Style</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Wi-Fi / Brand Name</label>
-                            <input type="text" id="input-portal-brand" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+            <!-- Section 1: Login Screen Brand Style -->
+            <div class="border-b border-slate-200 dark:border-vunaborder pb-4">
+                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">1. Login Screen Brand Style</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Wi-Fi / Brand Name</label>
+                        <input type="text" id="input-portal-brand" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Welcome Subtext</label>
+                        <input type="text" id="input-portal-welcome" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Accent Theme Color</label>
+                        <div class="flex gap-2">
+                            <input type="color" id="input-portal-color" oninput="updateLivePortalPreview()" class="w-10 h-[34px] bg-transparent border border-slate-200 dark:border-vunaborder rounded cursor-pointer">
+                            <input type="text" id="input-portal-color-hex" readonly class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-2 text-xs font-mono text-slate-400">
                         </div>
-                        <div>
-                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Welcome Subtext</label>
-                            <input type="text" id="input-portal-welcome" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Accent Theme Color</label>
-                            <div class="flex gap-2">
-                                <input type="color" id="input-portal-color" oninput="updateLivePortalPreview()" class="w-10 h-[34px] bg-transparent border border-slate-200 dark:border-vunaborder rounded cursor-pointer">
-                                <input type="text" id="input-portal-color-hex" readonly class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-2 text-xs font-mono text-slate-400">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Support Phone/Contact</label>
-                            <input type="text" id="input-portal-support" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
-                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Support Phone/Contact</label>
+                        <input type="text" id="input-portal-support" oninput="updateLivePortalPreview()" required class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+
+                    <!-- Added Voucher Configuration Inputs -->
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Voucher Section Label</label>
+                        <input type="text" id="input-portal-voucher-label" oninput="updateLivePortalPreview()" placeholder="e.g. Have a Voucher Code?" class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Voucher Action Button Text</label>
+                        <input type="text" id="input-portal-voucher-btn" oninput="updateLivePortalPreview()" placeholder="e.g. Redeem Voucher" class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Voucher Modal Title</label>
+                        <input type="text" id="input-portal-voucher-title" oninput="updateLivePortalPreview()" placeholder="e.g. Enter Voucher Code" class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Voucher Instructions</label>
+                        <input type="text" id="input-portal-voucher-desc" oninput="updateLivePortalPreview()" placeholder="e.g. Key in your voucher code below to activate access." class="w-full bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition">
                     </div>
                 </div>
 
@@ -2873,6 +2890,12 @@ async function fetchCurrentPortalDesign() {
             if (document.getElementById('input-portal-support')) document.getElementById('input-portal-support').value = config.supportContact || '';
             if (document.getElementById('input-portal-color')) document.getElementById('input-portal-color').value = config.accentColor || '#4f46e5';
             
+            // Populate Voucher Fields
+            if (document.getElementById('input-portal-voucher-label')) document.getElementById('input-portal-voucher-label').value = config.voucherLabel || '';
+            if (document.getElementById('input-portal-voucher-btn')) document.getElementById('input-portal-voucher-btn').value = config.voucherBtnText || '';
+            if (document.getElementById('input-portal-voucher-title')) document.getElementById('input-portal-voucher-title').value = config.voucherModalTitle || '';
+            if (document.getElementById('input-portal-voucher-desc')) document.getElementById('input-portal-voucher-desc').value = config.voucherInstructions || '';
+
             if (document.getElementById('input-portal-earn-pts')) document.getElementById('input-portal-earn-pts').value = config.earnPoints || '10';
             if (document.getElementById('input-portal-reconnect-msg')) document.getElementById('input-portal-reconnect-msg').value = config.reconnectMsg || '';
             if (document.getElementById('input-portal-tv-setup')) document.getElementById('input-portal-tv-setup').value = config.tvSetup || '';
@@ -2890,11 +2913,9 @@ async function fetchCurrentPortalDesign() {
             if (listContainer) {
                 listContainer.innerHTML = '';
                 
-                // CRITICAL FIX: Set the variable state data upfront *before* building rows
                 if (config.rewardTiers && Array.isArray(config.rewardTiers) && config.rewardTiers.length > 0) {
                     rewardTiersState = config.rewardTiers;
                     rewardTiersState.forEach(tier => {
-                        // Prevent inner row rendering functions from wiping out data arrays midway
                         const rowId = 'tier-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
                         listContainer.insertAdjacentHTML('beforeend', `
                             <div id="${rowId}" class="tier-data-row grid grid-cols-12 gap-2 bg-white dark:bg-vunacard p-2 rounded-lg border border-slate-200 dark:border-vunaborder items-center shadow-sm">
@@ -2916,7 +2937,6 @@ async function fetchCurrentPortalDesign() {
                         `);
                     });
                 } else {
-                    // Default fallback row
                     const legacyThreshold = parseInt(config.redeemPoints) || 100;
                     addRewardTierRow(legacyThreshold, '24_Hour_Plan', '24 Hours Pass');
                 }
@@ -2932,7 +2952,6 @@ async function fetchCurrentPortalDesign() {
 async function savePortalDesignSettings(e) {
     if (e && e.preventDefault) e.preventDefault();
     
-    // Explicitly make sure global UI array state variables are pulled fresh prior to network transit
     syncRewardTiersFromUI();
 
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
@@ -2948,9 +2967,15 @@ async function savePortalDesignSettings(e) {
         supportContact: document.getElementById('input-portal-support')?.value || '',
         accentColor: document.getElementById('input-portal-color')?.value || '#4f46e5',
         
+        // Save Voucher Configuration Fields
+        voucherLabel: document.getElementById('input-portal-voucher-label')?.value || '',
+        voucherBtnText: document.getElementById('input-portal-voucher-btn')?.value || '',
+        voucherModalTitle: document.getElementById('input-portal-voucher-title')?.value || '',
+        voucherInstructions: document.getElementById('input-portal-voucher-desc')?.value || '',
+
         earnPoints: parseInt(document.getElementById('input-portal-earn-pts')?.value || 0),
         redeemPoints: legacyThresholdVal,
-        rewardTiers: rewardTiersState, // This collection now array matches the saved structure
+        rewardTiers: rewardTiersState,
         
         reconnectMsg: document.getElementById('input-portal-reconnect-msg')?.value || '',
         tvSetup: document.getElementById('input-portal-tv-setup')?.value || '',
