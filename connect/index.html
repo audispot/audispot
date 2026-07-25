@@ -323,6 +323,79 @@
         }
 
         // =======================================================
+// VOUCHER CODE REDEMPTION PIPELINE
+// =======================================================
+async function triggerVoucherRedemption() {
+    const codeInput = document.getElementById('voucher-code-input');
+    const errLog = document.getElementById('voucher-error-log');
+    const redeemBtn = document.getElementById('btn-redeem-voucher');
+    
+    const codeValue = codeInput ? codeInput.value.trim() : '';
+    const urlParams = new URLSearchParams(window.location.search);
+    const ispId = urlParams.get('ispId');
+
+    if (!codeValue) {
+        errLog.innerText = "Please enter your voucher code.";
+        errLog.classList.remove('hidden');
+        return;
+    }
+
+    errLog.classList.add('hidden');
+    redeemBtn.disabled = true;
+    redeemBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Validating Token...`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/vouchers/redeem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                code: codeValue, 
+                macAddress: capturedMacAddress, 
+                ispId: ispId 
+            })
+        });
+
+        const outcome = await response.json();
+
+        if (response.ok && outcome.success) {
+            triggerUINotifier("Voucher verified! Authorizing internet session...", "success");
+            closePortalModal('modal-voucher');
+
+            // Automatically log in the user via form submit to MikroTik Captive Portal
+            setTimeout(() => {
+                const loginForm = document.createElement('form');
+                loginForm.method = 'POST';
+                loginForm.action = window.location.origin + '/login'; 
+                
+                // Pass code or credentials back to router login handler
+                const inputUser = document.createElement('input');
+                inputUser.type = 'hidden';
+                inputUser.name = 'username';
+                inputUser.value = codeValue;
+                
+                const inputPass = document.createElement('input');
+                inputPass.type = 'hidden';
+                inputPass.name = 'password';
+                inputPass.value = codeValue;
+
+                loginForm.appendChild(inputUser);
+                loginForm.appendChild(inputPass);
+                document.body.appendChild(loginForm);
+                loginForm.submit();
+            }, 1200);
+
+        } else {
+            throw new Error(outcome.message || outcome.error || "Invalid or used voucher code.");
+        }
+    } catch (err) {
+        errLog.innerText = err.message;
+        errLog.classList.remove('hidden');
+        redeemBtn.disabled = false;
+        redeemBtn.innerText = "Activate Voucher";
+    }
+}
+
+        // =======================================================
         // INTEGRATED AUTOMATIC / CODE DRIVEN RECONNECT PIPELINE
         // =======================================================
         async function handleInitialDeviceReconnect() {
