@@ -30,7 +30,7 @@
         <!-- Grid Body Split Columns -->
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             
-            <!-- LEFT AREA: Packages Panel & Direct Checkout forms -->
+            <!-- LEFT COLUMN: Packages Panel, Direct Checkout, Reconnect & Vouchers -->
             <div class="space-y-4">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
@@ -51,6 +51,14 @@
                     </button>
                 </div>
 
+                <!-- Voucher Redemption Trigger Area -->
+                <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400" id="portal-voucher-label">Have a Voucher Code?</p>
+                    <button onclick="openPortalModal('modal-voucher')" class="text-[11px] font-bold text-emerald-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                        <i class="fa-solid fa-ticket mr-1"></i> <span id="portal-voucher-btn-text">Redeem Voucher</span>
+                    </button>
+                </div>
+
                 <!-- Reconnect Engine Trigger Area -->
                 <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
@@ -61,15 +69,7 @@
                 </div>
             </div>
 
-            <!-- Voucher Redemption Trigger Area -->
-            <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400" id="portal-voucher-label">Have a Voucher Code?</p>
-                <button onclick="openPortalModal('modal-voucher')" class="text-[11px] font-bold text-emerald-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
-                    <i class="fa-solid fa-ticket mr-1"></i> <span id="portal-voucher-btn-text">Redeem Voucher</span>
-                </button>
-            </div>
-
-            <!-- RIGHT AREA: Rewards Engine / Smart Appliance Panels -->
+            <!-- RIGHT COLUMN: Rewards Engine / Smart Appliance Panels -->
             <div class="space-y-4">
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
                     <div class="flex items-start gap-2.5">
@@ -99,9 +99,9 @@
                     </ol>
                     <div class="space-y-1.5 pt-1">
                         <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
-                        <input type="text" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-base md:text-[10px] focus:outline-none transition">
+                        <input type="text" id="appliance-mac-input" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-base md:text-[10px] focus:outline-none transition uppercase">
                     </div>
-                    <button class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
+                    <button id="btn-register-appliance" onclick="registerApplianceMac()" class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
                 </div>
             </div>
         </div>
@@ -175,7 +175,6 @@
                 </h3>
                 <button onclick="closePortalModal('modal-voucher')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
-            <!-- Dynamic instructions configured by the ISP -->
             <p class="text-[11px] text-slate-400 leading-relaxed" id="modal-voucher-desc">
                 Enter your voucher token below to activate your internet pass.
             </p>
@@ -191,7 +190,7 @@
 
     <script>
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
-        let capturedMacAddress = "00:00:00:00:00:00"; // Fallback placeholder to map client interface layers
+        let capturedMacAddress = "00:00:00:00:00:00"; 
 
         function openPortalModal(id) {
             document.getElementById(id).style.display = 'flex';
@@ -216,7 +215,6 @@
             setTimeout(() => { toast.style.display = 'none'; }, 4000);
         }
 
-        // Pretty format function to handle months, weeks, and hours
         function formatPackageDuration(totalHours) {
             const hours = Number(totalHours || 0);
             if (hours >= 720 && hours % 720 === 0) {
@@ -234,9 +232,7 @@
             return `${hours} Hour${hours !== 1 ? 's' : ''}`;
         }
 
-        // =======================================================
-        // NEW: DIRECT PURCHASE ENGINE BUTTON & STK POLLING LOOPS
-        // =======================================================
+        // Direct Purchase Engine
         document.getElementById('portal-connect-btn').addEventListener('click', async () => {
             const phoneInput = document.getElementById('buyer-phone').value.trim();
             const selectedPlanNode = document.querySelector('input[name="selectedPlan"]:checked');
@@ -253,7 +249,6 @@
                 return;
             }
 
-            // Extract values bound safely inside the dynamically generated data targets
             const billingAmount = selectedPlanNode.getAttribute('data-price');
             const selectedProfile = selectedPlanNode.getAttribute('data-profile');
 
@@ -278,7 +273,6 @@
 
                 if (response.ok && outcome.success) {
                     triggerUINotifier("STK Push initiated! Complete PIN entry on your phone.", "success");
-                    // Fire real-time transactional monitoring loops immediately
                     initializePaymentTracker(outcome.CheckoutRequestID, phoneInput);
                 } else {
                     throw new Error(outcome.error || "Payment routing delivery rejected.");
@@ -293,7 +287,7 @@
         function initializePaymentTracker(checkoutId, userPhone) {
             const purchaseBtn = document.getElementById('portal-connect-btn');
             let loopAttempts = 0;
-            const maximumTimeoutLimit = 20; // 20 * 3 seconds = 60 Seconds Total Limit
+            const maximumTimeoutLimit = 20;
 
             const trackerInterval = setInterval(async () => {
                 loopAttempts++;
@@ -315,10 +309,8 @@
                         if (report.status === 'PAID') {
                             clearInterval(trackerInterval);
                             triggerUINotifier("Payment verified successfully! Authorizing appliance...", "success");
-                            
                             purchaseBtn.innerText = "Device Authorized!";
                             
-                            // Native Hotspot login redirection fallback implementation
                             setTimeout(() => {
                                 const loginForm = document.createElement('form');
                                 loginForm.method = 'POST';
@@ -353,9 +345,7 @@
             }, 3000);
         }
 
-        // =======================================================
-        // VOUCHER REDEMPTION HANDLER
-        // =======================================================
+        // Voucher Redemption Handler
         async function triggerVoucherRedemption() {
             const codeInput = document.getElementById('voucher-code-input');
             const errLog = document.getElementById('voucher-error-log');
@@ -392,7 +382,6 @@
                     triggerUINotifier("Voucher verified! Connecting to internet...", "success");
                     closePortalModal('modal-voucher');
 
-                    // Auto-submit login request to MikroTik Hotspot gateway
                     setTimeout(() => {
                         const loginForm = document.createElement('form');
                         loginForm.method = 'POST';
@@ -425,9 +414,7 @@
             }
         }
         
-        // =======================================================
-        // INTEGRATED AUTOMATIC / CODE DRIVEN RECONNECT PIPELINE
-        // =======================================================
+        // Reconnect Pipeline
         async function handleInitialDeviceReconnect() {
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
@@ -486,9 +473,45 @@
             }
         }
 
-        // =======================================================
-        // REAL-DATA REWARDS LOYALTY SYSTEM METRICS PIPELINE
-        // =======================================================
+        // Appliance MAC Registration Handler
+        async function registerApplianceMac() {
+            const macInput = document.getElementById('appliance-mac-input');
+            const btn = document.getElementById('btn-register-appliance');
+            const macValue = macInput ? macInput.value.trim() : '';
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+
+            if (!macValue) {
+                triggerUINotifier("Please enter a valid MAC Address.", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Registering...`;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/register-mac`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetMac: macValue, sourceMac: capturedMacAddress, routerId: ispId })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    triggerUINotifier("Appliance MAC authorized successfully!", "success");
+                    macInput.value = '';
+                } else {
+                    throw new Error(data.error || "Registration failed.");
+                }
+            } catch (err) {
+                triggerUINotifier(err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Register Appliance MAC";
+            }
+        }
+
+        // Loyalty Pipeline
         async function executeQueryLoyaltyPoints() {
             const phoneField = document.getElementById('points-query-phone');
             const displayBlock = document.getElementById('points-display-status');
@@ -553,12 +576,12 @@
             closePortalModal('modal-redeem');
         }
 
-        // Initialization layout metrics block
+        // Load ISP Configurations & Packages
         document.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const ispId = urlParams.get('ispId');
             
-            if(urlParams.get('mac')) capturedMacAddress = urlParams.get('mac');
+            if (urlParams.get('mac')) capturedMacAddress = urlParams.get('mac');
 
             if (!ispId) {
                 document.getElementById('public-packages-wrapper').innerHTML = `
@@ -585,11 +608,17 @@
                 document.getElementById('label-earn-pts').innerText = config.earnPoints || '1';
                 document.getElementById('label-redeem-threshold').innerText = config.redeemPoints || '20';
 
-                // Load ISP's dynamic voucher UI configurations if set
                 if (config.voucherLabel) document.getElementById('portal-voucher-label').innerText = config.voucherLabel;
                 if (config.voucherBtnText) document.getElementById('portal-voucher-btn-text').innerText = config.voucherBtnText;
                 if (config.voucherModalTitle) document.getElementById('modal-voucher-title').innerText = config.voucherModalTitle;
                 if (config.voucherInstructions) document.getElementById('modal-voucher-desc').innerText = config.voucherInstructions;
+
+                if (config.tvInstructions) {
+                    const steps = config.tvInstructions.split('\n').filter(s => s.trim().length > 0);
+                    if (steps.length > 0) {
+                        document.getElementById('portal-tv-setup-list').innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+                    }
+                }
 
                 const accentColor = config.accentColor || '#4f46e5';
                 document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
@@ -613,7 +642,6 @@
                                 <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
                                        style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
                                     <div class="flex items-center gap-3">
-                                        <!-- UPDATED: Injecting pricing metadata and profile parameters cleanly directly onto input targets -->
                                         <input type="radio" name="selectedPlan" value="${pkgId}" data-price="${pkg.price || 0}" data-profile="${matchedProfileName}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
                                         <div class="space-y-0.5">
                                             <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
