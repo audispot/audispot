@@ -2162,28 +2162,50 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
 // 2. M-Pesa Callback Endpoint
 app.post('/api/isp/mpesa-callback', async (req, res) => {
     try {
-        const callbackData = req.body.Body.stkCallback;
+        const db = req.db;
+        const callbackData = req.body?.Body?.stkCallback;
+
+        // Safely validate payload before accessing properties
+        if (!callbackData) {
+            return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+        }
+
         const checkoutId = callbackData.CheckoutRequestID;
         const resultCode = callbackData.ResultCode;
 
-        if (subscriptionTransactions.has(checkoutId)) {
-            const txn = subscriptionTransactions.get(checkoutId);
+        // Fetch pending transaction directly from database
+        const txn = await db.collection('subscription_transactions').findOne({ checkoutRequestId: checkoutId });
 
+        if (txn) {
             if (resultCode === 0) {
-                txn.status = 'PAID';
-                txn.paidAt = new Date();
+                // Mark transaction as paid
+                await db.collection('subscription_transactions').updateOne(
+                    { checkoutRequestId: checkoutId },
+                    { $set: { status: 'PAID', paidAt: new Date() } }
+                );
 
-                // Extend subscription expiry date by 30 days in database using req.db
-                const db = req.db;
+                // Fetch current ISP to preserve existing active time
+                const isp = await db.collection('isps').findOne({ _id: txn.ispId });
+                
+                let baseDate = Date.now();
+                if (isp && isp.expiryDate && new Date(isp.expiryDate) > new Date()) {
+                    baseDate = new Date(isp.expiryDate).getTime();
+                }
+
+                const newExpiryDate = new Date(baseDate + (30 * 24 * 60 * 60 * 1000));
+
+                // Extend subscription expiry date
                 await db.collection('isps').updateOne(
                     { _id: txn.ispId }, 
-                    { $set: { expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }
+                    { $set: { expiryDate: newExpiryDate } }
                 );
             } else {
-                txn.status = 'FAILED';
+                // Mark transaction as failed/cancelled
+                await db.collection('subscription_transactions').updateOne(
+                    { checkoutRequestId: checkoutId },
+                    { $set: { status: 'FAILED' } }
+                );
             }
-            
-            subscriptionTransactions.set(checkoutId, txn);
         }
 
         return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -2194,18 +2216,26 @@ app.post('/api/isp/mpesa-callback', async (req, res) => {
 });
 
 // 3. Verification Polling Endpoint
-app.get('/api/isp/verify-subscription/:checkoutId', (req, res) => {
-    const { checkoutId } = req.params;
-    const txn = subscriptionTransactions.get(checkoutId);
+app.get('/api/isp/verify-subscription/:checkoutId', async (req, res) => {
+    try {
+        const { checkoutId } = req.params;
+        const db = req.db;
 
-    if (!txn) {
-        return res.status(404).json({ success: false, status: 'NOT_FOUND' });
+        // Query database instead of in-memory Map
+        const txn = await db.collection('subscription_transactions').findOne({ checkoutRequestId: checkoutId });
+
+        if (!txn) {
+            return res.status(404).json({ success: false, status: 'NOT_FOUND' });
+        }
+
+        return res.json({
+            success: true,
+            status: txn.status
+        });
+    } catch (error) {
+        console.error("Verification endpoint error:", error);
+        return res.status(500).json({ success: false, error: "Failed to verify transaction" });
     }
-
-    return res.json({
-        success: true,
-        status: txn.status
-    });
 });
 
 const PORT = process.env.PORT || 8080;
