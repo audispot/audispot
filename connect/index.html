@@ -61,6 +61,14 @@
                 </div>
             </div>
 
+            <!-- Voucher Redemption Trigger Area -->
+            <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400" id="portal-voucher-label">Have a Voucher Code?</p>
+                <button onclick="openPortalModal('modal-voucher')" class="text-[11px] font-bold text-emerald-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                    <i class="fa-solid fa-ticket mr-1"></i> <span id="portal-voucher-btn-text">Redeem Voucher</span>
+                </button>
+            </div>
+
             <!-- RIGHT AREA: Rewards Engine / Smart Appliance Panels -->
             <div class="space-y-4">
                 <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
@@ -155,6 +163,29 @@
             </div>
             
             <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden">Confirm Exchange</button>
+        </div>
+    </div>
+
+    <!-- Voucher Code Redemption Modal Frame -->
+    <div id="modal-voucher" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-ticket text-emerald-400"></i> <span id="modal-voucher-title">Redeem Voucher</span>
+                </h3>
+                <button onclick="closePortalModal('modal-voucher')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <!-- Dynamic instructions configured by the ISP -->
+            <p class="text-[11px] text-slate-400 leading-relaxed" id="modal-voucher-desc">
+                Enter your voucher token below to activate your internet pass.
+            </p>
+            <div class="space-y-3">
+                <input type="text" id="voucher-code-input" placeholder="e.g. AUDI-X7K9P2" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-bold font-mono tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-emerald-500 transition">
+                <p id="voucher-error-log" class="text-[10px] text-rose-400 hidden"></p>
+                <button id="btn-redeem-voucher" onclick="triggerVoucherRedemption()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-lg">
+                    Activate Pass
+                </button>
+            </div>
         </div>
     </div>
 
@@ -323,78 +354,77 @@
         }
 
         // =======================================================
-// VOUCHER CODE REDEMPTION PIPELINE
-// =======================================================
-async function triggerVoucherRedemption() {
-    const codeInput = document.getElementById('voucher-code-input');
-    const errLog = document.getElementById('voucher-error-log');
-    const redeemBtn = document.getElementById('btn-redeem-voucher');
-    
-    const codeValue = codeInput ? codeInput.value.trim() : '';
-    const urlParams = new URLSearchParams(window.location.search);
-    const ispId = urlParams.get('ispId');
+        // VOUCHER REDEMPTION HANDLER
+        // =======================================================
+        async function triggerVoucherRedemption() {
+            const codeInput = document.getElementById('voucher-code-input');
+            const errLog = document.getElementById('voucher-error-log');
+            const redeemBtn = document.getElementById('btn-redeem-voucher');
+            
+            const codeValue = codeInput ? codeInput.value.trim() : '';
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
 
-    if (!codeValue) {
-        errLog.innerText = "Please enter your voucher code.";
-        errLog.classList.remove('hidden');
-        return;
-    }
+            if (!codeValue) {
+                errLog.innerText = "Please enter your voucher code.";
+                errLog.classList.remove('hidden');
+                return;
+            }
 
-    errLog.classList.add('hidden');
-    redeemBtn.disabled = true;
-    redeemBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Validating Token...`;
+            errLog.classList.add('hidden');
+            redeemBtn.disabled = true;
+            redeemBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Validating Token...`;
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/vouchers/redeem`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                code: codeValue, 
-                macAddress: capturedMacAddress, 
-                ispId: ispId 
-            })
-        });
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/vouchers/redeem`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        code: codeValue, 
+                        macAddress: capturedMacAddress, 
+                        ispId: ispId 
+                    })
+                });
 
-        const outcome = await response.json();
+                const outcome = await response.json();
 
-        if (response.ok && outcome.success) {
-            triggerUINotifier("Voucher verified! Authorizing internet session...", "success");
-            closePortalModal('modal-voucher');
+                if (response.ok && outcome.success) {
+                    triggerUINotifier("Voucher verified! Connecting to internet...", "success");
+                    closePortalModal('modal-voucher');
 
-            // Automatically log in the user via form submit to MikroTik Captive Portal
-            setTimeout(() => {
-                const loginForm = document.createElement('form');
-                loginForm.method = 'POST';
-                loginForm.action = window.location.origin + '/login'; 
-                
-                // Pass code or credentials back to router login handler
-                const inputUser = document.createElement('input');
-                inputUser.type = 'hidden';
-                inputUser.name = 'username';
-                inputUser.value = codeValue;
-                
-                const inputPass = document.createElement('input');
-                inputPass.type = 'hidden';
-                inputPass.name = 'password';
-                inputPass.value = codeValue;
+                    // Auto-submit login request to MikroTik Hotspot gateway
+                    setTimeout(() => {
+                        const loginForm = document.createElement('form');
+                        loginForm.method = 'POST';
+                        loginForm.action = window.location.origin + '/login'; 
+                        
+                        const inputUser = document.createElement('input');
+                        inputUser.type = 'hidden';
+                        inputUser.name = 'username';
+                        inputUser.value = codeValue;
+                        
+                        const inputPass = document.createElement('input');
+                        inputPass.type = 'hidden';
+                        inputPass.name = 'password';
+                        inputPass.value = codeValue;
 
-                loginForm.appendChild(inputUser);
-                loginForm.appendChild(inputPass);
-                document.body.appendChild(loginForm);
-                loginForm.submit();
-            }, 1200);
+                        loginForm.appendChild(inputUser);
+                        loginForm.appendChild(inputPass);
+                        document.body.appendChild(loginForm);
+                        loginForm.submit();
+                    }, 1200);
 
-        } else {
-            throw new Error(outcome.message || outcome.error || "Invalid or used voucher code.");
+                } else {
+                    throw new Error(outcome.message || outcome.error || "Invalid or used voucher code.");
+                }
+            } catch (err) {
+                errLog.innerText = err.message;
+                errLog.classList.remove('hidden');
+                redeemBtn.disabled = false;
+                redeemBtn.innerText = "Activate Pass";
+            }
         }
-    } catch (err) {
-        errLog.innerText = err.message;
-        errLog.classList.remove('hidden');
-        redeemBtn.disabled = false;
-        redeemBtn.innerText = "Activate Voucher";
-    }
-}
-
+        
         // =======================================================
         // INTEGRATED AUTOMATIC / CODE DRIVEN RECONNECT PIPELINE
         // =======================================================
@@ -554,6 +584,12 @@ async function triggerVoucherRedemption() {
                 if (config.reconnectMsg) document.getElementById('portal-reconnect-msg').innerText = config.reconnectMsg;
                 document.getElementById('label-earn-pts').innerText = config.earnPoints || '1';
                 document.getElementById('label-redeem-threshold').innerText = config.redeemPoints || '20';
+
+                // Load ISP's dynamic voucher UI configurations if set
+                if (config.voucherLabel) document.getElementById('portal-voucher-label').innerText = config.voucherLabel;
+                if (config.voucherBtnText) document.getElementById('portal-voucher-btn-text').innerText = config.voucherBtnText;
+                if (config.voucherModalTitle) document.getElementById('modal-voucher-title').innerText = config.voucherModalTitle;
+                if (config.voucherInstructions) document.getElementById('modal-voucher-desc').innerText = config.voucherInstructions;
 
                 const accentColor = config.accentColor || '#4f46e5';
                 document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
