@@ -6,6 +6,8 @@ const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
 
+const subscriptionTransactions = new Map();
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -125,6 +127,17 @@ async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = ""
     }
     
     return doc.data();
+}
+
+// Helper: Format phone to 254... format
+function formatPhoneNumber(phone) {
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) {
+        cleaned = '254' + cleaned.slice(1);
+    } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
+        cleaned = '254' + cleaned;
+    }
+    return cleaned;
 }
 
 // 1. Core Platform Health Route
@@ -2067,6 +2080,132 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         console.error("Multi-tenant transaction fetch error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
+});
+
+app.post('/api/isp/renew-subscription', async (req, res) => {
+    try {
+        const { phoneNumber, ispId } = req.body;
+
+        if (!phoneNumber || !ispId) {
+            return res.status(400).json({ success: false, error: "Missing required fields" });
+        }
+
+        const formattedPhone = formatPhoneNumber(phoneNumber);
+
+        // Fetch router count dynamically using req.db
+        const db = req.db;
+        const routerCount = await db.collection('routers').countDocuments({ ispId: ispId });
+        
+        const amount = routerCount * 500;
+
+        if (amount <= 0) {
+            return res.status(400).json({ success: false, error: "No active routers to bill." });
+        }
+
+        // Generate M-Pesa Authorization Token
+        const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
+        const tokenRes = await axios.get('https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
+            headers: { Authorization: `Basic ${auth}` }
+        });
+        const accessToken = tokenRes.data.access_token;
+
+        // Generate Timestamp & Password
+        const timestamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const password = Buffer.from(`${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
+
+        // Initiate STK Push
+        const stkRes = await axios.post(
+            'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+            {
+                BusinessShortCode: process.env.MPESA_SHORTCODE,
+                Password: password,
+                Timestamp: timestamp,
+                TransactionType: 'CustomerPayBillOnline',
+                Amount: amount,
+                PartyA: formattedPhone,
+                PartyB: process.env.MPESA_SHORTCODE,
+                PhoneNumber: formattedPhone,
+                CallBackURL: `${process.env.SERVER_BASE_URL}/api/isp/mpesa-callback`,
+                AccountReference: `RENEW-${ispId.slice(0, 6)}`,
+                TransactionDesc: `Platform Subscription Renewal`
+            },
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        if (stkRes.data.ResponseCode === '0') {
+            const checkoutId = stkRes.data.CheckoutRequestID;
+            
+            // Log pending payment state
+            subscriptionTransactions.set(checkoutId, {
+                ispId: ispId,
+                status: 'PENDING',
+                amount: amount,
+                phone: formattedPhone,
+                createdAt: new Date()
+            });
+
+            return res.json({
+                success: true,
+                checkoutRequestId: checkoutId,
+                message: "STK push initiated successfully."
+            });
+        } else {
+            return res.status(400).json({ success: false, error: "Failed to trigger M-Pesa STK Push." });
+        }
+
+    } catch (error) {
+        console.error("STK Push error:", error?.response?.data || error.message);
+        return res.status(500).json({ success: false, error: "Internal payment gateway failure." });
+    }
+});
+
+// 2. M-Pesa Callback Endpoint
+app.post('/api/isp/mpesa-callback', async (req, res) => {
+    try {
+        const callbackData = req.body.Body.stkCallback;
+        const checkoutId = callbackData.CheckoutRequestID;
+        const resultCode = callbackData.ResultCode;
+
+        if (subscriptionTransactions.has(checkoutId)) {
+            const txn = subscriptionTransactions.get(checkoutId);
+
+            if (resultCode === 0) {
+                txn.status = 'PAID';
+                txn.paidAt = new Date();
+
+                // Extend subscription expiry date by 30 days in database using req.db
+                const db = req.db;
+                await db.collection('isps').updateOne(
+                    { _id: txn.ispId }, 
+                    { $set: { expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }
+                );
+            } else {
+                txn.status = 'FAILED';
+            }
+            
+            subscriptionTransactions.set(checkoutId, txn);
+        }
+
+        return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    } catch (error) {
+        console.error("Callback process error:", error);
+        return res.json({ ResultCode: 0, ResultDesc: "Accepted with errors" });
+    }
+});
+
+// 3. Verification Polling Endpoint
+app.get('/api/isp/verify-subscription/:checkoutId', (req, res) => {
+    const { checkoutId } = req.params;
+    const txn = subscriptionTransactions.get(checkoutId);
+
+    if (!txn) {
+        return res.status(404).json({ success: false, status: 'NOT_FOUND' });
+    }
+
+    return res.json({
+        success: true,
+        status: txn.status
+    });
 });
 
 const PORT = process.env.PORT || 8080;
