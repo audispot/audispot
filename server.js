@@ -1401,6 +1401,50 @@ app.post('/api/vouchers/generate', async (req, res) => {
     }
 });
 
+app.post('/api/vouchers/redeem', async (req, res) => {
+    const { code, macAddress, ispId } = req.body;
+
+    try {
+        // 1. Find voucher in Firestore
+        const snapshot = await db.collection('isp_vouchers')
+            .where('ispId', '==', ispId || 'default_isp')
+            .where('code', '==', code.trim())
+            .get();
+
+        if (snapshot.empty) {
+            return res.status(404).json({ success: false, message: "Invalid voucher code." });
+        }
+
+        const voucherDoc = snapshot.docs[0];
+        const voucher = voucherDoc.data();
+
+        // 2. Check if already used
+        if (voucher.status !== 'Active') {
+            return res.status(400).json({ success: false, message: "This voucher has already been used." });
+        }
+
+        // 3. Mark voucher as used
+        await voucherDoc.ref.update({
+            status: 'Used',
+            usedByMac: macAddress,
+            usedAt: new Date().toISOString()
+        });
+
+        // 4. Return success along with the package constraints for router login
+        return res.status(200).json({
+            success: true,
+            message: "Voucher activated successfully!",
+            package: {
+                duration: voucher.duration,
+                packageName: voucher.packageName
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.post('/api/vouchers/bulk-delete', async (req, res) => {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) {
