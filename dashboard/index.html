@@ -945,12 +945,16 @@
                     <input type="text" id="inp-sett-brand" name="brandName" placeholder="AudiSpot Premium Hotspot" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-semibold">
                 </div>
                 <div class="space-y-1">
-                    <label class="text-slate-400">Captive Portal Redirect Address (Generated Backend)</label>
-                    <input type="text" id="inp-sett-redirect" name="redirectUrl" disabled readonly class="w-full p-2.5 bg-slate-100 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-500 dark:text-slate-400 font-mono select-all font-semibold">
+                    <div class="flex justify-between items-center">
+                        <label class="text-slate-400">Captive Portal Post-Login Redirect URL</label>
+                        <span class="text-[10px] text-indigo-400">Where users go after connecting</span>
+                    </div>
+                    <input type="url" id="inp-sett-redirect" name="redirectUrl" placeholder="https://audispot.audiory.site/login" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono font-semibold">
+                    <p class="text-[10px] text-slate-400 mt-0.5">Leave blank to use default portal login address.</p>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Save System Branding State</button>
             </form>
-
+            
             <!-- ALERTS & MONITORING MONITOR -->
             <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4 text-xs">
                 <div class="flex items-center justify-between">
@@ -3610,12 +3614,21 @@ async function saveBrandingState(e) {
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     
+    let redirectInput = document.getElementById('inp-sett-redirect').value.trim();
+
+    // Auto-fix protocol if entered without http:// or https://
+    if (redirectInput && !/^https?:\/\//i.test(redirectInput)) {
+        redirectInput = `https://${redirectInput}`;
+        document.getElementById('inp-sett-redirect').value = redirectInput;
+    }
+    
     const payload = {
-        brandName: document.getElementById('inp-sett-brand').value,
-        serverIp: document.getElementById('inp-sett-ip').value,
-        supportPhone: document.getElementById('inp-sett-phone').value,
-        redirectUrl: document.getElementById('inp-sett-redirect').value
+        brandName: document.getElementById('inp-sett-brand').value.trim(),
+        serverIp: document.getElementById('inp-sett-ip').value.trim(),
+        supportPhone: document.getElementById('inp-sett-phone').value.trim(),
+        redirectUrl: redirectInput || "https://audispot.audiory.site/login" // Default fallback
     };
+
     try {
         const res = await fetch(`${baseEndpoint}/api/settings/branding?ispId=${targetTenant}`, {
             method: 'POST',
@@ -3623,7 +3636,9 @@ async function saveBrandingState(e) {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Network branding layout successfully committed to registry.');
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay('Network branding layout successfully committed to registry.');
+            }
         }
     } catch (err) {
         console.error("Save failure:", err);
