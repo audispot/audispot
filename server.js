@@ -2417,29 +2417,24 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
 
         const normalizedEmail = email.trim().toLowerCase();
 
-        // 1. QUERY FIRESTORE BY EMAIL FIELD (Handles any doc ID format)
+        // Query user in Firestore
         let ispQuery = await db.collection('isp_users')
             .where('email', '==', normalizedEmail)
             .limit(1)
             .get();
 
         let ispRef;
-
-        // Fallback: If not found by query, check doc ID format (e.g. admin_isp_com)
         if (ispQuery.empty) {
             const ispId = normalizedEmail.replace(/[^a-zA-Z0-9]/g, "_");
             const docRef = db.collection('isp_users').doc(ispId);
             const docSnap = await docRef.get();
-            if (docSnap.exists) {
-                ispRef = docRef;
-            }
+            if (docSnap.exists) ispRef = docRef;
         } else {
             ispRef = ispQuery.docs[0].ref;
         }
 
-        // 2. IF USER REALLY DOES NOT EXIST:
         if (!ispRef) {
-            console.warn(`[RESET ATTEMPTS] No user found matching email: ${normalizedEmail}`);
+            console.warn(`[RESET ATTENTION] User not found: ${normalizedEmail}`);
             return res.status(200).json({ 
                 success: true, 
                 message: "If that email is registered, a password reset code has been sent." 
@@ -2448,25 +2443,18 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
 
         // Generate 6-digit verification code
         const resetCode = crypto.randomInt(100000, 999999).toString();
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute expiry
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-        // Update Firestore
+        // Save code in Firestore
         await ispRef.update({
             resetCode: resetCode,
             resetCodeExpiresAt: expiresAt
         });
 
-        console.log(`==========================================`);
-        console.log(`[PASSWORD RESET CODE FOR ${normalizedEmail}]: ${resetCode}`);
-        console.log(`==========================================`);
+        // Sender email
+        const senderEmail = process.env.RESEND_SENDER_EMAIL || 'noreply@mail.audispot.audiory.site';
 
-        // Format sender email
-        let senderEmail = process.env.RESEND_SENDER_EMAIL || 'noreply@mail.audispot.audiory.site';
-        if (!senderEmail.includes('@')) {
-            senderEmail = `noreply@${senderEmail}`;
-        }
-
-        // Send Email via Resend
+        // DISPATCH EMAIL VIA RESEND
         const { data, error } = await resend.emails.send({
             from: `AudioSpot Portal <${senderEmail}>`,
             to: [normalizedEmail],
@@ -2503,7 +2491,7 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message || "Failed to deliver email." });
         }
 
-        console.log(`[Resend Success] Reset email dispatched to ${normalizedEmail}, ID: ${data.id}`);
+        console.log(`[Resend Success] Email sent to ${normalizedEmail}, Message ID: ${data.id}`);
 
         return res.status(200).json({
             success: true,
