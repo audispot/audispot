@@ -106,11 +106,25 @@
 
                 showAlert("Authentication successful! Loading your control center...", false);
                 
-                // CRITICAL: Save the token and ISP Identity to bypass the Dashboard's Session Guard
+                // CRITICAL: Save the token, ISP Identity, and Account Timestamps
                 localStorage.setItem('auth_token', result.token);
                 localStorage.setItem('isp_id', result.ispId);
                 localStorage.setItem('isp_name', result.ispName || '');
-                localStorage.setItem('created_at', result.createdAt || new Date().toISOString());
+
+                // Save created_at and expiry_date returned from server
+                if (result.created_at) {
+                    localStorage.setItem('created_at', result.created_at);
+                } else if (result.createdAt) {
+                    localStorage.setItem('created_at', result.createdAt);
+                }
+
+                if (result.expiry_date) {
+                    localStorage.setItem('expiry_date', result.expiry_date);
+                } else if (result.expiryDate) {
+                    localStorage.setItem('expiry_date', result.expiryDate);
+                } else {
+                    localStorage.removeItem('expiry_date');
+                }
 
                 // Redirect to the main system dashboard
                 setTimeout(() => {
