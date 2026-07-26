@@ -2404,11 +2404,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ====================================================================
-// 1. REQUEST PASSWORD RESET (Generates Code & Sends Email via Resend)
-// ====================================================================
-const { sendEmail, safeStr } = require('./emailUtils');
-
-// ====================================================================
 // 1. REQUEST PASSWORD RESET
 // ====================================================================
 app.post('/api/auth/request-password-reset', async (req, res) => {
