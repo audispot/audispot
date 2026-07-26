@@ -10,8 +10,6 @@ const { sendEmail, safeStr } = require('./emailUtils');
 
 const subscriptionTransactions = new Map();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const app = express();
 app.use(cors());
 app.use(express.json());
