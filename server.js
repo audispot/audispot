@@ -1902,19 +1902,26 @@ app.post('/api/auth/isp-login', async (req, res) => {
 
         const ispData = ispDoc.data();
 
-        // Simple password verification (In production, use bcrypt hashing!)
+        // Simple password verification
         if (ispData.password !== password) {
             return res.status(401).json({ success: false, error: "Invalid email or password." });
         }
 
-        // Generate a simple token (or use JWT in production)
+        // Generate token
         const token = Buffer.from(`${ispId}:${Date.now()}`).toString('base64');
+
+        // Parse Firestore timestamps cleanly
+        const createdAt = ispData.createdAt?.toDate ? ispData.createdAt.toDate() : (ispData.createdAt ? new Date(ispData.createdAt) : new Date());
+        const expiryDate = ispData.expiryDate?.toDate ? ispData.expiryDate.toDate() : (ispData.expiryDate ? new Date(ispData.expiryDate) : null);
 
         return res.status(200).json({
             success: true,
             token: token,
             ispId: ispId,
-            ispName: ispData.ispName
+            ispName: ispData.ispName,
+            // Pass official timestamps to frontend
+            created_at: createdAt.toISOString(),
+            expiry_date: expiryDate ? expiryDate.toISOString() : null
         });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
