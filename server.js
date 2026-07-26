@@ -2083,6 +2083,9 @@ const formatMpesaPhone = (phone) => {
 };
 
 app.post('/api/isp/renew-subscription', async (req, res) => {
+    // Prevent browser 304 caching during active polling
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    
     try {
         const { phoneNumber, ispId } = req.body;
         const db = req.db;
