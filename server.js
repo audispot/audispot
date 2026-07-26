@@ -129,17 +129,6 @@ async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = ""
     return doc.data();
 }
 
-// Helper: Format phone to 254... format
-function formatPhoneNumber(phone) {
-    let cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('0')) {
-        cleaned = '254' + cleaned.slice(1);
-    } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
-        cleaned = '254' + cleaned;
-    }
-    return cleaned;
-}
-
 // 1. Core Platform Health Route
 app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
@@ -2082,61 +2071,95 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 });
 
+// Self-contained phone number helper
+const formatMpesaPhone = (phone) => {
+    let cleaned = (phone || '').toString().replace(/\D/g, '');
+    if (cleaned.startsWith('0')) {
+        cleaned = '254' + cleaned.slice(1);
+    } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
+        cleaned = '254' + cleaned;
+    }
+    return cleaned;
+};
+
 app.post('/api/isp/renew-subscription', async (req, res) => {
     try {
         const { phoneNumber, ispId } = req.body;
         const db = req.db;
 
         if (!phoneNumber || !ispId) {
-            return res.status(400).json({ success: false, error: "Missing required fields" });
+            return res.status(400).json({ success: false, error: "Missing phone number or ISP ID." });
         }
 
-        const formattedPhone = formatPhoneNumber(phoneNumber);
+        const formattedPhone = formatMpesaPhone(phoneNumber);
 
-        // Fetch router count dynamically using Firestore Admin SDK
-        const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).count().get();
-        const routerCount = routersSnapshot.data().count;
-
-        const amount = Math.round(routerCount * 500);
-
-        if (amount <= 0) {
-            return res.status(400).json({ success: false, error: "No active routers to bill." });
+        // Fetch router count safely from Firestore
+        let routerCount = 0;
+        try {
+            const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+            routerCount = routersSnapshot.size;
+        } catch (e) {
+            console.error("Firestore router lookup error:", e);
         }
 
-        // Generate M-Pesa Authorization Token
-        const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
+        // Default to at least 1 router (KSh 500) if count is 0 so trial users can renew
+        const amount = routerCount > 0 ? routerCount * 500 : 500;
+
+        const consumerKey = process.env.MPESA_CONSUMER_KEY;
+        const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+        const shortCode = process.env.MPESA_SHORTCODE;
+        const passkey = process.env.MPESA_PASSKEY;
+        const baseUrl = process.env.SERVER_BASE_URL || "https://audispoty-749056206562.europe-west1.run.app";
+
+        if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
+            console.error("Missing M-Pesa Environment Variables!");
+            return res.status(500).json({ 
+                success: false, 
+                error: "M-Pesa credentials not configured on backend." 
+            });
+        }
+
+        // 1. Get OAuth Token
+        const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
         const tokenRes = await axios.get('https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
             headers: { Authorization: `Basic ${auth}` }
         });
         const accessToken = tokenRes.data.access_token;
 
-        // Generate Timestamp & Password
-        const timestamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const password = Buffer.from(`${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
+        // 2. Build Password & Timestamp
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() +
+            (now.getMonth() + 1).toString().padStart(2, '0') +
+            now.getDate().toString().padStart(2, '0') +
+            now.getHours().toString().padStart(2, '0') +
+            now.getMinutes().toString().padStart(2, '0') +
+            now.getSeconds().toString().padStart(2, '0');
 
-        // Initiate STK Push
+        const password = Buffer.from(`${shortCode}${passkey}${timestamp}`).toString('base64');
+
+        // 3. Send STK Push Request
         const stkRes = await axios.post(
             'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
             {
-                BusinessShortCode: process.env.MPESA_SHORTCODE,
+                BusinessShortCode: shortCode,
                 Password: password,
                 Timestamp: timestamp,
                 TransactionType: 'CustomerPayBillOnline',
                 Amount: amount,
                 PartyA: formattedPhone,
-                PartyB: process.env.MPESA_SHORTCODE,
+                PartyB: shortCode,
                 PhoneNumber: formattedPhone,
-                CallBackURL: `${process.env.SERVER_BASE_URL}/api/isp/mpesa-callback`,
-                AccountReference: `RENEW-${ispId.slice(0, 6)}`,
-                TransactionDesc: `Platform Subscription Renewal`
+                CallBackURL: `${baseUrl}/api/isp/mpesa-callback`,
+                AccountReference: `RENEW-${ispId.toString().slice(0, 6)}`,
+                TransactionDesc: "Platform Subscription Renewal"
             },
             { headers: { Authorization: `Bearer ${accessToken}` } }
         );
 
-        if (stkRes.data.ResponseCode === '0') {
+        if (stkRes.data && stkRes.data.ResponseCode === '0') {
             const checkoutId = stkRes.data.CheckoutRequestID;
             
-            // Save transaction record to Firestore using doc(checkoutId)
+            // Save transaction to Firestore using doc(checkoutId)
             await db.collection('subscription_transactions').doc(checkoutId).set({
                 checkoutRequestId: checkoutId,
                 ispId: ispId,
@@ -2152,12 +2175,26 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
                 message: "STK push initiated successfully."
             });
         } else {
-            return res.status(400).json({ success: false, error: "Failed to trigger M-Pesa STK Push." });
+            return res.status(400).json({ 
+                success: false, 
+                error: stkRes.data?.CustomerMessage || "Failed to trigger M-Pesa push." 
+            });
         }
 
     } catch (error) {
-        console.error("STK Push error:", error?.response?.data || error.message);
-        return res.status(500).json({ success: false, error: "Internal payment gateway failure." });
+        // Detailed log for GCP Cloud Run
+        const safaricomError = error?.response?.data;
+        console.error("STK Push Execution Error:", safaricomError || error.message);
+
+        const clientMessage = safaricomError?.errorMessage 
+            || safaricomError?.CustomerMessage 
+            || error.message 
+            || "Internal payment gateway failure.";
+
+        return res.status(500).json({ 
+            success: false, 
+            error: clientMessage 
+        });
     }
 });
 
