@@ -6,8 +6,11 @@ const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
 const crypto = require('crypto');
+const { Resend } = require('resend');
 
 const subscriptionTransactions = new Map();
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 app.use(cors());
@@ -2384,6 +2387,152 @@ app.post('/api/auth/reset-password', async (req, res) => {
         // 3. Update password & clear reset token fields
         await ispRef.update({
             password: newPassword, // Note: Hash with bcrypt if using password hashing in production
+            resetCode: null,
+            resetCodeExpiresAt: null,
+            updatedAt: new Date()
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password updated successfully."
+        });
+
+    } catch (error) {
+        console.error("Password update error:", error);
+        return res.status(500).json({ success: false, error: "Failed to update password." });
+    }
+});
+
+// ====================================================================
+// 1. REQUEST PASSWORD RESET (Generates Code & Sends Email via Resend)
+// ====================================================================
+app.post('/api/auth/request-password-reset', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const db = req.db;
+
+        if (!email) {
+            return res.status(400).json({ success: false, error: "Email address is required." });
+        }
+
+        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
+        const ispRef = db.collection('isp_users').doc(ispId);
+        const ispDoc = await ispRef.get();
+
+        if (!ispDoc.exists) {
+            // Anti-enumeration: Return success even if email is not found
+            return res.status(200).json({ 
+                success: true, 
+                message: "If that email is registered, a password reset code has been sent." 
+            });
+        }
+
+        // Generate 6-digit verification code
+        const resetCode = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute expiry
+
+        // Save code to Firestore
+        await ispRef.update({
+            resetCode: resetCode,
+            resetCodeExpiresAt: expiresAt
+        });
+
+        // Dispatch Email via Resend
+        const senderEmail = process.env.RESEND_SENDER_EMAIL || 'onboarding@resend.dev';
+        
+        const { data, error } = await resend.emails.send({
+            from: `AudioSpot Portal <${senderEmail}>`,
+            to: [email],
+            subject: 'Password Reset Code - AudioSpot ISP Portal',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #090d16; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1f293d;">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <h2 style="color: #6366f1; margin: 0;">AudioSpot ISP Portal</h2>
+                        <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Password Recovery Request</p>
+                    </div>
+                    <div style="background-color: #111827; padding: 24px; border-radius: 8px; border: 1px solid #1f293d;">
+                        <p style="font-size: 15px; color: #e2e8f0; margin-top: 0;">Hello,</p>
+                        <p style="font-size: 14px; color: #94a3b8;">You requested a password reset for your ISP control account. Use the verification code below to complete the reset process:</p>
+                        
+                        <div style="text-align: center; margin: 28px 0;">
+                            <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #818cf8; background-color: #131a2c; padding: 12px 24px; border-radius: 8px; border: 1px solid #1f293d; display: inline-block;">
+                                ${resetCode}
+                            </span>
+                        </div>
+                        
+                        <p style="font-size: 13px; color: #f43f5e; text-align: center; margin-bottom: 0;">
+                            ⚠️ This code expires in 15 minutes.
+                        </p>
+                    </div>
+                    <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px;">
+                        If you did not request this code, please ignore this email or contact support.
+                    </p>
+                </div>
+            `
+        });
+
+        if (error) {
+            console.error("Resend API Error:", error);
+            return res.status(500).json({ success: false, error: "Failed to deliver email. Please check Resend API keys." });
+        }
+
+        console.log(`[Resend Success] Reset email dispatched to ${email}, ID: ${data.id}`);
+
+        return res.status(200).json({
+            success: true,
+            message: "Reset code sent to your email."
+        });
+
+    } catch (error) {
+        console.error("Password reset error:", error);
+        return res.status(500).json({ 
+            success: false, 
+            error: "Failed to process reset request." 
+        });
+    }
+});
+
+
+// ====================================================================
+// 2. RESET PASSWORD (Verifies Code & Updates Password)
+// ====================================================================
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, resetCode, newPassword } = req.body;
+        const db = req.db;
+
+        if (!email || !resetCode || !newPassword) {
+            return res.status(400).json({ success: false, error: "Email, reset code, and new password are required." });
+        }
+
+        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
+        const ispRef = db.collection('isp_users').doc(ispId);
+        const ispDoc = await ispRef.get();
+
+        if (!ispDoc.exists) {
+            return res.status(404).json({ success: false, error: "Account not found." });
+        }
+
+        const ispData = ispDoc.data();
+
+        // 1. Verify code matches
+        if (!ispData.resetCode || ispData.resetCode !== resetCode.trim()) {
+            return res.status(400).json({ success: false, error: "Invalid verification code." });
+        }
+
+        // 2. Check code expiry
+        const now = new Date();
+        const codeExpiry = ispData.resetCodeExpiresAt?.toDate 
+            ? ispData.resetCodeExpiresAt.toDate() 
+            : new Date(ispData.resetCodeExpiresAt);
+
+        if (now > codeExpiry) {
+            return res.status(400).json({ success: false, error: "Verification code has expired. Please request a new one." });
+        }
+
+        // 3. Update password & clear reset token fields
+        await ispRef.update({
+            password: newPassword, // Note: Use bcrypt hashing in production
             resetCode: null,
             resetCodeExpiresAt: null,
             updatedAt: new Date()
