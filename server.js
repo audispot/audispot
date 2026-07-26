@@ -2082,7 +2082,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 });
 
-// 1. Trigger STK Push for ISP Subscription Renewal
 app.post('/api/isp/renew-subscription', async (req, res) => {
     try {
         const { phoneNumber, ispId } = req.body;
@@ -2094,8 +2093,10 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
 
         const formattedPhone = formatPhoneNumber(phoneNumber);
 
-        // Fetch router count dynamically using plain string ispId
-        const routerCount = await db.collection('routers').countDocuments({ ispId: ispId });
+        // Fetch router count dynamically using Firestore Admin SDK
+        const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).count().get();
+        const routerCount = routersSnapshot.data().count;
+
         const amount = Math.round(routerCount * 500);
 
         if (amount <= 0) {
@@ -2135,7 +2136,8 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
         if (stkRes.data.ResponseCode === '0') {
             const checkoutId = stkRes.data.CheckoutRequestID;
             
-            await db.collection('subscription_transactions').insertOne({
+            // Save transaction record to Firestore using doc(checkoutId)
+            await db.collection('subscription_transactions').doc(checkoutId).set({
                 checkoutRequestId: checkoutId,
                 ispId: ispId,
                 status: 'PENDING',
@@ -2159,7 +2161,7 @@ app.post('/api/isp/renew-subscription', async (req, res) => {
     }
 });
 
-// 2. M-Pesa Callback Endpoint
+// 2. M-Pesa Callback Endpoint (Firestore Native)
 app.post('/api/isp/mpesa-callback', async (req, res) => {
     try {
         const db = req.db;
@@ -2173,38 +2175,39 @@ app.post('/api/isp/mpesa-callback', async (req, res) => {
         const checkoutId = callbackData.CheckoutRequestID;
         const resultCode = callbackData.ResultCode;
 
-        // Fetch pending transaction directly from database
-        const txn = await db.collection('subscription_transactions').findOne({ checkoutRequestId: checkoutId });
+        // Fetch transaction doc directly using checkoutId document key
+        const txnRef = db.collection('subscription_transactions').doc(checkoutId);
+        const txnDoc = await txnRef.get();
 
-        if (txn) {
+        if (txnDoc.exists) {
+            const txn = txnDoc.data();
+
             if (resultCode === 0) {
-                // Mark transaction as paid
-                await db.collection('subscription_transactions').updateOne(
-                    { checkoutRequestId: checkoutId },
-                    { $set: { status: 'PAID', paidAt: new Date() } }
-                );
+                // Mark transaction as paid in Firestore
+                await txnRef.update({
+                    status: 'PAID',
+                    paidAt: new Date()
+                });
 
-                // Fetch current ISP to preserve existing active time
-                const isp = await db.collection('isps').findOne({ _id: txn.ispId });
+                // Fetch current ISP document to preserve existing active time
+                const ispRef = db.collection('isps').doc(txn.ispId);
+                const ispDoc = await ispRef.get();
                 
                 let baseDate = Date.now();
-                if (isp && isp.expiryDate && new Date(isp.expiryDate) > new Date()) {
-                    baseDate = new Date(isp.expiryDate).getTime();
+                if (ispDoc.exists) {
+                    const ispData = ispDoc.data();
+                    if (ispData.expiryDate && new Date(ispData.expiryDate.toDate ? ispData.expiryDate.toDate() : ispData.expiryDate) > new Date()) {
+                        baseDate = new Date(ispData.expiryDate.toDate ? ispData.expiryDate.toDate() : ispData.expiryDate).getTime();
+                    }
                 }
 
                 const newExpiryDate = new Date(baseDate + (30 * 24 * 60 * 60 * 1000));
 
                 // Extend subscription expiry date
-                await db.collection('isps').updateOne(
-                    { _id: txn.ispId }, 
-                    { $set: { expiryDate: newExpiryDate } }
-                );
+                await ispRef.set({ expiryDate: newExpiryDate }, { merge: true });
             } else {
                 // Mark transaction as failed/cancelled
-                await db.collection('subscription_transactions').updateOne(
-                    { checkoutRequestId: checkoutId },
-                    { $set: { status: 'FAILED' } }
-                );
+                await txnRef.update({ status: 'FAILED' });
             }
         }
 
@@ -2215,18 +2218,20 @@ app.post('/api/isp/mpesa-callback', async (req, res) => {
     }
 });
 
-// 3. Verification Polling Endpoint
+// 3. Verification Polling Endpoint (Firestore Native)
 app.get('/api/isp/verify-subscription/:checkoutId', async (req, res) => {
     try {
         const { checkoutId } = req.params;
         const db = req.db;
 
-        // Query database instead of in-memory Map
-        const txn = await db.collection('subscription_transactions').findOne({ checkoutRequestId: checkoutId });
+        // Fetch transaction by doc ID in Firestore
+        const txnDoc = await db.collection('subscription_transactions').doc(checkoutId).get();
 
-        if (!txn) {
+        if (!txnDoc.exists) {
             return res.status(404).json({ success: false, status: 'NOT_FOUND' });
         }
+
+        const txn = txnDoc.data();
 
         return res.json({
             success: true,
