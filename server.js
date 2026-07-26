@@ -1799,15 +1799,22 @@ app.post('/api/settings/pppoe', async (req, res) => {
 app.post('/api/settings/branding', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     const { brandName, serverIp, supportPhone, redirectUrl } = req.body;
+
+    // Use provided redirectUrl or fall back to the default portal
+    const finalRedirectUrl = redirectUrl?.trim() || 'https://audispot.audiory.site/';
+
     try {
         await req.db.collection('settings').doc(ispId).set({
             brandName,
             serverIp,
             supportPhone,
-            redirectUrl
+            redirectUrl: finalRedirectUrl,
+            updatedAt: new Date()
         }, { merge: true });
-        res.sendStatus(200);
+
+        res.status(200).json({ success: true, redirectUrl: finalRedirectUrl });
     } catch (err) {
+        console.error("Error updating branding:", err);
         res.status(500).json({ error: err.message });
     }
 });
