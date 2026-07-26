@@ -2437,9 +2437,18 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
             resetCodeExpiresAt: expiresAt
         });
 
+        // Backup Log: Always log to server logs so you can copy the code during testing
+        console.log(`==========================================`);
+        console.log(`[PASSWORD RESET CODE FOR ${email}]: ${resetCode}`);
+        console.log(`==========================================`);
+
+        // Format sender email (Fallback to noreply@ domain if environment variable is invalid/missing)
+        let senderEmail = process.env.RESEND_SENDER_EMAIL || 'noreply@mail.audispot.audiory.site';
+        if (!senderEmail.includes('@')) {
+            senderEmail = `noreply@${senderEmail}`;
+        }
+
         // Dispatch Email via Resend
-        const senderEmail = process.env.RESEND_SENDER_EMAIL || 'onboarding@resend.dev';
-        
         const { data, error } = await resend.emails.send({
             from: `AudioSpot Portal <${senderEmail}>`,
             to: [email],
@@ -2472,8 +2481,8 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
         });
 
         if (error) {
-            console.error("Resend API Error:", error);
-            return res.status(500).json({ success: false, error: "Failed to deliver email. Please check Resend API keys." });
+            console.error("[RESEND ERROR DETAILS]:", JSON.stringify(error, null, 2));
+            return res.status(500).json({ success: false, error: error.message || "Failed to deliver email." });
         }
 
         console.log(`[Resend Success] Reset email dispatched to ${email}, ID: ${data.id}`);
