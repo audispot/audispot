@@ -2347,29 +2347,111 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
                 subject: 'Password Reset Code - AudioSpot ISP Portal',
                 text: `Your password reset code is: ${resetCode}`,
                 html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #090d16; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1f293d;">
-                        <div style="text-align: center; margin-bottom: 24px;">
-                            <h2 style="color: #6366f1; margin: 0;">AudioSpot ISP Portal</h2>
-                            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Password Recovery Request</p>
-                        </div>
-                        <div style="background-color: #111827; padding: 24px; border-radius: 8px; border: 1px solid #1f293d;">
-                            <p style="font-size: 15px; color: #e2e8f0; margin-top: 0;">Hello,</p>
-                            <p style="font-size: 14px; color: #94a3b8;">You requested a password reset for your ISP control account. Use the verification code below to complete the reset process:</p>
-                            
-                            <div style="text-align: center; margin: 28px 0;">
-                                <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #818cf8; background-color: #131a2c; padding: 12px 24px; border-radius: 8px; border: 1px solid #1f293d; display: inline-block;">
-                                    ${resetCode}
-                                </span>
-                            </div>
-                            
-                            <p style="font-size: 13px; color: #f43f5e; text-align: center; margin-bottom: 0;">
-                                ⚠️ This code expires in 15 minutes.
-                            </p>
-                        </div>
-                        <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px;">
-                            If you did not request this code, please ignore this email or contact support.
-                        </p>
-                    </div>
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Password Reset Code</title>
+                    </head>
+                    <body style="margin: 0; padding: 0; background-color: #f4f6f9; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+                        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f6f9; padding: 40px 0;">
+                            <tr>
+                                <td align="center">
+                                    
+                                    <!-- Main Container Card -->
+                                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); overflow: hidden;">
+                                        
+                                        <!-- Header Banner -->
+                                        <tr>
+                                            <td style="background-color: #4f46e5; padding: 32px 40px; text-align: center;">
+                                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">AudioSpot</h1>
+                                                <p style="color: #e0e7ff; margin: 6px 0 0 0; font-size: 14px; font-weight: 400;">ISP Control Portal</p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Body Content -->
+                                        <tr>
+                                            <td style="padding: 40px 40px 32px 40px;">
+                                                <h2 style="color: #0f172a; font-size: 18px; font-weight: 600; margin: 0 0 12px 0;">Password Reset Request</h2>
+                                                <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+                                                    Hello, <br><br>
+                                                    We received a request to reset your password for your AudioSpot account. Use the verification code below to proceed with resetting your password:
+                                                </p>
+
+                                                <!-- Verification Code Block -->
+                                                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+                                                    <tr>
+                                                        <td align="center" style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px;">
+                                                            <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #4f46e5; display: inline-block; padding-left: 10px;">
+                                                                ${resetCode}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <!-- Expiry Notice -->
+                                                <p style="color: #e11d48; font-size: 13px; text-align: center; font-weight: 500; margin: 0 0 24px 0;">
+                                                    ⏰ This code will expire in <strong>15 minutes</strong>.
+                                                </p>
+
+                                                <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px 0;">
+
+                                                <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0;">
+                                                    If you did not request a password reset, you can safely ignore this email. Your account password will remain unchanged.
+                                                </p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Footer Section -->
+                                        <tr>
+                                            <td style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 28px 40px; text-align: center;">
+                                                
+                                                <!-- Social Media Links / Icons -->
+                                                <table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin-bottom: 16px;">
+                                                    <tr>
+                                                        <td style="padding: 0 8px;">
+                                                            <a href="https://twitter.com" target="_blank" style="text-decoration: none;">
+                                                                <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="20" height="20" alt="Twitter" style="display: block; opacity: 0.7;">
+                                                            </a>
+                                                        </td>
+                                                        <td style="padding: 0 8px;">
+                                                            <a href="https://facebook.com" target="_blank" style="text-decoration: none;">
+                                                                <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="20" height="20" alt="Facebook" style="display: block; opacity: 0.7;">
+                                                            </a>
+                                                        </td>
+                                                        <td style="padding: 0 8px;">
+                                                            <a href="https://instagram.com" target="_blank" style="text-decoration: none;">
+                                                                <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="20" height="20" alt="Instagram" style="display: block; opacity: 0.7;">
+                                                            </a>
+                                                        </td>
+                                                        <td style="padding: 0 8px;">
+                                                            <a href="https://github.com" target="_blank" style="text-decoration: none;">
+                                                                <img src="https://cdn-icons-png.flaticon.com/512/733/733553.png" width="20" height="20" alt="GitHub" style="display: block; opacity: 0.7;">
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <!-- Footer Text -->
+                                                <p style="color: #94a3b8; font-size: 12px; margin: 0 0 6px 0;">
+                                                    &copy; ${new Date().getFullYear()} AudioSpot ISP Portal. All rights reserved.
+                                                </p>
+                                                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                                                    <a href="https://audiory.site" style="color: #6366f1; text-decoration: none;">Visit Website</a> &bull; 
+                                                    <a href="https://audiory.site/support" style="color: #6366f1; text-decoration: none;">Help & Support</a>
+                                                </p>
+                                            </td>
+                                        </tr>
+
+                                    </table>
+                                    <!-- End Container -->
+
+                                </td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>
                 `
             });
 
