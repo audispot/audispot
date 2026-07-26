@@ -2415,12 +2415,31 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
             return res.status(400).json({ success: false, error: "Email address is required." });
         }
 
-        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
-        const ispRef = db.collection('isp_users').doc(ispId);
-        const ispDoc = await ispRef.get();
+        const normalizedEmail = email.trim().toLowerCase();
 
-        if (!ispDoc.exists) {
-            // Anti-enumeration: Return success even if email is not found
+        // 1. QUERY FIRESTORE BY EMAIL FIELD (Handles any doc ID format)
+        let ispQuery = await db.collection('isp_users')
+            .where('email', '==', normalizedEmail)
+            .limit(1)
+            .get();
+
+        let ispRef;
+
+        // Fallback: If not found by query, check doc ID format (e.g. admin_isp_com)
+        if (ispQuery.empty) {
+            const ispId = normalizedEmail.replace(/[^a-zA-Z0-9]/g, "_");
+            const docRef = db.collection('isp_users').doc(ispId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                ispRef = docRef;
+            }
+        } else {
+            ispRef = ispQuery.docs[0].ref;
+        }
+
+        // 2. IF USER REALLY DOES NOT EXIST:
+        if (!ispRef) {
+            console.warn(`[RESET ATTEMPTS] No user found matching email: ${normalizedEmail}`);
             return res.status(200).json({ 
                 success: true, 
                 message: "If that email is registered, a password reset code has been sent." 
@@ -2431,27 +2450,26 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
         const resetCode = crypto.randomInt(100000, 999999).toString();
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute expiry
 
-        // Save code to Firestore
+        // Update Firestore
         await ispRef.update({
             resetCode: resetCode,
             resetCodeExpiresAt: expiresAt
         });
 
-        // Backup Log: Always log to server logs so you can copy the code during testing
         console.log(`==========================================`);
-        console.log(`[PASSWORD RESET CODE FOR ${email}]: ${resetCode}`);
+        console.log(`[PASSWORD RESET CODE FOR ${normalizedEmail}]: ${resetCode}`);
         console.log(`==========================================`);
 
-        // Format sender email (Fallback to noreply@ domain if environment variable is invalid/missing)
+        // Format sender email
         let senderEmail = process.env.RESEND_SENDER_EMAIL || 'noreply@mail.audispot.audiory.site';
         if (!senderEmail.includes('@')) {
             senderEmail = `noreply@${senderEmail}`;
         }
 
-        // Dispatch Email via Resend
+        // Send Email via Resend
         const { data, error } = await resend.emails.send({
             from: `AudioSpot Portal <${senderEmail}>`,
-            to: [email],
+            to: [normalizedEmail],
             subject: 'Password Reset Code - AudioSpot ISP Portal',
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #090d16; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1f293d;">
@@ -2485,7 +2503,7 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message || "Failed to deliver email." });
         }
 
-        console.log(`[Resend Success] Reset email dispatched to ${email}, ID: ${data.id}`);
+        console.log(`[Resend Success] Reset email dispatched to ${normalizedEmail}, ID: ${data.id}`);
 
         return res.status(200).json({
             success: true,
@@ -2494,13 +2512,9 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
 
     } catch (error) {
         console.error("Password reset error:", error);
-        return res.status(500).json({ 
-            success: false, 
-            error: "Failed to process reset request." 
-        });
+        return res.status(500).json({ success: false, error: "Failed to process reset request." });
     }
 });
-
 
 // ====================================================================
 // 2. RESET PASSWORD (Verifies Code & Updates Password)
@@ -2514,14 +2528,29 @@ app.post('/api/auth/reset-password', async (req, res) => {
             return res.status(400).json({ success: false, error: "Email, reset code, and new password are required." });
         }
 
-        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
-        const ispRef = db.collection('isp_users').doc(ispId);
-        const ispDoc = await ispRef.get();
+        const normalizedEmail = email.trim().toLowerCase();
 
-        if (!ispDoc.exists) {
+        // Query user by email
+        let ispQuery = await db.collection('isp_users')
+            .where('email', '==', normalizedEmail)
+            .limit(1)
+            .get();
+
+        let ispRef;
+        if (ispQuery.empty) {
+            const ispId = normalizedEmail.replace(/[^a-zA-Z0-9]/g, "_");
+            const docRef = db.collection('isp_users').doc(ispId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) ispRef = docRef;
+        } else {
+            ispRef = ispQuery.docs[0].ref;
+        }
+
+        if (!ispRef) {
             return res.status(404).json({ success: false, error: "Account not found." });
         }
 
+        const ispDoc = await ispRef.get();
         const ispData = ispDoc.data();
 
         // 1. Verify code matches
@@ -2541,7 +2570,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
         // 3. Update password & clear reset token fields
         await ispRef.update({
-            password: newPassword, // Note: Use bcrypt hashing in production
+            password: newPassword,
             resetCode: null,
             resetCodeExpiresAt: null,
             updatedAt: new Date()
