@@ -188,9 +188,37 @@
         </div>
     </div>
 
+    <!-- Success Screen Customization Overlay Modal -->
+    <div id="modal-success" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#141622] border border-emerald-500/30 rounded-3xl max-w-sm w-full p-6 text-center space-y-5 shadow-2xl animate-fade-in">
+            <div id="success-icon-bg" class="w-16 h-16 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/10">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+        
+            <div class="space-y-1">
+                <h3 id="modal-success-title" class="text-lg font-black text-white">Welcome Online!</h3>
+                <p id="modal-success-subtitle" class="text-xs text-slate-400">Connection Successfully Authorized</p>
+            </div>
+
+            <div class="pt-2">
+                <a id="btn-success-redirect" href="https://audispot.audiory.site/login" class="block w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg">
+                    Proceed to Browsing
+                </a>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
         let capturedMacAddress = "00:00:00:00:00:00"; 
+
+        // Portal Configuration State (Loaded dynamically from API)
+        let portalConfig = {
+            redirectUrl: "",
+            successTitle: "Welcome Online!",
+            successSubtitle: "Connection Successfully Authorized",
+            successBtnText: "Proceed to Browsing"
+        };
 
         function openPortalModal(id) {
             document.getElementById(id).style.display = 'flex';
@@ -230,6 +258,49 @@
                 return `${days} Day${days > 1 ? 's' : ''}`;
             }
             return `${hours} Hour${hours !== 1 ? 's' : ''}`;
+        }
+
+        // Success Screen & Router Post Handler
+        function showSuccessModalAndRedirect(credentials = null) {
+            const modalTitle = document.getElementById('modal-success-title');
+            const modalSubtitle = document.getElementById('modal-success-subtitle');
+            const redirectBtn = document.getElementById('btn-success-redirect');
+
+            if (modalTitle) modalTitle.innerText = portalConfig.successTitle;
+            if (modalSubtitle) modalSubtitle.innerText = portalConfig.successSubtitle;
+            if (redirectBtn) {
+                redirectBtn.innerText = portalConfig.successBtnText;
+                redirectBtn.href = portalConfig.redirectUrl || '#';
+            }
+
+            openPortalModal('modal-success');
+
+            setTimeout(() => {
+                const targetAction = portalConfig.redirectUrl || (window.location.origin + '/login');
+                
+                if (credentials) {
+                    const loginForm = document.createElement('form');
+                    loginForm.method = 'POST';
+                    loginForm.action = targetAction; 
+                    
+                    const inputUser = document.createElement('input');
+                    inputUser.type = 'hidden';
+                    inputUser.name = 'username';
+                    inputUser.value = credentials.username;
+                    
+                    const inputPass = document.createElement('input');
+                    inputPass.type = 'hidden';
+                    inputPass.name = 'password';
+                    inputPass.value = credentials.password;
+
+                    loginForm.appendChild(inputUser);
+                    loginForm.appendChild(inputPass);
+                    document.body.appendChild(loginForm);
+                    loginForm.submit();
+                } else if (portalConfig.redirectUrl) {
+                    window.location.href = portalConfig.redirectUrl;
+                }
+            }, 2500);
         }
 
         // Direct Purchase Engine
@@ -308,29 +379,15 @@
                     if (report.success) {
                         if (report.status === 'PAID') {
                             clearInterval(trackerInterval);
-                            triggerUINotifier("Payment verified successfully! Authorizing appliance...", "success");
+                            triggerUINotifier("Payment verified successfully!", "success");
                             purchaseBtn.innerText = "Device Authorized!";
                             
-                            setTimeout(() => {
-                                const loginForm = document.createElement('form');
-                                loginForm.method = 'POST';
-                                loginForm.action = window.location.origin + '/login'; 
-                                
-                                const inputUser = document.createElement('input');
-                                inputUser.type = 'hidden';
-                                inputUser.name = 'username';
-                                inputUser.value = userPhone.startsWith('0') ? '254' + userPhone.slice(1) : userPhone;
-                                
-                                const inputPass = document.createElement('input');
-                                inputPass.type = 'hidden';
-                                inputPass.name = 'password';
-                                inputPass.value = inputUser.value;
-
-                                loginForm.appendChild(inputUser);
-                                loginForm.appendChild(inputPass);
-                                document.body.appendChild(loginForm);
-                                loginForm.submit();
-                            }, 1500);
+                            const formattedPhone = userPhone.startsWith('0') ? '254' + userPhone.slice(1) : userPhone;
+                            
+                            showSuccessModalAndRedirect({
+                                username: formattedPhone,
+                                password: formattedPhone
+                            });
 
                         } else if (report.status === 'FAILED') {
                             clearInterval(trackerInterval);
@@ -379,29 +436,13 @@
                 const outcome = await response.json();
 
                 if (response.ok && outcome.success) {
-                    triggerUINotifier("Voucher verified! Connecting to internet...", "success");
+                    triggerUINotifier("Voucher verified!", "success");
                     closePortalModal('modal-voucher');
 
-                    setTimeout(() => {
-                        const loginForm = document.createElement('form');
-                        loginForm.method = 'POST';
-                        loginForm.action = window.location.origin + '/login'; 
-                        
-                        const inputUser = document.createElement('input');
-                        inputUser.type = 'hidden';
-                        inputUser.name = 'username';
-                        inputUser.value = codeValue;
-                        
-                        const inputPass = document.createElement('input');
-                        inputPass.type = 'hidden';
-                        inputPass.name = 'password';
-                        inputPass.value = codeValue;
-
-                        loginForm.appendChild(inputUser);
-                        loginForm.appendChild(inputPass);
-                        document.body.appendChild(loginForm);
-                        loginForm.submit();
-                    }, 1200);
+                    showSuccessModalAndRedirect({
+                        username: codeValue,
+                        password: codeValue
+                    });
 
                 } else {
                     throw new Error(outcome.message || outcome.error || "Invalid or used voucher code.");
@@ -600,6 +641,12 @@
                 if (!designRes.ok) throw new Error("Faulty network response maps.");
                 const config = await designRes.json();
                 
+                // Store branding & redirect settings
+                if (config.redirectUrl) portalConfig.redirectUrl = config.redirectUrl;
+                if (config.successTitle) portalConfig.successTitle = config.successTitle;
+                if (config.successSubtitle) portalConfig.successSubtitle = config.successSubtitle;
+                if (config.successBtnText) portalConfig.successBtnText = config.successBtnText;
+
                 document.getElementById('portal-brand-title').innerText = config.brandName || 'Hotspot Gateway';
                 document.getElementById('portal-welcome-text').innerText = config.welcomeGreeting || 'Enter validation details to connect.';
                 document.getElementById('portal-support-phone').innerText = config.supportContact || 'Not Configured';
