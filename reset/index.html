@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password | AudioSpot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-[#111827] rounded-2xl shadow-xl border border-[#1f293d] p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-600/10 text-indigo-500 mb-3">
+                <i class="fa-solid fa-key text-3xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white" id="page-title">Reset Password</h1>
+            <p class="text-slate-400 text-sm mt-1" id="page-subtitle">Enter your ISP email to receive password recovery instructions</p>
+        </div>
+
+        <div id="alert-box" class="hidden mb-6 p-4 rounded-lg text-sm font-medium"></div>
+
+        <!-- STEP 1: Request Reset Form -->
+        <form id="request-reset-form" class="space-y-5">
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Registered Email Address</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                        <i class="fa-solid fa-envelope"></i>
+                    </span>
+                    <input type="email" id="inp-email" required placeholder="admin@isp.com" 
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                </div>
+            </div>
+
+            <button type="submit" id="btn-request"
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-indigo-500/20 transition flex items-center justify-center gap-2 text-sm mt-2">
+                <span>Send Reset Code</span>
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </form>
+
+        <!-- STEP 2: Update Password Form (Hidden initially) -->
+        <form id="update-password-form" class="space-y-5 hidden">
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Verification Code / Token</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </span>
+                    <input type="text" id="inp-code" required placeholder="Enter 6-digit code" 
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm tracking-widest font-mono">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">New Password</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                        <i class="fa-solid fa-lock"></i>
+                    </span>
+                    <input type="password" id="inp-new-password" required placeholder="••••••••" 
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Confirm New Password</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                        <i class="fa-solid fa-lock flex"></i>
+                    </span>
+                    <input type="password" id="inp-confirm-password" required placeholder="••••••••" 
+                        class="w-full pl-10 pr-4 py-2.5 bg-[#131a2c] border border-[#1f293d] rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition text-sm">
+                </div>
+            </div>
+
+            <button type="submit" id="btn-update"
+                class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-emerald-500/20 transition flex items-center justify-center gap-2 text-sm mt-2">
+                <span>Update Password</span>
+                <i class="fa-solid fa-check-circle"></i>
+            </button>
+        </form>
+
+        <div class="mt-8 pt-6 border-t border-[#1f293d] text-center text-sm text-slate-400">
+            Remember your password? 
+            <a href="../login/" class="text-indigo-400 hover:underline font-medium">Log in here</a>
+        </div>
+    </div>
+
+    <script>
+        // Set your backend base URL automatically
+        const API_BASE_URL = window.location.origin.includes('localhost')
+            ? 'http://localhost:8080'
+            : 'https://audispoty-749056206562.europe-west1.run.app';
+
+        const requestResetForm = document.getElementById('request-reset-form');
+        const updatePasswordForm = document.getElementById('update-password-form');
+        const alertBox = document.getElementById('alert-box');
+        const btnRequest = document.getElementById('btn-request');
+        const btnUpdate = document.getElementById('btn-update');
+
+        let userEmail = '';
+
+        function showAlert(message, isError = false) {
+            alertBox.innerText = message;
+            alertBox.className = isError 
+                ? "mb-6 p-4 rounded-lg text-sm font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                : "mb-6 p-4 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+            alertBox.classList.remove('hidden');
+        }
+
+        // STEP 1: Request Password Reset Code
+        requestResetForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            userEmail = document.getElementById('inp-email').value.trim();
+
+            btnRequest.disabled = true;
+            btnRequest.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Sending Code...`;
+            alertBox.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Failed to request reset code. Please try again.");
+                }
+
+                showAlert("Reset code sent! Check your email and enter the details below.", false);
+
+                // Transition UI to Step 2
+                document.getElementById('page-title').innerText = "Enter Reset Details";
+                document.getElementById('page-subtitle').innerText = `We've sent a code to ${userEmail}`;
+                requestResetForm.classList.add('hidden');
+                updatePasswordForm.classList.remove('hidden');
+
+            } catch (err) {
+                showAlert(err.message, true);
+                btnRequest.disabled = false;
+                btnRequest.innerHTML = `<span>Send Reset Code</span> <i class="fa-solid fa-paper-plane"></i>`;
+            }
+        });
+
+        // STEP 2: Update Password Form Submission
+        updatePasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const resetCode = document.getElementById('inp-code').value.trim();
+            const newPassword = document.getElementById('inp-new-password').value;
+            const confirmPassword = document.getElementById('inp-confirm-password').value;
+
+            if (newPassword !== confirmPassword) {
+                showAlert("Passwords do not match. Please re-enter.", true);
+                return;
+            }
+
+            btnUpdate.disabled = true;
+            btnUpdate.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Updating Password...`;
+            alertBox.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: userEmail,
+                        resetCode: resetCode,
+                        newPassword: newPassword 
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Password update failed. Invalid code or link expired.");
+                }
+
+                showAlert("Password updated successfully! Redirecting to login...", false);
+
+                setTimeout(() => {
+                    window.location.href = '../login/';
+                }, 2000);
+
+            } catch (err) {
+                showAlert(err.message, true);
+                btnUpdate.disabled = false;
+                btnUpdate.innerHTML = `<span>Update Password</span> <i class="fa-solid fa-check-circle"></i>`;
+            }
+        });
+    </script>
+</body>
+</html>
