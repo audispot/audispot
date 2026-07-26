@@ -4142,32 +4142,54 @@ async function checkISPSubscriptionStatus() {
     showModalMessage("Re-checking payment status...", "info");
     pollSubscriptionStatus(activeCheckoutRequestId);
 }
+        
 // Updated banner configuration wrapper
 function checkSubscriptionTrial() {
     const createdAtStr = localStorage.getItem('created_at');
+    const expiryDateStr = localStorage.getItem('expiry_date');
     const banner = document.getElementById('subscription-expiry-banner');
     const bannerText = document.getElementById('subscription-expiry-text');
 
     if (!banner) return;
 
+    const now = new Date();
+
+    // 1. CHECK PAID SUBSCRIPTION FIRST
+    if (expiryDateStr) {
+        const expiryDate = new Date(expiryDateStr);
+        if (expiryDate > now) {
+            const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+            banner.className = "p-4 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
+            if (bannerText) {
+                bannerText.innerHTML = `<strong>Subscription Active:</strong> You have <strong>${daysLeft} day(s)</strong> remaining on your platform access.`;
+            }
+            return;
+        }
+    }
+
+    // 2. CHECK FREE TRIAL (If no active paid subscription)
     if (!createdAtStr) {
         banner.classList.remove('hidden');
         if (bannerText) bannerText.innerHTML = `<strong>Account Trial Setup:</strong> Log in again to initialize status tracking.`;
         return;
     }
 
-    const daysElapsed = Math.floor((new Date() - new Date(createdAtStr)) / (24 * 60 * 60 * 1000));
-    const daysRemaining = 5 - daysElapsed;
+    const createdAt = new Date(createdAtStr);
+    const trialEndDate = new Date(createdAt.getTime() + (5 * 24 * 60 * 60 * 1000));
+    const msRemaining = trialEndDate - now;
+    const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
 
     banner.classList.remove('hidden');
+
     if (daysRemaining > 0) {
+        banner.className = "p-4 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
         if (bannerText) {
-            bannerText.innerHTML = `Free Trial Active: You have <strong>${daysRemaining} day(s)</strong> remaining on your free trial. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-amber-400 ml-1">Activate your router subscription now</button> to avoid service interruption (KSh 500/router).`;
+            bannerText.innerHTML = `Free Trial Active: You have <strong>${daysRemaining} day(s)</strong> remaining on your free trial. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-amber-300 ml-1">Activate your router subscription now</button> to avoid service interruption (KSh 500/router).`;
         }
     } else {
         banner.className = "p-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
         if (bannerText) {
-            bannerText.innerHTML = `<strong>Trial Expired:</strong> Your free trial has reached its limit. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-rose-400 ml-1">Activate subscription nodes</button> to preserve routing controls.`;
+            bannerText.innerHTML = `<strong>Trial Expired:</strong> Your free trial has reached its limit. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-rose-300 ml-1">Activate subscription nodes</button> to preserve routing controls.`;
         }
     }
 }
