@@ -6,7 +6,6 @@ const axios = require('axios');
 const { Firestore } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
 const crypto = require('crypto');
-const { Resend } = require('resend');
 const { sendEmail, safeStr } = require('./emailUtils');
 
 const subscriptionTransactions = new Map();
