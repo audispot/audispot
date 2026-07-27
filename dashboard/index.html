@@ -227,8 +227,9 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="h-28 border-b border-dashed border-vunaborder flex items-end justify-between px-4 text-[10px] text-slate-600">
-                            <span>0.0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
+                        <!-- Canvas replacement for Chart.js -->
+                        <div class="relative h-48 w-full">
+                            <canvas id="revenueChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -3343,20 +3344,22 @@ async function fetchAndRenderAnalytics() {
     }
 }
 
+// Chart instance container
 let revenueChartInstance = null;
 
+// Function to build/update the Chart.js Canvas
 function renderRevenueChart(labels, values) {
     const canvas = document.getElementById('revenueChart');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    // Clean up old instance when re-rendering
+    // Destroy existing instance to prevent glitching on re-render
     if (revenueChartInstance) {
         revenueChartInstance.destroy();
     }
 
-    // Chart Gradient Background
+    // Chart Gradient Styling
     const gradient = ctx.createLinearGradient(0, 0, 0, 180);
     gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
     gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
@@ -3384,7 +3387,7 @@ function renderRevenueChart(labels, values) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => ` Gross: KSh ${ctx.parsed.y.toFixed(2)}`
+                        label: (ctx) => ` Revenue: KSh ${ctx.parsed.y.toFixed(2)}`
                     }
                 }
             },
@@ -3484,16 +3487,20 @@ async function fetchAndRenderDashboard() {
             if (tableWrapper) tableWrapper.classList.add("hidden");
         }
 
-        // Revenue Overview Header
-        const revenueHeader = document.querySelector("#viewframe-dashboard .bg-white:last-child .text-emerald-500");
+        // Revenue Overview Header Update
+        const revenueHeader = document.getElementById("lbl-revenue-overview");
         if (revenueHeader) {
             revenueHeader.innerText = `KSh ${(stats.totalGrossEarned || 0).toFixed(2)} • ${stats.totalSalesCount || 0} sales`;
+        }
+
+        // Render Chart using Backend Chart Data
+        if (stats.chartData && stats.chartData.labels) {
+            renderRevenueChart(stats.chartData.labels, stats.chartData.values);
         }
 
         // ==========================================
         // 3. SUBSCRIPTION TRIAL CHECK
         // ==========================================
-        // Trigger your exact 5-day trial logic function
         if (typeof checkSubscriptionTrial === 'function') {
             checkSubscriptionTrial();
         }
