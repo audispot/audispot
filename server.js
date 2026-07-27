@@ -673,18 +673,28 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
         // 2. Fetch Routers
         const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
 
-        // 3. Fetch Hotspot Vouchers (Check both ispId and isp_id)
-        let vouchersSnapshot = await db.collection('vouchers').where('ispId', '==', ispId).get();
-        if (vouchersSnapshot.empty) {
-            vouchersSnapshot = await db.collection('vouchers').where('isp_id', '==', ispId).get();
-        }
+        // 3. Bulletproof Vouchers Fetch (Checks ispId, isp_id, ownerId, and hotspot_vouchers collection)
+        const vouchersDocs = [];
+        let vSnap = await db.collection('vouchers').where('ispId', '==', ispId).get();
+        if (vSnap.empty) vSnap = await db.collection('vouchers').where('isp_id', '==', ispId).get();
+        if (vSnap.empty) vSnap = await db.collection('vouchers').where('ownerId', '==', ispId).get();
+        if (vSnap.empty) vSnap = await db.collection('hotspot_vouchers').where('ispId', '==', ispId).get();
+        
+        vSnap.forEach(doc => vouchersDocs.push(doc.data()));
 
         let todayVouchersCount = 0;
-        vouchersSnapshot.forEach(doc => {
-            const vData = doc.data();
+        vouchersDocs.forEach(vData => {
             const vDate = vData.createdAt?.toDate ? vData.createdAt.toDate() : new Date(vData.createdAt || Date.now());
             if (vDate >= startOfToday) todayVouchersCount++;
         });
+
+        // 4. Bulletproof Hotspot Users Online Check
+        let activeUsersOnline = 0;
+        let sessionSnap = await db.collection('active_sessions').where('ispId', '==', ispId).where('status', '==', 'active').get();
+        if (sessionSnap.empty) {
+            sessionSnap = await db.collection('active_sessions').where('isp_id', '==', ispId).where('status', '==', 'active').get();
+        }
+        activeUsersOnline = sessionSnap.size;
 
         const ispData = ispDoc.data();
 
@@ -709,7 +719,8 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
             todayPaymentsCount: todayPaymentsCount,
             todayPayments: todayPayments,
             routerCount: routersSnapshot.size,
-            hotspotVouchersTotal: vouchersSnapshot.size,
+            hotspotUsersOnline: activeUsersOnline,
+            hotspotVouchersTotal: vouchersDocs.length,
             hotspotVouchersToday: todayVouchersCount,
             ispName: ispData.ispName,
             chartData: {
