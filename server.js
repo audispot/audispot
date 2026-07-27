@@ -1337,53 +1337,85 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
 // PPPOE ENGINE: MANAGING BROADBAND SUBSCRIBERS
 // ====================================================================
 
+// Create PPPoE Secret on MikroTik + Sync to Database
 app.post('/api/pppoe/create-secret', async (req, res) => {
-    const { routerId, username, password, profile } = req.body;
-    if (!routerId || !username || !password || !profile) {
-        return res.status(400).json({ success: false, error: "Missing PPPoE creation attributes." });
+    const { routerId, username, password, profile, ispId } = req.body;
+    if (!routerId || !username || !password) {
+        return res.status(400).json({ success: false, error: "Missing required PPPoE fields." });
     }
 
+    let api = null;
     try {
         const routerDoc = await db.collection('routers').doc(routerId).get();
+        if (!routerDoc.exists) {
+            return res.status(404).json({ success: false, error: "Router configuration not found." });
+        }
         const routerData = routerDoc.data();
 
+        // 1. Send /ppp/secret/add command to router
         const client = getRouterClient(routerData);
-        const api = await client.connect();
+        api = await client.connect();
+        
         await api.write('/ppp/secret/add', [
             `=name=${username}`,
             `=password=${password}`,
-            `=profile=${profile}`,
+            `=profile=${profile || 'default'}`,
             `=service=pppoe`
         ]);
-        await api.close();
+
+        // 2. Persist in Firestore subscribers collection
+        await db.collection('subscribers').add({
+            ispId: ispId || routerData.ispId,
+            routerId: routerId,
+            username: username,
+            type: 'pppoe',
+            profile: profile || 'default',
+            status: 'active',
+            createdAt: new Date()
+        });
 
         return res.status(200).json({ success: true });
     } catch (error) {
+        console.error("PPPoE secret creation error:", error);
         return res.status(500).json({ success: false, error: error.message });
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
     }
 });
 
+// Fetch Secrets from MikroTik Router
 app.get('/api/pppoe/secrets', async (req, res) => {
     const { routerId } = req.query;
+    if (!routerId) return res.status(400).json([]);
+
+    let api = null;
     try {
         const routerDoc = await db.collection('routers').doc(routerId).get();
-        if(!routerDoc.exists) return res.status(200).json([]);
+        if (!routerDoc.exists) return res.status(200).json([]);
         const routerData = routerDoc.data();
 
         const client = getRouterClient(routerData);
-        const api = await client.connect();
+        api = await client.connect();
         const secrets = await api.write('/ppp/secret/print');
-        await api.close();
 
         const formattedSecrets = secrets.map(s => ({
+            id: s['.id'],
             name: s.name,
-            profile: s.profile,
-            remoteAddress: s['remote-address'] || 'Dynamic Pool'
+            profile: s.profile || 'default',
+            disabled: s.disabled || "false",
+            remoteAddress: s['remote-address'] || 'Dynamic Allocation'
         }));
 
         return res.status(200).json(formattedSecrets);
     } catch (error) {
+        console.error("Fetch secrets API error:", error.message);
         return res.status(200).json([]);
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
     }
 });
 
