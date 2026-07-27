@@ -1752,62 +1752,92 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
     const targetTenant = ispId || "default_isp";
     
     try {
+        // 1. Fetch Routers
         const routersSnapshot = await db.collection('routers')
             .where('ispId', '==', targetTenant)
             .get();
-            
-        const routerIds = [];
-        routersSnapshot.forEach(doc => routerIds.push(doc.id));
-        
-        let totalRevenue = 0;
-        let transactionCount = 0;
-        const revenueOverTime = {}; 
-        
-        if (routerIds.length > 0) {
-            const chunks = [];
-            for (let i = 0; i < routerIds.length; i += 30) {
-                chunks.push(routerIds.slice(i, i + 30));
-            }
-            
-            for (const chunk of chunks) {
-                const txSnapshot = await db.collection('global_transactions')
-                    .where('routerId', 'in', chunk)
-                    .get();
-                    
-                txSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    const amount = data.grossAmount || 0;
-                    totalRevenue += amount;
-                    transactionCount++;
-                    
-                    const rawDate = data.processedAt || new Date().toISOString();
-                    const dayString = rawDate.split('T')[0];
-                    revenueOverTime[dayString] = (revenueOverTime[dayString] || 0) + amount;
-                });
-            }
-        }
-        
-        const expensesSnapshot = await db.collection('isp_expenses')
+        const routerCount = routersSnapshot.size;
+
+        // 2. Query Transactions directly by ispId (matching Dashboard logic)
+        let txSnapshot = await db.collection('global_transactions')
             .where('ispId', '==', targetTenant)
             .get();
-            
+
+        // Fallback for snake_case field naming if any
+        if (txSnapshot.empty) {
+            txSnapshot = await db.collection('global_transactions')
+                .where('isp_id', '==', targetTenant)
+                .get();
+        }
+
+        let totalRevenue = 0;
+        let transactionCount = 0;
+        const revenueOverTime = {};
+
+        txSnapshot.forEach(doc => {
+            const data = doc.data();
+            const status = (data.status || 'completed').toLowerCase();
+
+            if (status === 'completed' || status === 'success') {
+                const amount = parseFloat(data.grossAmount || data.amount) || 0;
+                totalRevenue += amount;
+                transactionCount++;
+
+                // Process timestamp safely
+                const txDate = data.createdAt?.toDate 
+                    ? data.createdAt.toDate() 
+                    : new Date(data.createdAt || data.processedAt || data.date || Date.now());
+
+                const dayString = txDate.toISOString().split('T')[0];
+                revenueOverTime[dayString] = (revenueOverTime[dayString] || 0) + amount;
+            }
+        });
+
+        // 3. Query Expenses
+        let expensesSnapshot = await db.collection('isp_expenses')
+            .where('ispId', '==', targetTenant)
+            .get();
+
+        if (expensesSnapshot.empty) {
+            expensesSnapshot = await db.collection('isp_expenses')
+                .where('isp_id', '==', targetTenant)
+                .get();
+        }
+
         let totalExpenses = 0;
         const expensesByCategory = {};
-        
+
         expensesSnapshot.forEach(doc => {
             const data = doc.data();
-            const amount = data.amount || 0;
+            const amount = parseFloat(data.amount) || 0;
             totalExpenses += amount;
-            
+
             const category = data.category || "General";
             expensesByCategory[category] = (expensesByCategory[category] || 0) + amount;
         });
-        
-        const subscribersSnapshot = await db.collection('subscribers')
-            .where('routerId', 'in', routerIds.length > 0 ? routerIds : ['__non_existent__'])
+
+        // 4. Query Subscribers (Check subscribers or hotspot users)
+        let subscribersSnapshot = await db.collection('subscribers')
+            .where('ispId', '==', targetTenant)
             .get();
-            
-        const totalSubscribers = subscribersSnapshot.size;
+
+        if (subscribersSnapshot.empty) {
+            subscribersSnapshot = await db.collection('subscribers')
+                .where('isp_id', '==', targetTenant)
+                .get();
+        }
+
+        let totalSubscribers = subscribersSnapshot.size;
+
+        // Fallback: Check used vouchers / active sessions if subscribers collection is empty
+        if (totalSubscribers === 0) {
+            const activeVouchers = await db.collection('isp_vouchers')
+                .where('ispId', '==', targetTenant)
+                .where('status', '==', 'Used')
+                .get();
+            totalSubscribers = activeVouchers.size;
+        }
+
         const netEarnings = Math.max(0, totalRevenue - totalExpenses);
 
         const chartTimeline = Object.keys(revenueOverTime)
@@ -1821,7 +1851,7 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
                 totalExpenses,
                 netEarnings,
                 totalSubscribers,
-                totalRouters: routerIds.length,
+                totalRouters: routerCount,
                 transactionCount
             },
             expensesByCategory,
@@ -1829,7 +1859,7 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
         });
     } catch (error) {
         console.error("Analytics compile error:", error.message);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
