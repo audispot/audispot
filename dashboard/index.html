@@ -3349,11 +3349,12 @@ async function fetchAndRenderDashboard() {
     }
 
     try {
+        // Fetch stats from backend API
         const statsResponse = await fetch(`${API_BASE_URL}/api/isp/dashboard-stats/${CURRENT_ISP_ID}`);
         if (!statsResponse.ok) throw new Error(`Failed to fetch dashboard stats (Status: ${statsResponse.status})`);
         const stats = await statsResponse.json();
 
-        // Fetch Design, Packages, Expenses
+        // Fetch Design, Packages, and Expenses concurrently
         const [designResponse, pkgResponse, expResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/api/portal/design?ispId=${CURRENT_ISP_ID}`),
             fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`),
@@ -3365,11 +3366,11 @@ async function fetchAndRenderDashboard() {
         const expenses = expResponse.ok ? await expResponse.json() : [];
 
         // ==========================================
-        // 1. RENDERING PROFILE METADATA & SIDEBAR
+        // 1. RENDERING PROFILE METADATA
         // ==========================================
         const ispName = stats.ispName || "AudiSpot Partner";
         const email = stats.email || `${CURRENT_ISP_ID.replace(/_/g, '.')}@audispot.com`;
-        
+
         const initials = ispName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         if (document.getElementById("lbl-side-initials")) document.getElementById("lbl-side-initials").innerText = initials || "AS";
         if (document.getElementById("lbl-side-username")) document.getElementById("lbl-side-username").innerText = ispName;
@@ -3377,26 +3378,26 @@ async function fetchAndRenderDashboard() {
         if (document.getElementById("lbl-header-title")) document.getElementById("lbl-header-title").innerText = `Welcome, ${ispName}`;
 
         // ==========================================
-        // 2. RENDERING DASHBOARD STAT CARDS & METRICS
+        // 2. DASHBOARD CARDS & STATS
         // ==========================================
         
-        // Update Routers Count
+        // Routers Count
         const routerCountEl = document.getElementById("lbl-count-routers");
-        if (routerCountEl) routerCountEl.innerText = stats.routerCount || 0;
+        if (routerCountEl) routerCountEl.innerText = stats.routerCount || stats.routersCount || 0;
 
-        // Update Hotspot Vouchers Card
+        // Hotspot Vouchers Card
         const vouchersCardEl = document.querySelector("#viewframe-dashboard .grid > div:nth-child(3) .text-2xl");
         if (vouchersCardEl) {
-            vouchersCardEl.innerHTML = `${stats.hotspotVouchersTotal || 0}<span class="text-[11px] font-normal text-slate-400">/ ${stats.hotspotVouchersToday || 0} created today</span>`;
+            vouchersCardEl.innerHTML = `${stats.hotspotVouchersTotal || 0} <span class="text-[11px] font-normal text-slate-400">/ ${stats.hotspotVouchersToday || 0} created today</span>`;
         }
 
-        // Update "Paid today" Summary Header
-        const paidTodaySummaryEl = document.querySelector("#viewframe-dashboard h4 + span");
-        if (paidTodaySummaryEl) {
-            paidTodaySummaryEl.innerText = `${stats.todayPaymentsCount || 0} payments • KSh ${(stats.todayRevenue || 0).toFixed(2)} today`;
+        // Paid Today Header Summary
+        const paidTodayHeader = document.querySelector("#viewframe-dashboard h4 + span");
+        if (paidTodayHeader) {
+            paidTodayHeader.innerText = `${stats.todayPaymentsCount || 0} payments • KSh ${(stats.todayRevenue || 0).toFixed(2)} today`;
         }
 
-        // Render "Paid today" Table Logs
+        // Paid Today Table Rows
         const placeholderBlock = document.getElementById("payment-logs-placeholder-block");
         const tableWrapper = document.getElementById("payment-logs-table-wrapper");
         const tableBody = document.getElementById("payment-logs-table-body");
@@ -3411,7 +3412,7 @@ async function fetchAndRenderDashboard() {
                         <td class="p-3 font-semibold text-indigo-400">${tx.receipt}</td>
                         <td class="p-3">${tx.phone}</td>
                         <td class="p-3">${tx.router}</td>
-                        <td class="p-3 text-emerald-400 font-bold">KSh ${tx.amount.toFixed(2)}</td>
+                        <td class="p-3 text-emerald-400 font-bold">KSh ${parseFloat(tx.amount).toFixed(2)}</td>
                         <td class="p-3"><span class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${tx.status}</span></td>
                     </tr>
                 `).join('');
@@ -3421,39 +3422,18 @@ async function fetchAndRenderDashboard() {
             if (tableWrapper) tableWrapper.classList.add("hidden");
         }
 
-        // Update Revenue Summary Header
-        const revenueSummaryEl = document.querySelector("#viewframe-dashboard .bg-white:last-child .text-emerald-500");
-        if (revenueSummaryEl) {
-            revenueSummaryEl.innerText = `KSh ${(stats.totalGrossEarned || 0).toFixed(2)} • ${stats.totalSalesCount || 0} sales`;
+        // Revenue Overview Header
+        const revenueHeader = document.querySelector("#viewframe-dashboard .bg-white:last-child .text-emerald-500");
+        if (revenueHeader) {
+            revenueHeader.innerText = `KSh ${(stats.totalGrossEarned || 0).toFixed(2)} • ${stats.totalSalesCount || 0} sales`;
         }
 
         // ==========================================
-        // 3. RENDERING SUBSCRIPTION EXPIRY WINDOW
+        // 3. SUBSCRIPTION TRIAL CHECK
         // ==========================================
-        if (stats.createdAt) {
-            const createdDate = new Date(stats.createdAt._seconds ? stats.createdAt._seconds * 1000 : stats.createdAt);
-            const trialDays = 14; 
-            const expiryDate = new Date(createdDate.getTime() + (trialDays * 24 * 60 * 60 * 1000));
-            const today = new Date();
-            
-            const diffTime = expiryDate - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            const bannerNode = document.getElementById("subscription-expiry-banner");
-            const expiryTextNode = document.getElementById("lbl-subscription-expiry-text") || document.getElementById("subscription-expiry-text");
-
-            if (bannerNode && expiryTextNode) {
-                if (diffDays > 0) {
-                    expiryTextNode.innerText = `Your AudiSpot subscription setup window expires in ${diffDays} days.`;
-                    bannerNode.classList.remove("hidden");
-                } else {
-                    expiryTextNode.innerText = "Your setup trial has expired. Renew your subscription to maintain network service.";
-                    bannerNode.classList.remove("hidden");
-                    bannerNode.classList.replace("bg-amber-500/10", "bg-rose-500/10");
-                    bannerNode.classList.replace("text-amber-600", "text-rose-600");
-                    bannerNode.classList.replace("border-amber-500/20", "border-rose-500/20");
-                }
-            }
+        // Trigger your exact 5-day trial logic function
+        if (typeof checkSubscriptionTrial === 'function') {
+            checkSubscriptionTrial();
         }
 
         // ==========================================
@@ -3461,31 +3441,33 @@ async function fetchAndRenderDashboard() {
         // ==========================================
         let completedSteps = 0;
 
-        // Step 1: Routers
-        const stepRouter = (stats.routerCount > 0); 
+        // 1. Router Check
+        const routersNum = stats.routerCount || stats.routersCount || 0;
+        const stepRouter = (routersNum > 0);
         if (stepRouter) completedSteps++;
 
-        // Step 2: Packages
-        const stepPackage = (packages && packages.length > 0); 
+        // 2. Packages Check
+        const stepPackage = (packages && packages.length > 0);
         if (stepPackage) completedSteps++;
 
-        // Step 3: Captive Portal Design
-        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi"); 
+        // 3. Captive Portal Design Check
+        const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi");
         if (stepDesign) completedSteps++;
 
-        // Step 4: Support Phone Contact
-        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678" && stats.phoneNumber !== ""); 
+        // 4. Support Phone Check
+        const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678" && stats.phoneNumber !== "");
         if (stepPhone) completedSteps++;
 
-        // Step 5: Expenses
-        const stepExpense = (expenses && expenses.length > 0); 
+        // 5. Expense Check
+        const stepExpense = (expenses && expenses.length > 0);
         if (stepExpense) completedSteps++;
 
-        // Step 6: First Transaction
-        const stepTransaction = (stats.totalGrossEarned > 0 || stats.withdrawableBalance > 0); 
+        // 6. Transaction Check
+        const hasPaymentRows = tableBody && tableBody.children.length > 0;
+        const stepTransaction = ((stats.withdrawableBalance > 0) || (stats.totalGrossEarned > 0) || hasPaymentRows);
         if (stepTransaction) completedSteps++;
 
-        // Update Progress Bar
+        // Update Progress UI
         const progressPercentage = Math.round((completedSteps / 6) * 100);
         if (document.getElementById("lbl-onboarding-progress")) {
             document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
@@ -3494,7 +3476,7 @@ async function fetchAndRenderDashboard() {
             document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
         }
 
-        // Action Button Logic
+        // Smart Dynamic Task Selector
         let nextTaskMsg = "";
         let nextTabTarget = "";
 
@@ -3506,7 +3488,7 @@ async function fetchAndRenderDashboard() {
             nextTabTarget = "packages";
         } else if (!stepDesign) {
             nextTaskMsg = "Next: Customize your Captive Portal &rarr;";
-            nextTabTarget = "portal-designer"; 
+            nextTabTarget = "portal-designer";
         } else if (!stepPhone) {
             nextTaskMsg = "Next: Setup support phone contact &rarr;";
             nextTabTarget = "settings";
@@ -3531,12 +3513,12 @@ async function fetchAndRenderDashboard() {
         if (completedSteps === 6 && onboardingCard) {
             onboardingCard.classList.add("hidden");
         }
-        
+
     } catch (err) {
         console.error("Dashboard engine failed to sync dynamically:", err.message);
     }
 }
-
+        
 // =========================================================================
 // SYSTEM CONFIGURATION & CONFIG MATRIX ENGINE
 // =========================================================================
