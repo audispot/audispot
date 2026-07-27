@@ -615,12 +615,21 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+        // Create 30-Day Buckets Map for the Revenue Chart
+        const daysMap = {};
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            daysMap[dateStr] = 0;
+        }
+
         // 1. Fetch transactions from global_transactions
         const txSnapshot = await db.collection('global_transactions')
             .where('ispId', '==', ispId)
             .get();
 
         let totalGrossEarned = 0;
+        let totalSalesCount = 0;
         let todayRevenue = 0;
         let todayPaymentsCount = 0;
         const todayPayments = [];
@@ -632,9 +641,16 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
 
             if (status === 'completed' || status === 'success') {
                 totalGrossEarned += amount;
+                totalSalesCount++;
 
                 // Handle date conversion safely
-                const txDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || data.date);
+                const txDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || data.date || Date.now());
+
+                // Populate 30-Day Chart Aggregation
+                const dayKey = txDate.toISOString().split('T')[0];
+                if (daysMap[dayKey] !== undefined) {
+                    daysMap[dayKey] += amount;
+                }
 
                 if (txDate >= startOfToday) {
                     todayRevenue += amount;
@@ -657,17 +673,28 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
         // 2. Fetch Routers
         const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
 
-        // 3. Fetch Hotspot Vouchers
-        const vouchersSnapshot = await db.collection('vouchers').where('ispId', '==', ispId).get();
-        let todayVouchersCount = 0;
+        // 3. Fetch Hotspot Vouchers (Check both ispId and isp_id)
+        let vouchersSnapshot = await db.collection('vouchers').where('ispId', '==', ispId).get();
+        if (vouchersSnapshot.empty) {
+            vouchersSnapshot = await db.collection('vouchers').where('isp_id', '==', ispId).get();
+        }
 
+        let todayVouchersCount = 0;
         vouchersSnapshot.forEach(doc => {
             const vData = doc.data();
-            const vDate = vData.createdAt?.toDate ? vData.createdAt.toDate() : new Date(vData.createdAt);
+            const vDate = vData.createdAt?.toDate ? vData.createdAt.toDate() : new Date(vData.createdAt || Date.now());
             if (vDate >= startOfToday) todayVouchersCount++;
         });
 
         const ispData = ispDoc.data();
+
+        // Prepare Chart Labels and Data Arrays
+        const chartLabels = Object.keys(daysMap).map(d => {
+            const parts = d.split('-');
+            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            return `${dateObj.getDate()} ${dateObj.toLocaleString('en-US', { month: 'short' })}`;
+        });
+        const chartValues = Object.values(daysMap);
 
         return res.status(200).json({
             success: true,
@@ -677,14 +704,18 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
             phoneNumber: settings.supportPhone || ispData.phoneNumber || "",
             createdAt: ispData.createdAt || null,
             totalGrossEarned: totalGrossEarned,
-            totalSalesCount: txSnapshot.size,
+            totalSalesCount: totalSalesCount,
             todayRevenue: todayRevenue,
             todayPaymentsCount: todayPaymentsCount,
             todayPayments: todayPayments,
             routerCount: routersSnapshot.size,
             hotspotVouchersTotal: vouchersSnapshot.size,
             hotspotVouchersToday: todayVouchersCount,
-            ispName: ispData.ispName
+            ispName: ispData.ispName,
+            chartData: {
+                labels: chartLabels,
+                values: chartValues
+            }
         });
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
