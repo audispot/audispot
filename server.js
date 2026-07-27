@@ -673,11 +673,11 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
         // 2. Fetch Routers
         const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
 
-        // 3. Bulletproof Vouchers Fetch (Checks ispId, isp_id, ownerId, and hotspot_vouchers collection)
+        // 3. Bulletproof Vouchers Fetch (Now specifically querying isp_vouchers!)
         const vouchersDocs = [];
-        let vSnap = await db.collection('vouchers').where('ispId', '==', ispId).get();
-        if (vSnap.empty) vSnap = await db.collection('vouchers').where('isp_id', '==', ispId).get();
-        if (vSnap.empty) vSnap = await db.collection('vouchers').where('ownerId', '==', ispId).get();
+        let vSnap = await db.collection('isp_vouchers').where('ispId', '==', ispId).get();
+        if (vSnap.empty) vSnap = await db.collection('isp_vouchers').where('isp_id', '==', ispId).get();
+        if (vSnap.empty) vSnap = await db.collection('vouchers').where('ispId', '==', ispId).get();
         if (vSnap.empty) vSnap = await db.collection('hotspot_vouchers').where('ispId', '==', ispId).get();
         
         vSnap.forEach(doc => vouchersDocs.push(doc.data()));
@@ -693,6 +693,9 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
         let sessionSnap = await db.collection('active_sessions').where('ispId', '==', ispId).where('status', '==', 'active').get();
         if (sessionSnap.empty) {
             sessionSnap = await db.collection('active_sessions').where('isp_id', '==', ispId).where('status', '==', 'active').get();
+        }
+        if (sessionSnap.empty) {
+            sessionSnap = await db.collection('isp_vouchers').where('ispId', '==', ispId).where('status', '==', 'Used').get();
         }
         activeUsersOnline = sessionSnap.size;
 
