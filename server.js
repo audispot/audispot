@@ -1478,26 +1478,45 @@ app.post('/api/vouchers/bulk-delete', async (req, res) => {
 app.get('/api/portal/design', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
-        const docRef = db.collection('isp_portals').doc(ispId);
-        const doc = await docRef.get();
-        
-        if (!doc.exists) {
-            return res.status(200).json({
-                brandName: "AudiSpot Wireless",
-                welcomeGreeting: "Enter verification parameters to connect.",
-                supportContact: "0700000000",
-                accentColor: "#4f46e5",
-                earnPoints: 10,
-                redeemPoints: 100,
-                rewardTiers: [], // Default fallback empty collection array
-                reconnectMsg: "Click button below to search active sessions.",
-                tvSetup: "1. Locate MAC address of TV\n2. Submit register address\n3. TV is authorized automatically.",
-                successTitle: "Welcome Online!",
-                successSub: "Your account connection rules are fully operational.",
-                successBtn: "Proceed to Browsing"
-            });
+        // Fetch both documents concurrently
+        const portalDocRef = db.collection('isp_portals').doc(ispId);
+        const settingsDocRef = db.collection('settings').doc(ispId);
+
+        const [portalDoc, settingsDoc] = await Promise.all([
+            portalDocRef.get(),
+            settingsDocRef.get()
+        ]);
+
+        // Base defaults for portal design
+        let portalData = {
+            brandName: "AudiSpot Wireless",
+            welcomeGreeting: "Enter verification parameters to connect.",
+            supportContact: "0700000000",
+            accentColor: "#4f46e5",
+            earnPoints: 10,
+            redeemPoints: 100,
+            rewardTiers: [],
+            reconnectMsg: "Click button below to search active sessions.",
+            tvSetup: "1. Locate MAC address of TV\n2. Submit register address\n3. TV is authorized automatically.",
+            successTitle: "Welcome Online!",
+            successSub: "Your account connection rules are fully operational.",
+            successBtn: "Proceed to Browsing"
+        };
+
+        if (portalDoc.exists) {
+            portalData = portalDoc.data();
         }
-        return res.status(200).json(doc.data());
+
+        // Pull saved settings or fall back to default URL
+        const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
+        const redirectUrl = settingsData.redirectUrl || 'https://audispot.audiory.site/';
+
+        // Merge design settings with system branding redirect URL
+        return res.status(200).json({
+            ...portalData,
+            redirectUrl: redirectUrl
+        });
+
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
