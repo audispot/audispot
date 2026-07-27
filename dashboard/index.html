@@ -3349,40 +3349,86 @@ async function fetchAndRenderDashboard() {
     }
 
     try {
-        // Corrected: Will cleanly compile to .../api/isp/dashboard-stats/testisp_audispot_com
         const statsResponse = await fetch(`${API_BASE_URL}/api/isp/dashboard-stats/${CURRENT_ISP_ID}`);
         if (!statsResponse.ok) throw new Error(`Failed to fetch dashboard stats (Status: ${statsResponse.status})`);
         const stats = await statsResponse.json();
 
-        // Fetch Design settings cleanly (.../api/portal/design?ispId=...)
-        const designResponse = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${CURRENT_ISP_ID}`);
+        // Fetch Design, Packages, Expenses
+        const [designResponse, pkgResponse, expResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/portal/design?ispId=${CURRENT_ISP_ID}`),
+            fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`),
+            fetch(`${API_BASE_URL}/api/expenses?ispId=${CURRENT_ISP_ID}`)
+        ]);
+
         const design = designResponse.ok ? await designResponse.json() : null;
-
-        // Fetch Packages cleanly (.../api/packages?ispId=...)
-        const pkgResponse = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
         const packages = pkgResponse.ok ? await pkgResponse.json() : [];
-
-        // Fetch Expenses cleanly (.../api/expenses?ispId=...)
-        const expResponse = await fetch(`${API_BASE_URL}/api/expenses?ispId=${CURRENT_ISP_ID}`);
         const expenses = expResponse.ok ? await expResponse.json() : [];
 
         // ==========================================
-        // RENDERING PROFILE METADATA
+        // 1. RENDERING PROFILE METADATA & SIDEBAR
         // ==========================================
         const ispName = stats.ispName || "AudiSpot Partner";
         const email = stats.email || `${CURRENT_ISP_ID.replace(/_/g, '.')}@audispot.com`;
         
-        // Dynamic Initials
         const initials = ispName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-        document.getElementById("lbl-side-initials").innerText = initials || "AS";
-        
-        // Sidebar & Header Titles
-        document.getElementById("lbl-side-username").innerText = ispName;
-        document.getElementById("lbl-side-email").innerText = email;
-        document.getElementById("lbl-header-title").innerText = `Welcome, ${ispName}`;
+        if (document.getElementById("lbl-side-initials")) document.getElementById("lbl-side-initials").innerText = initials || "AS";
+        if (document.getElementById("lbl-side-username")) document.getElementById("lbl-side-username").innerText = ispName;
+        if (document.getElementById("lbl-side-email")) document.getElementById("lbl-side-email").innerText = email;
+        if (document.getElementById("lbl-header-title")) document.getElementById("lbl-header-title").innerText = `Welcome, ${ispName}`;
 
         // ==========================================
-        // RENDERING SUBSCRIPTION EXPIRY WINDOW
+        // 2. RENDERING DASHBOARD STAT CARDS & METRICS
+        // ==========================================
+        
+        // Update Routers Count
+        const routerCountEl = document.getElementById("lbl-count-routers");
+        if (routerCountEl) routerCountEl.innerText = stats.routerCount || 0;
+
+        // Update Hotspot Vouchers Card
+        const vouchersCardEl = document.querySelector("#viewframe-dashboard .grid > div:nth-child(3) .text-2xl");
+        if (vouchersCardEl) {
+            vouchersCardEl.innerHTML = `${stats.hotspotVouchersTotal || 0}<span class="text-[11px] font-normal text-slate-400">/ ${stats.hotspotVouchersToday || 0} created today</span>`;
+        }
+
+        // Update "Paid today" Summary Header
+        const paidTodaySummaryEl = document.querySelector("#viewframe-dashboard h4 + span");
+        if (paidTodaySummaryEl) {
+            paidTodaySummaryEl.innerText = `${stats.todayPaymentsCount || 0} payments • KSh ${(stats.todayRevenue || 0).toFixed(2)} today`;
+        }
+
+        // Render "Paid today" Table Logs
+        const placeholderBlock = document.getElementById("payment-logs-placeholder-block");
+        const tableWrapper = document.getElementById("payment-logs-table-wrapper");
+        const tableBody = document.getElementById("payment-logs-table-body");
+
+        if (stats.todayPayments && stats.todayPayments.length > 0) {
+            if (placeholderBlock) placeholderBlock.classList.add("hidden");
+            if (tableWrapper) tableWrapper.classList.remove("hidden");
+
+            if (tableBody) {
+                tableBody.innerHTML = stats.todayPayments.map(tx => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-vunainput/50">
+                        <td class="p-3 font-semibold text-indigo-400">${tx.receipt}</td>
+                        <td class="p-3">${tx.phone}</td>
+                        <td class="p-3">${tx.router}</td>
+                        <td class="p-3 text-emerald-400 font-bold">KSh ${tx.amount.toFixed(2)}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${tx.status}</span></td>
+                    </tr>
+                `).join('');
+            }
+        } else {
+            if (placeholderBlock) placeholderBlock.classList.remove("hidden");
+            if (tableWrapper) tableWrapper.classList.add("hidden");
+        }
+
+        // Update Revenue Summary Header
+        const revenueSummaryEl = document.querySelector("#viewframe-dashboard .bg-white:last-child .text-emerald-500");
+        if (revenueSummaryEl) {
+            revenueSummaryEl.innerText = `KSh ${(stats.totalGrossEarned || 0).toFixed(2)} • ${stats.totalSalesCount || 0} sales`;
+        }
+
+        // ==========================================
+        // 3. RENDERING SUBSCRIPTION EXPIRY WINDOW
         // ==========================================
         if (stats.createdAt) {
             const createdDate = new Date(stats.createdAt._seconds ? stats.createdAt._seconds * 1000 : stats.createdAt);
@@ -3394,59 +3440,61 @@ async function fetchAndRenderDashboard() {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
             const bannerNode = document.getElementById("subscription-expiry-banner");
-            const expiryTextNode = document.getElementById("lbl-subscription-expiry-text");
+            const expiryTextNode = document.getElementById("lbl-subscription-expiry-text") || document.getElementById("subscription-expiry-text");
 
-            if (diffDays > 0) {
-                expiryTextNode.innerText = `Your AudiSpot subscription setup window expires in ${diffDays} days.`;
-                bannerNode.classList.remove("hidden");
-            } else {
-                expiryTextNode.innerText = "Your setup trial has expired. Renew your subscription to maintain network service.";
-                bannerNode.classList.remove("hidden");
-                bannerNode.classList.replace("bg-amber-500/10", "bg-rose-500/10");
-                bannerNode.classList.replace("text-amber-600", "text-rose-600");
-                bannerNode.classList.replace("border-amber-500/20", "border-rose-500/20");
+            if (bannerNode && expiryTextNode) {
+                if (diffDays > 0) {
+                    expiryTextNode.innerText = `Your AudiSpot subscription setup window expires in ${diffDays} days.`;
+                    bannerNode.classList.remove("hidden");
+                } else {
+                    expiryTextNode.innerText = "Your setup trial has expired. Renew your subscription to maintain network service.";
+                    bannerNode.classList.remove("hidden");
+                    bannerNode.classList.replace("bg-amber-500/10", "bg-rose-500/10");
+                    bannerNode.classList.replace("text-amber-600", "text-rose-600");
+                    bannerNode.classList.replace("border-amber-500/20", "border-rose-500/20");
+                }
             }
         }
 
         // ==========================================
-        // CALCULATING REAL ONBOARDING SCORE (0 OF 6)
+        // 4. CALCULATING REAL ONBOARDING SCORE (0 OF 6)
         // ==========================================
         let completedSteps = 0;
 
-        // 1. Router Registration Check (Reads from API stats, falling back to the rendered HTML count)
-        const routerTextElement = document.getElementById("lbl-count-routers");
-        const renderedRoutersCount = routerTextElement ? parseInt(routerTextElement.innerText) || 0 : 0;
-        const stepRouter = (stats.routersCount > 0 || renderedRoutersCount > 0); 
+        // Step 1: Routers
+        const stepRouter = (stats.routerCount > 0); 
         if (stepRouter) completedSteps++;
 
-        // 2. Pricing Packages Check
+        // Step 2: Packages
         const stepPackage = (packages && packages.length > 0); 
         if (stepPackage) completedSteps++;
 
-        // 3. Saved Custom Captive Portal Design Check
+        // Step 3: Captive Portal Design
         const stepDesign = (design && design.brandName && design.brandName !== "AudiSpot Premium WiFi"); 
         if (stepDesign) completedSteps++;
 
-        // 4. Configured Real Support Phone Number Check
+        // Step 4: Support Phone Contact
         const stepPhone = (stats.phoneNumber && stats.phoneNumber !== "254712345678" && stats.phoneNumber !== ""); 
         if (stepPhone) completedSteps++;
 
-        // 5. Logged Business Expense Check
+        // Step 5: Expenses
         const stepExpense = (expenses && expenses.length > 0); 
         if (stepExpense) completedSteps++;
 
-        // 6. First Client Transaction Check (Evaluates wallet balance OR active transaction logs)
-        const paymentTableBody = document.getElementById("payment-logs-table-body");
-        const hasPaymentRows = paymentTableBody && paymentTableBody.children.length > 0;
-        const stepTransaction = (stats.walletBalance > 0 || hasPaymentRows); 
+        // Step 6: First Transaction
+        const stepTransaction = (stats.totalGrossEarned > 0 || stats.withdrawableBalance > 0); 
         if (stepTransaction) completedSteps++;
 
-        // Render Onboarding progress score numbers
+        // Update Progress Bar
         const progressPercentage = Math.round((completedSteps / 6) * 100);
-        document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
-        document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
+        if (document.getElementById("lbl-onboarding-progress")) {
+            document.getElementById("lbl-onboarding-progress").innerText = `${completedSteps} of 6 done`;
+        }
+        if (document.getElementById("bar-onboarding-progress")) {
+            document.getElementById("bar-onboarding-progress").style.width = `${progressPercentage}%`;
+        }
 
-        // Smart Dynamic Task Selector (Finds the FIRST incomplete step)
+        // Action Button Logic
         let nextTaskMsg = "";
         let nextTabTarget = "";
 
@@ -3473,14 +3521,12 @@ async function fetchAndRenderDashboard() {
             nextTabTarget = "dashboard";
         }
 
-        // Apply to the action button
         const actionBtn = document.getElementById("btn-onboarding-action");
         if (actionBtn) {
             actionBtn.innerHTML = nextTaskMsg;
             actionBtn.setAttribute("onclick", `changeActiveLayoutTab('${nextTabTarget}')`);
         }
 
-        // Clean up: Hide the progress tracker completely once 6 of 6 is complete!
         const onboardingCard = document.getElementById("onboarding-card");
         if (completedSteps === 6 && onboardingCard) {
             onboardingCard.classList.add("hidden");
