@@ -260,7 +260,7 @@
             return `${hours} Hour${hours !== 1 ? 's' : ''}`;
         }
 
-        // Success Screen & Router Post Handler
+       // Success Screen & Router Post Handler
         function showSuccessModalAndRedirect(credentials = null) {
             const modalTitle = document.getElementById('modal-success-title');
             const modalSubtitle = document.getElementById('modal-success-subtitle');
@@ -270,18 +270,22 @@
             if (modalSubtitle) modalSubtitle.innerText = portalConfig.successSubtitle;
             if (redirectBtn) {
                 redirectBtn.innerText = portalConfig.successBtnText;
+                // Set the button link directly to the ISP's marketing URL
                 redirectBtn.href = portalConfig.redirectUrl || '#';
             }
 
             openPortalModal('modal-success');
 
             setTimeout(() => {
-                const targetAction = portalConfig.redirectUrl || (window.location.origin + '/login');
-                
+                const marketingUrl = portalConfig.redirectUrl && portalConfig.redirectUrl.trim() !== ""
+                    ? portalConfig.redirectUrl
+                    : null;
+
                 if (credentials) {
+                    // 1. Post credentials to the router's local login endpoint
                     const loginForm = document.createElement('form');
                     loginForm.method = 'POST';
-                    loginForm.action = targetAction; 
+                    loginForm.action = window.location.origin + '/login'; 
                     
                     const inputUser = document.createElement('input');
                     inputUser.type = 'hidden';
@@ -293,16 +297,27 @@
                     inputPass.name = 'password';
                     inputPass.value = credentials.password;
 
+                    // 2. If MikroTik / Router supports redirect parameter, attach destination
+                    if (marketingUrl) {
+                        const inputDst = document.createElement('input');
+                        inputDst.type = 'hidden';
+                        inputDst.name = 'dst'; // Standard MikroTik destination redirect parameter
+                        inputDst.value = marketingUrl;
+                        loginForm.appendChild(inputDst);
+                    }
+
                     loginForm.appendChild(inputUser);
                     loginForm.appendChild(inputPass);
                     document.body.appendChild(loginForm);
                     loginForm.submit();
-                } else if (portalConfig.redirectUrl) {
-                    window.location.href = portalConfig.redirectUrl;
+
+                } else if (marketingUrl) {
+                    // Direct GET redirect for non-credential flows
+                    window.location.href = marketingUrl;
                 }
             }, 2500);
         }
-
+        
         // Direct Purchase Engine
         document.getElementById('portal-connect-btn').addEventListener('click', async () => {
             const phoneInput = document.getElementById('buyer-phone').value.trim();
