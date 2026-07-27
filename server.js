@@ -607,32 +607,87 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
     try {
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
         if (!ispDoc.exists) return res.status(404).json({ error: "ISP not found" });
-        
+
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-        
-        // Compute total gross revenue processed (Platform + Custom Till)
+
+        // Calculate start of today (Midnight)
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 1. Fetch transactions from global_transactions
         const txSnapshot = await db.collection('global_transactions')
             .where('ispId', '==', ispId)
             .get();
 
         let totalGrossEarned = 0;
+        let todayRevenue = 0;
+        let todayPaymentsCount = 0;
+        const todayPayments = [];
+
         txSnapshot.forEach(doc => {
-            totalGrossEarned += (doc.data().grossAmount || 0);
+            const data = doc.data();
+            const amount = parseFloat(data.grossAmount || data.amount) || 0;
+            const status = (data.status || 'completed').toLowerCase();
+
+            if (status === 'completed' || status === 'success') {
+                totalGrossEarned += amount;
+
+                // Handle date conversion safely
+                const txDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || data.date);
+
+                if (txDate >= startOfToday) {
+                    todayRevenue += amount;
+                    todayPaymentsCount++;
+                    todayPayments.push({
+                        receipt: data.receipt || data.mpesaReceipt || doc.id.substring(0, 10).toUpperCase(),
+                        phone: data.phoneNumber || data.phone || data.customer || 'N/A',
+                        router: data.routerName || data.router || 'Main Router',
+                        amount: amount,
+                        status: 'completed',
+                        date: txDate
+                    });
+                }
+            }
         });
 
+        // Sort today's payments (newest first)
+        todayPayments.sort((a, b) => b.date - a.date);
+
+        // 2. Fetch Routers
         const routersSnapshot = await db.collection('routers').where('ispId', '==', ispId).get();
+
+        // 3. Fetch Hotspot Vouchers
+        const vouchersSnapshot = await db.collection('vouchers').where('ispId', '==', ispId).get();
+        let todayVouchersCount = 0;
+
+        vouchersSnapshot.forEach(doc => {
+            const vData = doc.data();
+            const vDate = vData.createdAt?.toDate ? vData.createdAt.toDate() : new Date(vData.createdAt);
+            if (vDate >= startOfToday) todayVouchersCount++;
+        });
+
+        const ispData = ispDoc.data();
 
         return res.status(200).json({
             success: true,
-            gatewayType: settings.mpesaIntegrationType || 'platform', // 'platform' or 'custom_daraja'
+            gatewayType: settings.mpesaIntegrationType || 'platform',
             tillNumber: settings.tillNumber || settings.mpesaShortcode || 'N/A',
-            withdrawableBalance: ispDoc.data().walletBalance || 0,
+            withdrawableBalance: ispData.walletBalance || 0,
+            phoneNumber: settings.supportPhone || ispData.phoneNumber || "",
+            createdAt: ispData.createdAt || null,
             totalGrossEarned: totalGrossEarned,
+            totalSalesCount: txSnapshot.size,
+            todayRevenue: todayRevenue,
+            todayPaymentsCount: todayPaymentsCount,
+            todayPayments: todayPayments,
             routerCount: routersSnapshot.size,
-            ispName: ispDoc.data().ispName
+            hotspotVouchersTotal: vouchersSnapshot.size,
+            hotspotVouchersToday: todayVouchersCount,
+            ispName: ispData.ispName
         });
     } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
         return res.status(500).json({ error: error.message });
     }
 });
