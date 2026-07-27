@@ -3487,10 +3487,22 @@ async function fetchAndRenderDashboard() {
             if (tableWrapper) tableWrapper.classList.add("hidden");
         }
 
-        // Revenue Overview Header Update
-        const revenueHeader = document.getElementById("lbl-revenue-overview");
+        // Revenue Overview Header Update (Smart Fallback)
+        let revenueHeader = document.getElementById("lbl-revenue-overview");
+
+        // If the ID is missing, automatically find the span above the chart
+        if (!revenueHeader) {
+            const chartCanvas = document.getElementById("revenueChart");
+            if (chartCanvas) {
+                revenueHeader = chartCanvas.closest('.rounded-xl').querySelector('span.text-emerald-500');
+            }
+        }
+
+        // Apply the actual backend numbers
         if (revenueHeader) {
-            revenueHeader.innerText = `KSh ${(stats.totalGrossEarned || 0).toFixed(2)} • ${stats.totalSalesCount || 0} sales`;
+            const gross = stats.totalGrossEarned || 0;
+            const sales = stats.totalSalesCount || 0;
+            revenueHeader.innerText = `KSh ${gross.toFixed(2)} • ${sales} sales`;
         }
 
         // Render Chart using Backend Chart Data
