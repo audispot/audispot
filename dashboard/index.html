@@ -182,17 +182,27 @@
             </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Routers Card -->
                         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
                             <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Routers</div>
-                            <div class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5"><span id="lbl-count-routers">0</span><span class="text-[11px] font-medium text-emerald-500">0 online</span></div>
+                            <div class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5">
+                                <span id="lbl-count-routers">0</span>
+                                <span id="lbl-count-routers-online" class="text-[11px] font-medium text-emerald-500">0 online</span>
+                            </div>
                         </div>
+
+                        <!-- Hotspot Users Online Card -->
                         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
                             <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hotspot Users Online</div>
-                            <div class="text-2xl font-black text-slate-900 dark:text-white">0</div>
+                            <div id="lbl-count-users-online" class="text-2xl font-black text-slate-900 dark:text-white">0</div>
                         </div>
+
+                        <!-- Hotspot Vouchers Card -->
                         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-1">
                             <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hotspot Vouchers</div>
-                            <div class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5">0<span class="text-[11px] font-normal text-slate-400">/ 0 created today</span></div>
+                            <div id="lbl-count-vouchers" class="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1.5">
+                                0 <span class="text-[11px] font-normal text-slate-400">/ 0 created today</span>
+                            </div>
                         </div>
                     </div>
 
