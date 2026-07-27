@@ -216,26 +216,22 @@
                     </div>
 
                    <!-- Revenue Graph Panel -->
-                   <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-4">
-                       <div class="flex items-center justify-between text-xs">
-                           <div class="font-bold text-slate-900 dark:text-white">Revenue</div>
-                           <div class="flex items-center gap-4 text-[11px]">
-                               <span id="lbl-revenue-overview" class="text-emerald-500 font-medium">KSh 0.00 • 0 sales</span>
-                               <div class="flex bg-slate-100 dark:bg-vunaborder p-0.5 rounded-md font-semibold">
-                                   <button class="px-2 py-1 text-slate-400 hover:text-white transition-colors">7D</button>
-                                   <button class="px-2 py-1 bg-white dark:bg-vunainput text-slate-900 dark:text-white rounded shadow-sm">30D</button>
-                               </div>
-                           </div>
-                       </div>
-    
-                       <!-- Chart Container -->
-                       <div class="relative h-48 w-full">
-                           <canvas id="revenueChart"></canvas>
-                       </div>
-                   </div>
-
-                   <!-- Chart.js CDN (Include in head or script section if not present) -->
-                   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 space-y-4">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="font-bold text-slate-900 dark:text-white">Revenue</div>
+                            <div class="flex items-center gap-4 text-[11px]">
+                                <span class="text-emerald-500 font-medium">KSh 0 • 0 sales</span>
+                                <div class="flex bg-slate-100 dark:bg-vunaborder p-0.5 rounded-md font-semibold">
+                                    <button class="px-2 py-1 text-slate-400">7D</button>
+                                    <button class="px-2 py-1 bg-white dark:bg-vunainput text-slate-900 dark:text-white rounded shadow-sm">30D</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="h-28 border-b border-dashed border-vunaborder flex items-end justify-between px-4 text-[10px] text-slate-600">
+                            <span>0.0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="viewframe-routers" class="space-y-6 hidden viewframe">
                     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
