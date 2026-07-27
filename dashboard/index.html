@@ -1089,6 +1089,7 @@
 </div>
 
 <div id="viewframe-pppoe" class="space-y-6 hidden viewframe">
+    <!-- Top Metric Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Logins</p>
@@ -1100,27 +1101,53 @@
         </div>
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Suspended Tunnels</p>
-            <h3 class="text-2xl font-bold text-rose-500 mt-1">0</h3>
+            <h3 class="text-2xl font-bold text-rose-500 mt-1" id="pppoe-metric-disabled">0</h3>
         </div>
     </div>
 
+    <!-- Provisioning Form -->
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
         <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Provision New PPPoE Digital Subscriber Account</h3>
         <form id="pppoe-creation-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="handlePPPoEProvisioning(event)">
-            <div class="space-y-1"><label class="text-slate-400">Target Router</label><input type="text" name="routerId" placeholder="e.g., MSA-02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Subscriber Username</label><input type="text" name="username" placeholder="e.g., house_4B" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Access Secret Key</label><input type="password" name="password" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Speed Profile Layer</label><input type="text" name="profile" placeholder="e.g., 10Mbps_Uncut" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <button type="submit" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Bind Infrastructure PPPoE Record</button>
+            <div class="space-y-1">
+                <label class="text-slate-400">Target Router</label>
+                <select name="routerId" id="pppoe-router-select" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required>
+                    <option value="">Select Connected Router...</option>
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="text-slate-400">Subscriber Username</label>
+                <input type="text" name="username" placeholder="e.g., house_4B" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required>
+            </div>
+            <div class="space-y-1">
+                <label class="text-slate-400">Access Secret Key</label>
+                <input type="password" name="password" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required>
+            </div>
+            <div class="space-y-1">
+                <label class="text-slate-400">Speed Profile Layer</label>
+                <input type="text" name="profile" placeholder="e.g., default" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required>
+            </div>
+            <button type="submit" id="btn-pppoe-submit" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">
+                Bind Infrastructure PPPoE Record
+            </button>
         </form>
     </div>
 
+    <!-- Subscribers Table -->
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">Active Broadband Subscribers Array</div>
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/20 flex justify-between items-center">
+            <span>Active Broadband Subscribers Array</span>
+            <button onclick="fetchPPPoESubscriberBase()" class="text-indigo-400 hover:underline text-[11px]">↻ Refresh Array</button>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs font-mono">
                 <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
-                    <tr><th class="p-3">Subscriber ID</th><th class="p-3">Active Profile Link</th><th class="p-3">Remote Address Target</th><th class="p-3 text-right">Status State</th></tr>
+                    <tr>
+                        <th class="p-3">Subscriber ID</th>
+                        <th class="p-3">Active Profile Link</th>
+                        <th class="p-3">Remote Address Target</th>
+                        <th class="p-3 text-right">Status State</th>
+                    </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="pppoe-table-body">
                     <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No broadband accounts provisioned onto selected MikroTik nodes.</td></tr>
@@ -1129,7 +1156,7 @@
         </div>
     </div>
 </div>
-
+        
 <div id="viewframe-static-ip" class="space-y-6 hidden viewframe">
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
         <div>
@@ -1534,11 +1561,17 @@ async function terminateTargetLease(routerId, username) {
 // ==========================================
 // SYSTEM COMPONENT MODULE 2: PPPoE SUBSCRIBERS
 // ==========================================
+// Dynamic PPPoE Provisioning Submitter
 async function handlePPPoEProvisioning(e) {
     e.preventDefault();
+    const submitBtn = document.getElementById("btn-pppoe-submit");
+    submitBtn.innerText = "Provisioning on MikroTik Router...";
+    submitBtn.disabled = true;
+
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    
+    payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+
     try {
         const res = await fetch(`${API_BASE_URL}/api/pppoe/create-secret`, {
             method: 'POST',
@@ -1546,39 +1579,91 @@ async function handlePPPoEProvisioning(e) {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if(data.success) {
+        if (data.success) {
             e.target.reset();
+            alert("PPPoE Subscriber account successfully bound to router!");
             fetchPPPoESubscriberBase();
-        } else { alert("PPPoE configuration parsing anomaly: " + data.error); }
-    } catch(err) { alert("Infrastructure validation link timed out."); }
+        } else { 
+            alert("PPPoE configuration anomaly: " + data.error); 
+        }
+    } catch(err) { 
+        alert("Infrastructure validation link timed out: " + err.message); 
+    } finally {
+        submitBtn.innerText = "Bind Infrastructure PPPoE Record";
+        submitBtn.disabled = false;
+    }
 }
 
+// Fetch Subscribers & Populate Target Select Element
 async function fetchPPPoESubscriberBase() {
     const tbody = document.getElementById("pppoe-table-body");
+    const routerSelect = document.getElementById("pppoe-router-select");
+    const targetIsp = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+
     try {
-        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
-        const routers = await response.json();
-        if(routers.length === 0) return;
+        // 1. Fetch ISP Routers
+        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${targetIsp}`);
+        const routers = await routerRes.json();
 
-        document.getElementById("pppoe-metric-active").textContent = secrets.length;
-        document.getElementById("pppoe-metric-profiles").textContent = [...new Set(secrets.map(s => s.profile))].length;
-
-        if(secrets.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical broadband subscriber tunnels registered on active interfaces.</td></tr>`;
+        if (!Array.isArray(routers) || routers.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No active routers registered under your ISP profile. Add a router first.</td></tr>`;
             return;
         }
 
+        // Populate router select dropdown if not already populated
+        if (routerSelect) {
+            const currentVal = routerSelect.value;
+            routerSelect.innerHTML = `<option value="">Select Connected Router...</option>` + 
+                routers.map(r => `<option value="${r.id}">${r.name || r.ip || r.id}</option>`).join('');
+            if (currentVal) routerSelect.value = currentVal;
+        }
+
+        // Target active selected router or default to the first connected router
+        const selectedRouterId = routerSelect?.value || routers[0].id;
+        
+        // 2. Fetch PPPoE Secrets from backend
+        const secretsRes = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${selectedRouterId}`);
+        const secrets = await secretsRes.json();
+
+        if (!Array.isArray(secrets) || secrets.length === 0) {
+            document.getElementById("pppoe-metric-active").textContent = "0";
+            document.getElementById("pppoe-metric-profiles").textContent = "0";
+            document.getElementById("pppoe-metric-disabled").textContent = "0";
+
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical broadband subscriber secrets configured on this router node.</td></tr>`;
+            return;
+        }
+
+        // Calculate and display stats
+        const activeSecrets = secrets.filter(s => s.disabled !== "true" && s.disabled !== true);
+        const disabledSecrets = secrets.filter(s => s.disabled === "true" || s.disabled === true);
+        const uniqueProfiles = [...new Set(secrets.map(s => s.profile))];
+
+        document.getElementById("pppoe-metric-active").textContent = activeSecrets.length;
+        document.getElementById("pppoe-metric-profiles").textContent = uniqueProfiles.length;
+        document.getElementById("pppoe-metric-disabled").textContent = disabledSecrets.length;
+
+        // Render table
         tbody.innerHTML = secrets.map(sec => `
             <tr class="hover:bg-slate-900/30 transition">
                 <td class="p-3 font-bold text-slate-200">${sec.name}</td>
-                <td class="p-3 text-indigo-400">${sec.profile}</td>
+                <td class="p-3 text-indigo-400">${sec.profile || 'default'}</td>
                 <td class="p-3 text-slate-500 font-mono">${sec.remoteAddress || 'Dynamic Allocation'}</td>
-                <td class="p-3 text-right"><span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">Active Tunnel</span></td>
+                <td class="p-3 text-right">
+                    ${(sec.disabled === "true" || sec.disabled === true)
+                        ? `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">Suspended</span>`
+                        : `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">Active Tunnel</span>`
+                    }
+                </td>
             </tr>
         `).join('');
-    } catch (err) { tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400">Database synchronization drop error logs detected.</td></tr>`; }
-}
 
+    } catch (err) {
+        console.error("PPPoE fetch error:", err);
+        tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400">Database synchronization drop error logs detected.</td></tr>`;
+    }
+}
+        
 // ==========================================
 // SYSTEM COMPONENT MODULE 3: STATIC SUBNETS
 // ==========================================
