@@ -3460,8 +3460,16 @@ async function fetchAndRenderDashboard() {
         const routerCountEl = document.getElementById("lbl-count-routers");
         if (routerCountEl) routerCountEl.innerText = stats.routerCount || stats.routersCount || 0;
 
+        // Hotspot Users Online
+        const onlineUsersEl = document.getElementById("lbl-count-users-online") || 
+                              document.querySelector("#viewframe-dashboard .grid > div:nth-child(2) .text-2xl");
+        if (onlineUsersEl) {
+            onlineUsersEl.innerText = stats.hotspotUsersOnline || 0;
+        }
+
         // Hotspot Vouchers Card
-        const vouchersCardEl = document.querySelector("#viewframe-dashboard .grid > div:nth-child(3) .text-2xl");
+        const vouchersCardEl = document.getElementById("lbl-count-vouchers") || 
+                               document.querySelector("#viewframe-dashboard .grid > div:nth-child(3) .text-2xl");
         if (vouchersCardEl) {
             vouchersCardEl.innerHTML = `${stats.hotspotVouchersTotal || 0} <span class="text-[11px] font-normal text-slate-400">/ ${stats.hotspotVouchersToday || 0} created today</span>`;
         }
