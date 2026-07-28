@@ -1211,7 +1211,7 @@
     <!-- Setup Banner Warning -->
     <div id="static-setup-warning" class="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
         <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-        <span>Static IP hasn't been set up on a router yet. Head to the <strong>Setup</strong> tab to configure your first subnet.</span>
+        <span>Static IP hasn't been set up on a router yet.</span>
     </div>
 
     <!-- Main Content Panel: Customers Table View -->
@@ -1219,7 +1219,6 @@
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <h4 class="font-bold text-xs text-white">Customers (<span id="table-cust-count">0</span>)</h4>
             <div class="flex items-center gap-2">
-                <button type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition border border-slate-700">Import CSV</button>
                 <button type="button" onclick="openNewStaticCustomerModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
                     <span>+</span> New Customer
                 </button>
@@ -1270,7 +1269,7 @@
             <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1">
                     <label class="text-slate-300 font-medium">Full Name <span class="text-indigo-400">*</span></label>
-                    <input type="text" name="fullName" placeholder="e.g. John Kamau" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
+                    <input type="text" name="fullName" placeholder="e.g. Abdul Ismael" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
                 </div>
                 <div class="space-y-1">
                     <label class="text-slate-300 font-medium">Phone <span class="text-indigo-400">*</span></label>
@@ -1316,13 +1315,13 @@
                 </div>
                 <div class="space-y-1">
                     <label class="text-slate-300 font-medium">Email (optional)</label>
-                    <input type="email" name="email" placeholder="john@example.com" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                    <input type="email" name="email" placeholder="ismaelabdul@example.com" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
                 </div>
             </div>
 
             <div class="space-y-1">
                 <label class="text-slate-300 font-medium">Location (optional)</label>
-                <input type="text" name="location" placeholder="e.g. Westlands, Apt 4B" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                <input type="text" name="location" placeholder="e.g. Nyali, Apt 4B" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
             </div>
 
             <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
