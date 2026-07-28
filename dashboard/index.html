@@ -1594,35 +1594,68 @@ async function handlePPPoEProvisioning(e) {
     }
 }
 
-// Fetch Subscribers & Populate Target Select Element
+// Fetch Subscribers & Populate Target Select Element Dynamically
 async function fetchPPPoESubscriberBase() {
     const tbody = document.getElementById("pppoe-table-body");
     const routerSelect = document.getElementById("pppoe-router-select");
-    const targetIsp = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+
+    // 1. DYNAMICALLY DETECT LOGGED-IN ISP ID
+    // Priority: Explicit global variable -> Stored ISP ID -> Stored user email formatted as ID
+    let targetIsp = null;
+
+    if (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID) {
+        targetIsp = CURRENT_ISP_ID;
+    } else {
+        // Look up session values stored at login
+        const storedIsp = localStorage.getItem('isp_id');
+        const storedUser = localStorage.getItem('user_email') || localStorage.getItem('user_id');
+
+        if (storedIsp) {
+            targetIsp = storedIsp;
+        } else if (storedUser) {
+            // Convert email "name@gmail.com" to "name_gmail_com" format if needed
+            targetIsp = storedUser.replace(/[@.]/g, '_');
+        }
+    }
+
+    // Safety fallback: if no user session found at all, stop early
+    if (!targetIsp) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-rose-400 font-sans">Authentication error: No active ISP session detected. Please log in again.</td></tr>`;
+        return;
+    }
 
     try {
-        // 1. Fetch ISP Routers
-        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${targetIsp}`);
+        // 2. Fetch ISP Routers using the dynamic targetIsp
+        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${encodeURIComponent(targetIsp)}`);
         const routers = await routerRes.json();
 
         if (!Array.isArray(routers) || routers.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No active routers registered under your ISP profile. Add a router first.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No active routers registered under your account (${targetIsp}).</td></tr>`;
             return;
         }
 
-        // Populate router select dropdown if not already populated
+        // 3. Populate router select dropdown
         if (routerSelect) {
             const currentVal = routerSelect.value;
+            
             routerSelect.innerHTML = `<option value="">Select Connected Router...</option>` + 
                 routers.map(r => `<option value="${r.id}">${r.name || r.ip || r.id}</option>`).join('');
-            if (currentVal) routerSelect.value = currentVal;
+
+            // Preserve active selection or default to first router
+            if (currentVal && routers.some(r => r.id === currentVal)) {
+                routerSelect.value = currentVal;
+            } else {
+                routerSelect.value = routers[0].id;
+            }
+
+            // Auto-reload table when user picks a different router
+            routerSelect.onchange = () => fetchPPPoESubscriberBase();
         }
 
-        // Target active selected router or default to the first connected router
         const selectedRouterId = routerSelect?.value || routers[0].id;
-        
-        // 2. Fetch PPPoE Secrets from backend
-        const secretsRes = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${selectedRouterId}`);
+
+        // 4. Fetch secrets for the selected router
+        const secretsRes = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${encodeURIComponent(selectedRouterId)}`);
         const secrets = await secretsRes.json();
 
         if (!Array.isArray(secrets) || secrets.length === 0) {
@@ -1630,11 +1663,11 @@ async function fetchPPPoESubscriberBase() {
             document.getElementById("pppoe-metric-profiles").textContent = "0";
             document.getElementById("pppoe-metric-disabled").textContent = "0";
 
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical broadband subscriber secrets configured on this router node.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No PPPoE subscriber secrets configured on this router.</td></tr>`;
             return;
         }
 
-        // Calculate and display stats
+        // Metrics
         const activeSecrets = secrets.filter(s => s.disabled !== "true" && s.disabled !== true);
         const disabledSecrets = secrets.filter(s => s.disabled === "true" || s.disabled === true);
         const uniqueProfiles = [...new Set(secrets.map(s => s.profile))];
@@ -1643,7 +1676,7 @@ async function fetchPPPoESubscriberBase() {
         document.getElementById("pppoe-metric-profiles").textContent = uniqueProfiles.length;
         document.getElementById("pppoe-metric-disabled").textContent = disabledSecrets.length;
 
-        // Render table
+        // Render Table
         tbody.innerHTML = secrets.map(sec => `
             <tr class="hover:bg-slate-900/30 transition">
                 <td class="p-3 font-bold text-slate-200">${sec.name}</td>
