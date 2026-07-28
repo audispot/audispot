@@ -1561,6 +1561,35 @@ async function terminateTargetLease(routerId, username) {
 // ==========================================
 // SYSTEM COMPONENT MODULE 2: PPPoE SUBSCRIBERS
 // ==========================================
+
+// Helper function for non-blocking UI notifications (replaces alert popups)
+function showNotification(message, type = 'info') {
+    // If you have SweetAlert / Toastify installed, you can hook it here.
+    // Default fallback creates or reuses an in-app notification banner
+    let notifBanner = document.getElementById("app-toast-notification");
+    if (!notifBanner) {
+        notifBanner = document.createElement("div");
+        notifBanner.id = "app-toast-notification";
+        notifBanner.className = "fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 transform translate-y-0";
+        document.body.appendChild(notifBanner);
+    }
+
+    const bgColors = {
+        success: "bg-emerald-600 text-white",
+        error: "bg-rose-600 text-white",
+        warning: "bg-amber-600 text-white",
+        info: "bg-slate-800 text-slate-100 border border-slate-700"
+    };
+
+    notifBanner.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 ${bgColors[type] || bgColors.info}`;
+    notifBanner.innerText = message;
+    notifBanner.style.display = "block";
+
+    setTimeout(() => {
+        notifBanner.style.display = "none";
+    }, 4000);
+}
+
 // Dynamic PPPoE Provisioning Submitter
 async function handlePPPoEProvisioning(e) {
     e.preventDefault();
@@ -1570,7 +1599,18 @@ async function handlePPPoEProvisioning(e) {
 
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+    
+    // Ensure we use CURRENT_ISP_ID directly
+    payload.ispId = (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID !== 'default_isp') 
+        ? CURRENT_ISP_ID 
+        : (localStorage.getItem('isp_id') || '');
+
+    if (!payload.routerId) {
+        showNotification("Please select a target router before binding.", "warning");
+        submitBtn.innerText = "Bind Infrastructure PPPoE Record";
+        submitBtn.disabled = false;
+        return;
+    }
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/pppoe/create-secret`, {
@@ -1578,16 +1618,17 @@ async function handlePPPoEProvisioning(e) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
+        
         const data = await res.json();
         if (data.success) {
             e.target.reset();
-            alert("PPPoE Subscriber account successfully bound to router!");
+            showNotification("PPPoE Subscriber account successfully bound to router!", "success");
             fetchPPPoESubscriberBase();
         } else { 
-            alert("PPPoE configuration anomaly: " + data.error); 
+            showNotification("PPPoE configuration anomaly: " + (data.error || "Failed to create secret."), "error"); 
         }
     } catch(err) { 
-        alert("Infrastructure validation link timed out: " + err.message); 
+        showNotification("Infrastructure validation link timed out: " + err.message, "error"); 
     } finally {
         submitBtn.innerText = "Bind Infrastructure PPPoE Record";
         submitBtn.disabled = false;
@@ -1622,7 +1663,6 @@ async function fetchPPPoESubscriberBase() {
 
             routerSelect.innerHTML = `<option value="">Select Connected Router...</option>` + 
                 routers.map(r => {
-                    // Unique identifier (ID or Document ID name like "Ismaels wifi")
                     const routerId = r.id || r._id || r.name;
                     const displayName = r.name || r.ip || routerId;
                     return `<option value="${routerId}">${displayName}</option>`;
