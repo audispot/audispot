@@ -1162,7 +1162,7 @@
     <!-- Top Bar Title & Refresh -->
     <div class="flex items-center justify-between">
         <h2 class="text-base font-bold text-white">Static DHCP Configurations</h2>
-        <button type="button" onclick="window.fetchStaticDHCPLeases()" class="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+        <button type="button" onclick="window.refreshStaticModule()" class="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
             Refresh
         </button>
@@ -2005,7 +2005,12 @@ async function fetchPPPoESubscriberBase(retryCount = 0) {
 // SYSTEM COMPONENT MODULE 3: STATIC SUBNETS
 // ==========================================
 
+// Global state tracking active subtab
+window.activeStaticSubTab = 'customers';
+
 window.switchStaticSubTab = function(tabName) {
+    window.activeStaticSubTab = tabName;
+
     ['customers', 'plans', 'setup'].forEach(name => {
         const view = document.getElementById(`subtab-view-${name}`);
         const btn = document.getElementById(`subtab-btn-${name}`);
@@ -2026,6 +2031,17 @@ window.switchStaticSubTab = function(tabName) {
     } else if (tabName === 'setup') {
         window.fetchSetupRouters();
     } else if (tabName === 'customers') {
+        window.fetchStaticDHCPLeases();
+    }
+};
+
+// Global Refresh Handler bound to the 'Refresh' button on UI
+window.refreshStaticModule = function() {
+    if (window.activeStaticSubTab === 'plans') {
+        window.fetchStaticPlans();
+    } else if (window.activeStaticSubTab === 'setup') {
+        window.fetchSetupRouters();
+    } else {
         window.fetchStaticDHCPLeases();
     }
 };
@@ -2108,7 +2124,7 @@ window.fetchModalDropdownOptions = async function() {
     }
 };
 
-// Fetch and Render Packages (Fixes 'undefined' title issue)
+// Fetch and Render Packages
 window.fetchStaticPlans = async function() {
     const plansGrid = document.getElementById('static-plans-grid');
     const emptyState = document.getElementById('static-plans-empty');
@@ -2230,7 +2246,7 @@ window.fetchStaticDHCPLeases = async function() {
     }
 };
 
-// Form Handler: Create New Static Customer
+// Form Handler: Create New Static Customer (No Alert Popups)
 window.handleCreateStaticCustomer = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
@@ -2248,15 +2264,23 @@ window.handleCreateStaticCustomer = async function(e) {
             e.target.reset();
             window.closeNewStaticCustomerModal();
             window.fetchStaticDHCPLeases();
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Static customer created successfully!");
+            }
         } else {
-            alert("Failed to create customer.");
+            const errData = await res.json().catch(() => ({}));
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(errData.error || "Failed to create customer.", true);
+            }
         }
     } catch (err) {
-        alert("Error saving static customer.");
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Error saving static customer.", true);
+        }
     }
 };
 
-// Form Handler: Create Static Package
+// Form Handler: Create Static Package (Fixed Route & No Alert Popups)
 window.handleCreateStaticPlan = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
@@ -2275,15 +2299,26 @@ window.handleCreateStaticPlan = async function(e) {
             e.target.reset();
             window.closeNewStaticPlanModal();
             window.fetchStaticPlans();
+            if (typeof window.fetchActiveBillingCatalog === 'function') {
+                window.fetchActiveBillingCatalog(); // Keeps main Packages page updated
+            }
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Package saved successfully!");
+            }
         } else {
-            alert("Failed to save package.");
+            const errData = await res.json().catch(() => ({}));
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(errData.error || "Failed to save package.", true);
+            }
         }
     } catch (err) {
-        alert("Error saving static package.");
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Error saving static package.", true);
+        }
     }
 };
 
-// Form Handler: Setup Subnet
+// Form Handler: Setup Subnet (No Alert Popups)
 window.handleStaticSetup = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
@@ -2298,16 +2333,22 @@ window.handleStaticSetup = async function(e) {
         });
 
         if (res.ok) {
-            alert("Static IP Subnet successfully configured on MikroTik!");
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay("Static IP Subnet successfully configured on MikroTik!");
+            }
             const warningBanner = document.getElementById('static-setup-warning');
             if (warningBanner) warningBanner.classList.add('hidden');
             window.switchStaticSubTab('customers');
         } else {
             const data = await res.json();
-            alert(data.error || "Failed to configure subnet on router.");
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(data.error || "Failed to configure subnet on router.", true);
+            }
         }
     } catch (err) {
-        alert("Subnet setup failed. Check backend connection.");
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay("Subnet setup failed. Check backend connection.", true);
+        }
     }
 };
         
@@ -2315,7 +2356,6 @@ window.handleStaticSetup = async function(e) {
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
 // ==========================================
 
-// Custom utility to replace the missing delay reference smoothly
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function togglePackageCreationModal(show) {
@@ -2330,25 +2370,23 @@ async function handlePackageSubmission(e) {
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
     
-    // Ensure we send the correct active ISP ID
     payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
 
-    // Convert price to number
     if (payload.price) payload.price = Number(payload.price);
 
-    // Normalize multi-period selections into standard hour units for db structural compliance
     let finalHours = Number(payload.duration || 0);
     
     if (payload.packageType === 'weekly') {
-        finalHours = finalHours * 7 * 24; // Convert weeks to hours
+        finalHours = finalHours * 7 * 24;
     } else if (payload.packageType === 'monthly') {
-        finalHours = finalHours * 30 * 24; // Convert average months to hours
+        finalHours = finalHours * 30 * 24;
     }
     
     payload.duration = finalHours;
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/packages/create`, { 
+        // Unified package creation route
+        const res = await fetch(`${API_BASE_URL}/api/packages`, { 
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -2362,9 +2400,11 @@ async function handlePackageSubmission(e) {
                 triggerToastDisplay("Billing package created successfully! 🚀");
             }
             
-            // Give Firestore 500ms to commit the write, then fetch the updated catalog
             await delay(500);
             fetchActiveBillingCatalog(); 
+            if (typeof window.fetchStaticPlans === 'function') {
+                window.fetchStaticPlans(); // Keeps static tab updated
+            }
         } else {
             const errText = await res.text();
             if (typeof triggerToastDisplay === 'function') {
@@ -2385,7 +2425,6 @@ async function fetchActiveBillingCatalog() {
     
     let contentRendered = false;
 
-    // 1. Establish an absolute 3-second recovery backup safety timer
     const fallbackTimeout = setTimeout(() => {
         if (!contentRendered) {
             gridMount.innerHTML = `
@@ -2401,7 +2440,6 @@ async function fetchActiveBillingCatalog() {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
         const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); 
         
-        // Mark as processed to handle fallback clearing
         contentRendered = true; 
         clearTimeout(fallbackTimeout);
 
@@ -2409,7 +2447,6 @@ async function fetchActiveBillingCatalog() {
         
         const packages = await res.json();
 
-        // 2. Safe check for empty, null, or non-array returns
         if (!packages || !Array.isArray(packages) || packages.length === 0) {
             gridMount.innerHTML = `
                 <div class="col-span-1 md:col-span-3 text-center text-slate-500 py-12 font-sans">
@@ -2420,14 +2457,13 @@ async function fetchActiveBillingCatalog() {
             return;
         }
 
-        // 3. Render items smoothly into the grid layout
         gridMount.innerHTML = packages.map(pkg => {
             const pkgId = pkg.id || pkg.docId || '';
             return `
                 <div id="pkg-card-${pkgId}" class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
                     <div>
                         <div class="flex justify-between items-start">
-                            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || 'Unnamed Tier'}</h4>
+                            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide truncate max-w-[150px]">${pkg.packageName || pkg.name || 'Unnamed Tier'}</h4>
                             <span class="bg-indigo-600/10 text-indigo-400 text-[11px] font-extrabold px-2.5 py-1 rounded-md font-sans">KES ${pkg.price || 0}</span>
                         </div>
                         <div class="mt-3 space-y-1.5 text-[11px] text-slate-400 font-sans">
@@ -2435,7 +2471,6 @@ async function fetchActiveBillingCatalog() {
                             <div class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-slate-500 w-4"></i> Queue Boundary: <span class="font-mono bg-slate-800 px-1 rounded text-slate-300 font-bold">${pkg.bandwidthProfile || 'Default'}</span></div>
                         </div>
                     </div>
-                    <!-- Inline Confirmation Action Area -->
                     <div class="pt-3 border-t border-slate-100 dark:border-vunaborder/60 flex gap-2" id="action-wrapper-${pkgId}">
                         <button onclick="promptInlineDelete('${pkgId}')" class="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold rounded text-[11px] transition">Remove Tier</button>
                     </div>
