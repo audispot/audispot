@@ -1346,13 +1346,25 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
 
     let api = null;
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) {
-            return res.status(404).json({ success: false, error: "Router configuration not found." });
-        }
-        const routerData = routerDoc.data();
+        // 1. Fetch Router Doc (Direct ID match or fallback search by name/id field)
+        let routerDoc = await db.collection('routers').doc(routerId).get();
+        let routerData = null;
 
-        // 1. Send /ppp/secret/add command to router
+        if (routerDoc.exists) {
+            routerData = routerDoc.data();
+        } else {
+            // Search by 'name' field if doc.id query returns empty
+            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
+            if (!snapshot.empty) {
+                routerData = snapshot.docs[0].data();
+            }
+        }
+
+        if (!routerData) {
+            return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
+        }
+
+        // 2. Send /ppp/secret/add command to router
         const client = getRouterClient(routerData);
         api = await client.connect();
         
@@ -1363,9 +1375,9 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
             `=service=pppoe`
         ]);
 
-        // 2. Persist in Firestore subscribers collection
+        // 3. Persist in Firestore subscribers collection
         await db.collection('subscribers').add({
-            ispId: ispId || routerData.ispId,
+            ispId: ispId || routerData.ispId || 'default_isp',
             routerId: routerId,
             username: username,
             type: 'pppoe',
@@ -1392,15 +1404,27 @@ app.get('/api/pppoe/secrets', async (req, res) => {
 
     let api = null;
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) return res.status(200).json([]);
-        const routerData = routerDoc.data();
+        // 1. Fetch Router Doc (Direct ID match or search fallback)
+        let routerDoc = await db.collection('routers').doc(routerId).get();
+        let routerData = null;
 
+        if (routerDoc.exists) {
+            routerData = routerDoc.data();
+        } else {
+            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
+            if (!snapshot.empty) {
+                routerData = snapshot.docs[0].data();
+            }
+        }
+
+        if (!routerData) return res.status(200).json([]);
+
+        // 2. Connect and fetch secrets
         const client = getRouterClient(routerData);
         api = await client.connect();
         const secrets = await api.write('/ppp/secret/print');
 
-        const formattedSecrets = secrets.map(s => ({
+        const formattedSecrets = (secrets || []).map(s => ({
             id: s['.id'],
             name: s.name,
             profile: s.profile || 'default',
