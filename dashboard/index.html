@@ -1157,33 +1157,179 @@
     </div>
 </div>
         
+<!-- Static IP View Panel -->
 <div id="viewframe-static-ip" class="space-y-6 hidden viewframe">
-    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-5 rounded-xl space-y-4">
-        <div>
-            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Static DHCP Lease Reservation Engine</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5">Map fixed local subnet configurations securely bypassing standard captive portal authentication.</p>
+    <!-- Top Stats Overview Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ONLINE NOW
+            </span>
+            <div class="text-xl font-bold text-white"><span id="stat-static-online">0</span><span class="text-slate-500 text-xs font-normal">/0</span></div>
         </div>
-        <form id="static-lease-form" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs" onsubmit="handleStaticLeaseBinding(event)">
-            <div class="space-y-1"><label class="text-slate-400">Hardware Node ID</label><input type="text" name="routerId" placeholder="e.g., MSA-02" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Target MAC Identifier</label><input type="text" name="macAddress" placeholder="e.g., 00:0C:42:38:4F:11" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Allocated Static IP Address</label><input type="text" name="ipAddress" placeholder="e.g., 192.168.88.50" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white" required></div>
-            <div class="space-y-1"><label class="text-slate-400">Client Reference Name</label><input type="text" name="comment" placeholder="e.g., Office_Printer" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white"></div>
-            <button type="submit" class="md:col-span-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg transition mt-2">Register Network Reservation Rule</button>
-        </form>
+
+        <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                ACTIVE
+            </span>
+            <div class="text-xl font-bold text-emerald-400" id="stat-static-active">0</div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                EXPIRING SOON
+            </span>
+            <div class="text-xl font-bold text-amber-400" id="stat-static-expiring">0</div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10 10 0 0114.142 0M1.05 6.364a15 15 0 0121.9 0"></path></svg>
+                EXPIRED
+            </span>
+            <div class="text-xl font-bold text-slate-400" id="stat-static-expired">0</div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                SUSPENDED
+            </span>
+            <div class="text-xl font-bold text-rose-500" id="stat-static-suspended">0</div>
+        </div>
     </div>
 
-    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-slate-200 dark:border-vunaborder font-bold text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">Permanent Hardware System Bindings</div>
-        <div class="overflow-x-auto">
+    <!-- Sub-Navigation (Customers / Plans / Setup) -->
+    <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-800/80 p-1 rounded-xl w-fit">
+        <button type="button" onclick="switchStaticSubTab('customers')" id="subtab-btn-customers" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-400 transition">Customers <span id="lbl-cust-count">0</span></button>
+        <button type="button" onclick="switchStaticSubTab('plans')" id="subtab-btn-plans" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Plans</button>
+        <button type="button" onclick="switchStaticSubTab('setup')" id="subtab-btn-setup" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Setup</button>
+    </div>
+
+    <!-- Setup Banner Warning -->
+    <div id="static-setup-warning" class="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <span>Static IP hasn't been set up on a router yet. Head to the <strong>Setup</strong> tab to configure your first subnet.</span>
+    </div>
+
+    <!-- Main Content Panel: Customers Table View -->
+    <div class="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h4 class="font-bold text-xs text-white">Customers (<span id="table-cust-count">0</span>)</h4>
+            <div class="flex items-center gap-2">
+                <button type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition border border-slate-700">Import CSV</button>
+                <button type="button" onclick="openNewStaticCustomerModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
+                    <span>+</span> New Customer
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State Container -->
+        <div id="static-customers-empty" class="py-16 text-center space-y-3">
+            <div class="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            </div>
+            <div class="space-y-1">
+                <h5 class="text-sm font-bold text-white">No Static IP customers yet</h5>
+                <p class="text-xs text-slate-400 max-w-sm mx-auto">Once you set up a subnet on the Setup tab, add a customer with a plan to start billing and provisioning static IPs.</p>
+            </div>
+            <button type="button" onclick="openNewStaticCustomerModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5">
+                <span>+</span> New Customer
+            </button>
+        </div>
+
+        <!-- Active Data Table -->
+        <div id="static-customers-table-wrapper" class="hidden overflow-x-auto">
             <table class="w-full text-left text-xs font-mono">
-                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
-                    <tr><th class="p-3">MAC Reference Binding</th><th class="p-3">Assigned IP Address</th><th class="p-3">Description Node Tag</th><th class="p-3 text-right">Operational Status</th></tr>
+                <thead class="bg-slate-900/60 text-slate-400 border-b border-slate-800 font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">Customer</th>
+                        <th class="p-3">Assigned IP</th>
+                        <th class="p-3">MAC Address</th>
+                        <th class="p-3">Plan</th>
+                        <th class="p-3">Status</th>
+                    </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="static-table-body">
-                    <tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical static leases map records allocated to system.</td></tr>
-                </tbody>
+                <tbody id="static-table-body" class="divide-y divide-slate-800/60 text-slate-300"></tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- Modal: New Static IP Customer Registration -->
+<div id="modal-static-customer" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-[#0f172a] border border-slate-800 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
+        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-white">New Static IP Customer</h3>
+            <button type="button" onclick="closeNewStaticCustomerModal()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
+        </div>
+
+        <form id="static-customer-form" onsubmit="handleStaticLeaseBinding(event)" class="p-5 space-y-4 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Full Name <span class="text-indigo-400">*</span></label>
+                    <input type="text" name="fullName" placeholder="e.g. John Kamau" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Phone <span class="text-indigo-400">*</span></label>
+                    <input type="text" name="phone" placeholder="2547XXXXXXXX" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <!-- DYNAMIC PLAN SELECT -->
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Plan <span class="text-indigo-400">*</span></label>
+                    <select name="plan" id="modal-plan-select" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500" required>
+                        <option value="">Loading plans...</option>
+                    </select>
+                </div>
+                <!-- DYNAMIC ROUTER SELECT -->
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Router <span class="text-indigo-400">*</span></label>
+                    <select name="routerId" id="modal-router-select" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500" required>
+                        <option value="">Loading routers...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Static IP</label>
+                    <input type="text" name="ipAddress" placeholder="Auto (next free)" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">MAC Address (optional)</label>
+                    <input type="text" name="macAddress" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">IP Type</label>
+                    <select name="ipType" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500">
+                        <option value="private">Private</option>
+                        <option value="public">Public</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Email (optional)</label>
+                    <input type="email" name="email" placeholder="john@example.com" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-slate-300 font-medium">Location (optional)</label>
+                <input type="text" name="location" placeholder="e.g. Westlands, Apt 4B" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                <button type="button" onclick="closeNewStaticCustomerModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition">Create Customer</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1741,47 +1887,149 @@ async function fetchPPPoESubscriberBase(retryCount = 0) {
 // ==========================================
 // SYSTEM COMPONENT MODULE 3: STATIC SUBNETS
 // ==========================================
+
+// Modal Controls
+function openNewStaticCustomerModal() {
+    // Populate plans and routers dynamically every time modal opens
+    fetchModalDropdownOptions();
+    document.getElementById('modal-static-customer').classList.remove('hidden');
+}
+
+function closeNewStaticCustomerModal() {
+    document.getElementById('modal-static-customer').classList.add('hidden');
+}
+
+// Sub-Tab Switcher
+function switchStaticSubTab(subTabName) {
+    const btnCustomers = document.getElementById('subtab-btn-customers');
+    const btnPlans = document.getElementById('subtab-btn-plans');
+    const btnSetup = document.getElementById('subtab-btn-setup');
+
+    [btnCustomers, btnPlans, btnSetup].forEach(btn => {
+        if (btn) btn.className = "px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition";
+    });
+
+    const activeBtn = document.getElementById(`subtab-btn-${subTabName}`);
+    if (activeBtn) activeBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-400 transition";
+}
+
+// Fetch Dynamic Dropdowns (Plans and Routers for the Logged-In ISP)
+async function fetchModalDropdownOptions() {
+    const planSelect = document.getElementById("modal-plan-select");
+    const routerSelect = document.getElementById("modal-router-select");
+
+    // 1. Fetch Dynamic Packages / Plans
+    try {
+        const pkgRes = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
+        if (pkgRes.ok) {
+            const packages = await pkgRes.json();
+            if (packages && packages.length > 0) {
+                planSelect.innerHTML = '<option value="">Select plan...</option>' + 
+                    packages.map(p => `<option value="${p.id || p.name}">${p.name} - ${p.price ? 'KES ' + p.price : 'Custom'}</option>`).join('');
+            } else {
+                planSelect.innerHTML = '<option value="">No packages found</option>';
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load ISP packages:", err);
+        planSelect.innerHTML = '<option value="">Error loading plans</option>';
+    }
+
+    // 2. Fetch Dynamic Hardware Routers
+    try {
+        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
+        if (routerRes.ok) {
+            const routers = await routerRes.json();
+            if (routers && routers.length > 0) {
+                routerSelect.innerHTML = '<option value="">Select router...</option>' + 
+                    routers.map(r => `<option value="${r.id}">${r.name || r.id}</option>`).join('');
+            } else {
+                routerSelect.innerHTML = '<option value="">No routers available</option>';
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load ISP routers:", err);
+        routerSelect.innerHTML = '<option value="">Error loading routers</option>';
+    }
+}
+
+// Form Submission Handler
 async function handleStaticLeaseBinding(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    
+    payload.ispId = CURRENT_ISP_ID; // Attach tenant/ISP identity
+
     try {
         const res = await fetch(`${API_BASE_URL}/api/dhcp/create-lease`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-        if(res.ok) { e.target.reset(); fetchStaticDHCPLeases(); }
-    } catch(err) { alert("Static IP interface state synchronizer failure."); }
+        
+        if (res.ok) { 
+            e.target.reset(); 
+            closeNewStaticCustomerModal();
+            fetchStaticDHCPLeases(); 
+        } else {
+            const errData = await res.json();
+            alert(errData.error || "Failed to register static customer.");
+        }
+    } catch (err) { 
+        alert("Static IP interface state synchronizer failure."); 
+    }
 }
 
+// Main View Loader
 async function fetchStaticDHCPLeases() {
     const tbody = document.getElementById("static-table-body");
+    const emptyState = document.getElementById("static-customers-empty");
+    const tableWrapper = document.getElementById("static-customers-table-wrapper");
+
     try {
+        // Fetch routers associated with logged-in ISP
         const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
         const routers = await response.json();
-        if(routers.length === 0) return;
 
-        const res = await fetch(`${API_BASE_URL}/api/dhcp/leases?routerId=${routers[0].id}`);
-        const leases = await res.json();
-
-        if(leases.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No physical permanent address leases anchored into operational hardware.</td></tr>`;
+        if (!routers || routers.length === 0) {
+            emptyState.classList.remove('hidden');
+            tableWrapper.classList.add('hidden');
             return;
         }
 
+        // Read active leases from the primary router
+        const res = await fetch(`${API_BASE_URL}/api/dhcp/leases?routerId=${routers[0].id}`);
+        const leases = await res.json();
+
+        // Update top counter indicators
+        const activeCount = leases ? leases.length : 0;
+        document.getElementById("lbl-cust-count").innerText = activeCount;
+        document.getElementById("table-cust-count").innerText = activeCount;
+        document.getElementById("stat-static-active").innerText = activeCount;
+
+        if (!leases || leases.length === 0) {
+            emptyState.classList.remove('hidden');
+            tableWrapper.classList.add('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+        tableWrapper.classList.remove('hidden');
+
         tbody.innerHTML = leases.map(l => `
-            <tr class="hover:bg-slate-900/30 transition">
-                <td class="p-3 text-slate-300 font-bold">${l.macAddress}</td>
-                <td class="p-3 text-indigo-400 font-bold">${l.address}</td>
-                <td class="p-3 text-slate-400 font-sans">${l.comment || 'Bypass Rule Endpoint'}</td>
-                <td class="p-3 text-right"><span class="bg-indigo-500/10 text-indigo-400 text-[10px] px-2 py-0.5 rounded-full font-sans font-bold">Static Lease</span></td>
+            <tr class="hover:bg-slate-800/40 transition">
+                <td class="p-3 font-sans text-white font-semibold">${l.comment || l.fullName || 'Static Customer'}</td>
+                <td class="p-3 text-indigo-400 font-bold">${l.address || l.ipAddress}</td>
+                <td class="p-3 text-slate-300 font-bold">${l.macAddress || 'Auto-assigned'}</td>
+                <td class="p-3 text-slate-400 font-sans">${l.plan || 'Default'}</td>
+                <td class="p-3"><span class="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-sans font-bold">Active</span></td>
             </tr>
         `).join('');
-    } catch(err) { tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400">DHCP parsing subsystem interface fault channels.</td></tr>`; }
+    } catch (err) { 
+        console.error("Static lease loading error:", err);
+    }
 }
-
+        
 // ==========================================
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
 // ==========================================
@@ -2113,6 +2361,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'settings') { 
         if (typeof fetchAndRenderSystemSettings === "function") {
             fetchAndRenderSystemSettings();
+        }
+
+    } else if (activeTab === 'static-ip') {
+        if (typeof fetchStaticDHCPLeases === "function") {
+            fetchStaticDHCPLeases();
         }
     
     } else if (activeTab === 'pppoe') {
