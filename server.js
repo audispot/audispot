@@ -1468,50 +1468,147 @@ app.get('/api/pppoe/secrets', async (req, res) => {
 // DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
 // ====================================================================
 
+// Create Static DHCP Lease on MikroTik + Persist Customer to Firestore
 app.post('/api/dhcp/create-lease', async (req, res) => {
-    const { routerId, macAddress, ipAddress, comment } = req.body;
-    if(!routerId || !macAddress || !ipAddress) return res.status(400).json({ success: false });
+    const { routerId, macAddress, ipAddress, fullName, phone, plan, ipType, email, location, comment, ispId } = req.body;
+    
+    // Fallback display name for MikroTik comment
+    const customerName = fullName || comment || 'AudiSpot Static Customer';
 
+    if (!routerId) {
+        return res.status(400).json({ success: false, error: "Missing required routerId field." });
+    }
+
+    let api = null;
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        const routerData = routerDoc.data();
+        // 1. Fetch router doc by Firestore Doc ID or Router Name
+        let routerDoc = await db.collection('routers').doc(routerId).get();
+        let routerData = routerDoc.exists ? routerDoc.data() : null;
 
-        const client = getRouterClient(routerData);
-        const api = await client.connect();
-        await api.write('/ip/dhcp-server/lease/add', [
-            `=mac-address=${macAddress}`,
-            `=address=${ipAddress}`,
-            `=comment=${comment || 'AudiSpot Static Bind'}`
-        ]);
-        await api.close();
+        if (!routerData) {
+            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
+            if (!snapshot.empty) routerData = snapshot.docs[0].data();
+        }
 
-        return res.status(200).json({ success: true });
+        if (!routerData) {
+            return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
+        }
+
+        // 2. MOCK MODE CHECK: If IP is dummy/unconfigured, skip physical connection
+        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
+
+        // Auto-assign dummy IP/MAC in test mode if fields were left optional in frontend
+        const finalMac = macAddress || `02:00:00:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}`;
+        const finalIp = ipAddress || `192.168.88.${Math.floor(Math.random()*150+50)}`;
+
+        if (!isTestMode) {
+            // Live Hardware Execution
+            const client = getRouterClient(routerData);
+            api = await client.connect();
+
+            await api.write('/ip/dhcp-server/lease/add', [
+                `=mac-address=${finalMac}`,
+                `=address=${finalIp}`,
+                `=comment=${customerName} - ${phone || ''}`
+            ]);
+        } else {
+            console.log(`[TEST MODE] Bypassed physical MikroTik API for static lease '${customerName}' on router '${routerId}'`);
+        }
+
+        // 3. Persist Full Customer Data in Firestore
+        await db.collection('subscribers').add({
+            ispId: ispId || routerData.ispId || 'default_isp',
+            routerId: routerId,
+            fullName: fullName || customerName,
+            phone: phone || '',
+            plan: plan || 'Default Plan',
+            ipType: ipType || 'private',
+            email: email || '',
+            location: location || '',
+            macAddress: finalMac,
+            ipAddress: finalIp,
+            type: 'static-dhcp',
+            status: 'active',
+            createdAt: new Date()
+        });
+
+        return res.status(200).json({ success: true, mock: isTestMode });
+
     } catch (error) {
+        console.error("Static DHCP creation error:", error);
         return res.status(500).json({ success: false, error: error.message });
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
     }
 });
 
+// Fetch Static Leases from MikroTik Router or Firestore Fallback
 app.get('/api/dhcp/leases', async (req, res) => {
     const { routerId } = req.query;
+    if (!routerId) return res.status(200).json([]);
+
+    let api = null;
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if(!routerDoc.exists) return res.status(200).json([]);
-        const routerData = routerDoc.data();
+        // 1. Fetch router doc by ID or name
+        let routerDoc = await db.collection('routers').doc(routerId).get();
+        let routerData = routerDoc.exists ? routerDoc.data() : null;
 
+        if (!routerData) {
+            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
+            if (!snapshot.empty) routerData = snapshot.docs[0].data();
+        }
+
+        const isTestMode = !routerData || !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
+
+        // 2. MOCK MODE / FALLBACK: Read from Firestore 'subscribers'
+        if (isTestMode) {
+            const subSnapshot = await db.collection('subscribers')
+                .where('routerId', '==', routerId)
+                .where('type', '==', 'static-dhcp')
+                .get();
+
+            const mockLeases = subSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    comment: data.fullName || 'Static Customer',
+                    macAddress: data.macAddress || 'Auto-assigned',
+                    address: data.ipAddress || 'Dynamic Allocation',
+                    plan: data.plan || 'Default Plan',
+                    status: data.status || 'active'
+                };
+            });
+
+            return res.status(200).json(mockLeases);
+        }
+
+        // 3. Live Hardware Execution
         const client = getRouterClient(routerData);
-        const api = await client.connect();
-        const leases = await api.write('/ip/dhcp-server/lease/print');
-        await api.close();
+        api = await client.connect();
 
-        const staticLeases = leases.filter(l => l.dynamic === 'false').map(l => ({
-            macAddress: l['mac-address'],
-            address: l.address,
-            comment: l.comment || 'Permanent Device'
-        }));
+        const leases = await api.write('/ip/dhcp-server/lease/print');
+
+        const staticLeases = (leases || [])
+            .filter(l => l.dynamic === 'false')
+            .map(l => ({
+                id: l['.id'],
+                macAddress: l['mac-address'],
+                address: l.address,
+                comment: l.comment || 'Permanent Hardware Binding',
+                status: l.disabled === 'true' ? 'suspended' : 'active'
+            }));
 
         return res.status(200).json(staticLeases);
-    } catch(err) {
+
+    } catch (err) {
+        console.error("Fetch DHCP leases API error:", err.message);
         return res.status(200).json([]);
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
     }
 });
 
