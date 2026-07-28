@@ -1162,7 +1162,7 @@
     <!-- Top Bar Title & Refresh -->
     <div class="flex items-center justify-between">
         <h2 class="text-base font-bold text-white">Static DHCP Configurations</h2>
-        <button type="button" onclick="fetchStaticDHCPLeases()" class="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+        <button type="button" onclick="window.fetchStaticDHCPLeases()" class="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
             Refresh
         </button>
@@ -1196,22 +1196,22 @@
 
     <!-- Sub-Tab Navigation Bar -->
     <div class="flex items-center gap-1 bg-slate-900/80 border border-slate-800/80 p-1 rounded-xl w-fit">
-        <button type="button" onclick="switchStaticSubTab('customers')" id="subtab-btn-customers" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">Customers <span id="lbl-cust-count">0</span></button>
-        <button type="button" onclick="switchStaticSubTab('plans')" id="subtab-btn-plans" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Plans</button>
-        <button type="button" onclick="switchStaticSubTab('setup')" id="subtab-btn-setup" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Setup</button>
+        <button type="button" onclick="window.switchStaticSubTab('customers')" id="subtab-btn-customers" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">Customers <span id="lbl-cust-count">0</span></button>
+        <button type="button" onclick="window.switchStaticSubTab('plans')" id="subtab-btn-plans" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Packages</button>
+        <button type="button" onclick="window.switchStaticSubTab('setup')" id="subtab-btn-setup" class="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Setup</button>
     </div>
 
     <!-- Setup Banner Warning -->
     <div id="static-setup-warning" class="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
         <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-        <span>Static IP hasn't been set up on a router yet. Head to the <strong class="cursor-pointer underline" onclick="switchStaticSubTab('setup')">Setup</strong> tab to configure your first subnet.</span>
+        <span>Static IP hasn't been set up on a router yet. Head to the <strong class="cursor-pointer underline" onclick="window.switchStaticSubTab('setup')">Setup</strong> tab to configure your first subnet.</span>
     </div>
 
-    <!-- SUB-TAB 1: CUSTOMERS VIEW (Screenshot 1) -->
+    <!-- SUB-TAB 1: CUSTOMERS VIEW -->
     <div id="subtab-view-customers" class="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden space-y-0">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <h4 class="font-bold text-xs text-white">Customers (<span id="table-cust-count">0</span>)</h4>
-            <button type="button" onclick="openNewStaticCustomerModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
+            <button type="button" onclick="window.openNewStaticCustomerModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
                 <span>+</span> New Customer
             </button>
         </div>
@@ -1222,9 +1222,9 @@
             </div>
             <div class="space-y-1">
                 <h5 class="text-sm font-bold text-white">No Static IP customers yet</h5>
-                <p class="text-xs text-slate-400 max-w-sm mx-auto">Once you set up a subnet on the Setup tab, add a customer with a plan to start billing and provisioning static IPs.</p>
+                <p class="text-xs text-slate-400 max-w-sm mx-auto">Once you set up a subnet on the Setup tab, add a customer with a package to start billing and provisioning static IPs.</p>
             </div>
-            <button type="button" onclick="openNewStaticCustomerModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5">
+            <button type="button" onclick="window.openNewStaticCustomerModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5">
                 <span>+</span> New Customer
             </button>
         </div>
@@ -1236,7 +1236,7 @@
                         <th class="p-3">Customer</th>
                         <th class="p-3">Assigned IP</th>
                         <th class="p-3">MAC Address</th>
-                        <th class="p-3">Plan</th>
+                        <th class="p-3">Package</th>
                         <th class="p-3">Status</th>
                     </tr>
                 </thead>
@@ -1245,12 +1245,12 @@
         </div>
     </div>
 
-    <!-- SUB-TAB 2: PLANS VIEW (Screenshot 2) -->
+    <!-- SUB-TAB 2: PACKAGES VIEW -->
     <div id="subtab-view-plans" class="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden hidden">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <h4 class="font-bold text-xs text-white">Static IP Plans (<span id="static-plans-count">0</span>)</h4>
-            <button type="button" onclick="openNewStaticPlanModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
-                <span>+</span> New Plan
+            <h4 class="font-bold text-xs text-white">Static IP Packages (<span id="static-plans-count">0</span>)</h4>
+            <button type="button" onclick="window.openNewStaticPlanModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
+                <span>+</span> New Package
             </button>
         </div>
 
@@ -1259,18 +1259,18 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
             </div>
             <div class="space-y-1">
-                <h5 class="text-sm font-bold text-white">No Static IP plans yet</h5>
-                <p class="text-xs text-slate-400 max-w-sm mx-auto">Plans define the speed, price, validity, and IP range customers get on this connection type.</p>
+                <h5 class="text-sm font-bold text-white">No Static IP packages yet</h5>
+                <p class="text-xs text-slate-400 max-w-sm mx-auto">Packages define the speed, price, validity, and IP range customers get on this connection type.</p>
             </div>
-            <button type="button" onclick="openNewStaticPlanModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5">
-                <span>+</span> New Plan
+            <button type="button" onclick="window.openNewStaticPlanModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5">
+                <span>+</span> New Package
             </button>
         </div>
 
         <div id="static-plans-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
     </div>
 
-    <!-- SUB-TAB 3: SETUP VIEW (Screenshot 4) -->
+    <!-- SUB-TAB 3: SETUP VIEW -->
     <div id="subtab-view-setup" class="bg-slate-900/40 border border-slate-800 rounded-xl p-8 hidden">
         <div class="max-w-xl mx-auto space-y-6 text-center">
             <div class="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-indigo-400">
@@ -1282,7 +1282,7 @@
                 <p class="text-xs text-slate-400 leading-relaxed">Give customers a fixed IP address on your network instead of a dynamic hotspot lease — ideal for businesses, CCTV and offices. Pick the router and the subnet you want to hand out, and we'll configure it for you.</p>
             </div>
 
-            <form onsubmit="handleStaticSetup(event)" class="space-y-4 text-left pt-2">
+            <form onsubmit="window.handleStaticSetup(event)" class="space-y-4 text-left pt-2">
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1">
                         <label class="text-xs font-medium text-slate-300">Router <span class="text-indigo-400">*</span></label>
@@ -1320,18 +1320,77 @@
     </div>
 </div>
 
-<!-- MODAL: NEW STATIC IP PLAN (Screenshot 3) -->
+<!-- MODAL: NEW CUSTOMER -->
+<div id="modal-static-customer" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-[#0f172a] border border-slate-800 rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-white">Add Static IP Customer</h3>
+            <button type="button" onclick="window.closeNewStaticCustomerModal()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
+        </div>
+
+        <form onsubmit="window.handleCreateStaticCustomer(event)" class="p-5 space-y-4 text-xs">
+            <div class="space-y-1">
+                <label class="text-slate-300 font-medium">Customer Full Name <span class="text-indigo-400">*</span></label>
+                <input type="text" name="fullName" placeholder="e.g. John Doe" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Phone Number</label>
+                    <input type="text" name="phone" placeholder="0712345678" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Email</label>
+                    <input type="email" name="email" placeholder="john@example.com" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Router <span class="text-indigo-400">*</span></label>
+                    <select name="routerId" id="modal-router-select" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500" required>
+                        <option value="">Loading routers...</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">Package <span class="text-indigo-400">*</span></label>
+                    <select name="packageId" id="modal-package-select" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500" required>
+                        <option value="">Loading packages...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">MAC Address (Optional)</label>
+                    <input type="text" name="macAddress" placeholder="e.g. AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-slate-300 font-medium">IP Address (Optional)</label>
+                    <input type="text" name="ipAddress" placeholder="Auto-assigned if empty" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                <button type="button" onclick="window.closeNewStaticCustomerModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition">Save Customer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: NEW STATIC IP PACKAGE -->
 <div id="modal-static-plan" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
     <div class="bg-[#0f172a] border border-slate-800 rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
         <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
-            <h3 class="font-bold text-sm text-white">New Static IP Plan</h3>
-            <button type="button" onclick="closeNewStaticPlanModal()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
+            <h3 class="font-bold text-sm text-white">New Static IP Package</h3>
+            <button type="button" onclick="window.closeNewStaticPlanModal()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
         </div>
 
-        <form onsubmit="handleCreateStaticPlan(event)" class="p-5 space-y-4 text-xs">
+        <form onsubmit="window.handleCreateStaticPlan(event)" class="p-5 space-y-4 text-xs">
             <div class="space-y-1">
-                <label class="text-slate-300 font-medium">Plan Name</label>
-                <input type="text" name="name" placeholder="e.g. Business 20Mbps Static" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
+                <label class="text-slate-300 font-medium">Package Name</label>
+                <input type="text" name="packageName" placeholder="e.g. Business 20Mbps Static" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500" required>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -1372,27 +1431,20 @@
             <div class="space-y-1">
                 <label class="text-slate-300 font-medium">Subnet (CIDR)</label>
                 <input type="text" name="subnet" placeholder="e.g. 10.20.0.0/24" class="w-full p-2.5 bg-slate-900/90 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500">
-                <p class="text-[10px] text-slate-500">Customers on this plan are assigned an IP from this range.</p>
             </div>
 
             <div class="space-y-1">
                 <label class="text-slate-300 font-medium">IP Type</label>
                 <div class="flex items-center gap-2">
-                    <button type="button" id="iptype-private-btn" onclick="setIpType('private')" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">Private</button>
-                    <button type="button" id="iptype-public-btn" onclick="setIpType('public')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold">Public</button>
+                    <button type="button" id="iptype-private-btn" onclick="window.setIpType('private')" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">Private</button>
+                    <button type="button" id="iptype-public-btn" onclick="window.setIpType('public')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold">Public</button>
                     <input type="hidden" name="ipType" id="iptype-hidden-val" value="private">
                 </div>
-                <p class="text-[10px] text-slate-500 pt-0.5">Public IPs are typically a premium option for business customers who need internet-routable addresses.</p>
-            </div>
-
-            <div class="flex items-center gap-2 pt-1">
-                <input type="checkbox" name="active" id="chk-plan-active" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-0" checked>
-                <label for="chk-plan-active" class="text-xs text-slate-300">Active (visible for new customers)</label>
             </div>
 
             <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
-                <button type="button" onclick="closeNewStaticPlanModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition">Save</button>
+                <button type="button" onclick="window.closeNewStaticPlanModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition">Save Package</button>
             </div>
         </form>
     </div>
@@ -1953,9 +2005,7 @@ async function fetchPPPoESubscriberBase(retryCount = 0) {
 // SYSTEM COMPONENT MODULE 3: STATIC SUBNETS
 // ==========================================
 
-// Switch between Customers, Plans, and Setup Views
-function switchStaticSubTab(tabName) {
-    // 1. Hide all subtab views
+window.switchStaticSubTab = function(tabName) {
     ['customers', 'plans', 'setup'].forEach(name => {
         const view = document.getElementById(`subtab-view-${name}`);
         const btn = document.getElementById(`subtab-btn-${name}`);
@@ -1963,91 +2013,152 @@ function switchStaticSubTab(tabName) {
         if (btn) btn.className = "px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition";
     });
 
-    // 2. Highlight active tab button
     const activeBtn = document.getElementById(`subtab-btn-${tabName}`);
     if (activeBtn) {
         activeBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition";
     }
 
-    // 3. Show active subtab view & load data
     const activeView = document.getElementById(`subtab-view-${tabName}`);
     if (activeView) activeView.classList.remove('hidden');
 
     if (tabName === 'plans') {
-        fetchStaticPlans();
+        window.fetchStaticPlans();
     } else if (tabName === 'setup') {
-        fetchSetupRouters();
+        window.fetchSetupRouters();
+    } else if (tabName === 'customers') {
+        window.fetchStaticDHCPLeases();
     }
-}
+};
 
-// Modal Handlers for Static Plans
-function openNewStaticPlanModal() {
-    fetchModalDropdownOptions();
-    document.getElementById('modal-static-plan').classList.remove('hidden');
-}
+window.openNewStaticCustomerModal = function() {
+    window.fetchModalDropdownOptions();
+    const modal = document.getElementById('modal-static-customer');
+    if (modal) modal.classList.remove('hidden');
+};
 
-function closeNewStaticPlanModal() {
-    document.getElementById('modal-static-plan').classList.add('hidden');
-}
+window.closeNewStaticCustomerModal = function() {
+    const modal = document.getElementById('modal-static-customer');
+    if (modal) modal.classList.add('hidden');
+};
 
-function setIpType(type) {
-    document.getElementById('iptype-hidden-val').value = type;
+window.openNewStaticPlanModal = function() {
+    window.fetchModalDropdownOptions();
+    const modal = document.getElementById('modal-static-plan');
+    if (modal) modal.classList.remove('hidden');
+};
+
+window.closeNewStaticPlanModal = function() {
+    const modal = document.getElementById('modal-static-plan');
+    if (modal) modal.classList.add('hidden');
+};
+
+window.setIpType = function(type) {
+    const hiddenVal = document.getElementById('iptype-hidden-val');
+    if (hiddenVal) hiddenVal.value = type;
+
     const privBtn = document.getElementById('iptype-private-btn');
     const pubBtn = document.getElementById('iptype-public-btn');
     
     if (type === 'private') {
-        privBtn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold";
-        pubBtn.className = "px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold";
+        if (privBtn) privBtn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold";
+        if (pubBtn) pubBtn.className = "px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold";
     } else {
-        pubBtn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold";
-        privBtn.className = "px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold";
+        if (pubBtn) pubBtn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold";
+        if (privBtn) privBtn.className = "px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold";
     }
-}
+};
 
-// Fetch and Render Static Plans
-async function fetchStaticPlans() {
+// Populate Modal Dropdowns for Packages and Routers
+window.fetchModalDropdownOptions = async function() {
+    const pkgSelect = document.getElementById("modal-package-select");
+    const routerSelect = document.getElementById("modal-router-select");
+
+    try {
+        const pkgRes = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
+        if (pkgRes.ok && pkgSelect) {
+            const packages = await pkgRes.json();
+            if (packages && packages.length > 0) {
+                pkgSelect.innerHTML = '<option value="">Select package...</option>' + 
+                    packages.map(p => {
+                        const name = p.packageName || p.name || p.planName || p.title || 'Package';
+                        const price = p.price !== undefined ? p.price : (p.amount || 0);
+                        return `<option value="${p.id || p._id || name}">${name} - KES ${price}</option>`;
+                    }).join('');
+            } else {
+                pkgSelect.innerHTML = '<option value="">No packages found</option>';
+            }
+        }
+    } catch (err) {
+        if (pkgSelect) pkgSelect.innerHTML = '<option value="">Error loading packages</option>';
+    }
+
+    try {
+        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
+        if (routerRes.ok && routerSelect) {
+            const routers = await routerRes.json();
+            if (routers && routers.length > 0) {
+                routerSelect.innerHTML = '<option value="">Select router...</option>' + 
+                    routers.map(r => `<option value="${r.id}">${r.name || r.id}</option>`).join('');
+            } else {
+                routerSelect.innerHTML = '<option value="">No routers available</option>';
+            }
+        }
+    } catch (err) {
+        if (routerSelect) routerSelect.innerHTML = '<option value="">Error loading routers</option>';
+    }
+};
+
+// Fetch and Render Packages (Fixes 'undefined' title issue)
+window.fetchStaticPlans = async function() {
     const plansGrid = document.getElementById('static-plans-grid');
     const emptyState = document.getElementById('static-plans-empty');
     const counter = document.getElementById('static-plans-count');
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}&type=static`);
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
         if (res.ok) {
-            const plans = await res.json();
-            counter.innerText = plans.length;
+            const packages = await res.json();
+            if (counter) counter.innerText = packages.length;
 
-            if (plans.length === 0) {
-                emptyState.classList.remove('hidden');
-                plansGrid.classList.add('hidden');
+            if (!packages || packages.length === 0) {
+                if (emptyState) emptyState.classList.remove('hidden');
+                if (plansGrid) plansGrid.classList.add('hidden');
                 return;
             }
 
-            emptyState.classList.add('hidden');
-            plansGrid.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (plansGrid) plansGrid.classList.remove('hidden');
 
-            plansGrid.innerHTML = plans.map(p => `
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h5 class="text-sm font-bold text-white">${p.name}</h5>
-                            <span class="text-[10px] text-slate-400 uppercase">${p.ipType || 'Private'} IP</span>
+            plansGrid.innerHTML = packages.map(p => {
+                const pkgTitle = p.packageName || p.name || p.planName || p.title || 'Standard Package';
+                const priceVal = p.price !== undefined ? p.price : (p.amount || 0);
+                const speedDown = p.download || p.speedDown || '10';
+                const speedUp = p.upload || p.speedUp || '10';
+
+                return `
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h5 class="text-sm font-bold text-white">${pkgTitle}</h5>
+                                <span class="text-[10px] text-slate-400 uppercase">${p.ipType || 'Private'} IP</span>
+                            </div>
+                            <span class="text-xs font-bold text-indigo-400 font-mono">KES ${priceVal}</span>
                         </div>
-                        <span class="text-xs font-bold text-indigo-400">KES ${p.price || 0}</span>
+                        <div class="text-xs text-slate-300 space-y-1 font-mono">
+                            <div>Speed: <span class="text-white">${speedDown}M / ${speedUp}M</span></div>
+                            <div>Subnet: <span class="text-slate-400">${p.subnet || 'Auto'}</span></div>
+                        </div>
                     </div>
-                    <div class="text-xs text-slate-300 space-y-1 font-mono">
-                        <div>Speed: <span class="text-white">${p.download || 10}M / ${p.upload || 10}M</span></div>
-                        <div>Subnet: <span class="text-slate-400">${p.subnet || 'Auto'}</span></div>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
     } catch (err) {
-        console.error("Failed to load static plans:", err);
+        console.error("Failed to load static packages:", err);
     }
-}
+};
 
-// Populate Router Dropdowns for Setup and Plan forms
-async function fetchSetupRouters() {
+// Populate Routers for Setup Form
+window.fetchSetupRouters = async function() {
     const setupSelect = document.getElementById('setup-router-select');
     const planSelect = document.getElementById('plan-router-select');
 
@@ -2064,10 +2175,89 @@ async function fetchSetupRouters() {
     } catch (err) {
         console.error("Error populating router selects:", err);
     }
-}
+};
 
-// Handle Static Plan Creation Form
-async function handleCreateStaticPlan(e) {
+// Fetch Active Static Leases / Customers
+window.fetchStaticDHCPLeases = async function() {
+    const tbody = document.getElementById("static-table-body");
+    const emptyState = document.getElementById("static-customers-empty");
+    const tableWrapper = document.getElementById("static-customers-table-wrapper");
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
+        const routers = await response.json();
+
+        if (!routers || routers.length === 0) {
+            if (emptyState) emptyState.classList.remove('hidden');
+            if (tableWrapper) tableWrapper.classList.add('hidden');
+            return;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/api/dhcp/leases?routerId=${routers[0].id}`);
+        const leases = await res.json();
+
+        const activeCount = leases ? leases.length : 0;
+        const lblCount = document.getElementById("lbl-cust-count");
+        const tblCount = document.getElementById("table-cust-count");
+        const statActive = document.getElementById("stat-static-active");
+
+        if (lblCount) lblCount.innerText = activeCount;
+        if (tblCount) tblCount.innerText = activeCount;
+        if (statActive) statActive.innerText = activeCount;
+
+        if (!leases || leases.length === 0) {
+            if (emptyState) emptyState.classList.remove('hidden');
+            if (tableWrapper) tableWrapper.classList.add('hidden');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('hidden');
+        if (tableWrapper) tableWrapper.classList.remove('hidden');
+
+        if (tbody) {
+            tbody.innerHTML = leases.map(l => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3 font-sans text-white font-semibold">${l.comment || l.fullName || 'Static Customer'}</td>
+                    <td class="p-3 text-indigo-400 font-bold">${l.address || l.ipAddress}</td>
+                    <td class="p-3 text-slate-300 font-bold">${l.macAddress || 'Auto-assigned'}</td>
+                    <td class="p-3 text-slate-400 font-sans">${l.packageName || l.plan || 'Default'}</td>
+                    <td class="p-3"><span class="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-sans font-bold">Active</span></td>
+                </tr>
+            `).join('');
+        }
+    } catch (err) { 
+        console.error("Static lease loading error:", err);
+    }
+};
+
+// Form Handler: Create New Static Customer
+window.handleCreateStaticCustomer = async function(e) {
+    e.preventDefault();
+    const fData = new FormData(e.target);
+    const payload = Object.fromEntries(fData.entries());
+    payload.ispId = CURRENT_ISP_ID;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/dhcp/create-lease`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            e.target.reset();
+            window.closeNewStaticCustomerModal();
+            window.fetchStaticDHCPLeases();
+        } else {
+            alert("Failed to create customer.");
+        }
+    } catch (err) {
+        alert("Error saving static customer.");
+    }
+};
+
+// Form Handler: Create Static Package
+window.handleCreateStaticPlan = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
@@ -2083,18 +2273,18 @@ async function handleCreateStaticPlan(e) {
 
         if (res.ok) {
             e.target.reset();
-            closeNewStaticPlanModal();
-            fetchStaticPlans();
+            window.closeNewStaticPlanModal();
+            window.fetchStaticPlans();
         } else {
-            alert("Failed to save plan.");
+            alert("Failed to save package.");
         }
     } catch (err) {
-        alert("Error saving static plan.");
+        alert("Error saving static package.");
     }
-}
+};
 
-// Handle Setup Subnet Form
-async function handleStaticSetup(e) {
+// Form Handler: Setup Subnet
+window.handleStaticSetup = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
@@ -2109,9 +2299,9 @@ async function handleStaticSetup(e) {
 
         if (res.ok) {
             alert("Static IP Subnet successfully configured on MikroTik!");
-            // Hide the orange warning banner once configured
-            document.getElementById('static-setup-warning').classList.add('hidden');
-            switchStaticSubTab('customers');
+            const warningBanner = document.getElementById('static-setup-warning');
+            if (warningBanner) warningBanner.classList.add('hidden');
+            window.switchStaticSubTab('customers');
         } else {
             const data = await res.json();
             alert(data.error || "Failed to configure subnet on router.");
@@ -2119,7 +2309,7 @@ async function handleStaticSetup(e) {
     } catch (err) {
         alert("Subnet setup failed. Check backend connection.");
     }
-}
+};
         
 // ==========================================
 // SYSTEM COMPONENT MODULE 4: TIER CATALOG PACKAGES
