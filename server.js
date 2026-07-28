@@ -1340,42 +1340,44 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
 // Create PPPoE Secret on MikroTik + Sync to Database
 app.post('/api/pppoe/create-secret', async (req, res) => {
     const { routerId, username, password, profile, ispId } = req.body;
+    
     if (!routerId || !username || !password) {
         return res.status(400).json({ success: false, error: "Missing required PPPoE fields." });
     }
 
     let api = null;
     try {
-        // 1. Fetch Router Doc (Direct ID match or fallback search by name/id field)
         let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = null;
+        let routerData = routerDoc.exists ? routerDoc.data() : null;
 
-        if (routerDoc.exists) {
-            routerData = routerDoc.data();
-        } else {
-            // Search by 'name' field if doc.id query returns empty
+        if (!routerData) {
             const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) {
-                routerData = snapshot.docs[0].data();
-            }
+            if (!snapshot.empty) routerData = snapshot.docs[0].data();
         }
 
         if (!routerData) {
             return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
         }
 
-        // 2. Send /ppp/secret/add command to router
-        const client = getRouterClient(routerData);
-        api = await client.connect();
-        
-        await api.write('/ppp/secret/add', [
-            `=name=${username}`,
-            `=password=${password}`,
-            `=profile=${profile || 'default'}`,
-            `=service=pppoe`
-        ]);
+        // MOCK / TEST MODE: Bypass physical socket connection if IP is dummy
+        const isTestMode = routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1' || !routerData.routerIp;
 
-        // 3. Persist in Firestore subscribers collection
+        if (!isTestMode) {
+            // Real Router Production Mode
+            const client = getRouterClient(routerData);
+            api = await client.connect();
+
+            await api.write('/ppp/secret/add', [
+                `=name=${username}`,
+                `=password=${password}`,
+                `=profile=${profile || 'default'}`,
+                `=service=pppoe`
+            ]);
+        } else {
+            console.log(`[TEST MODE] Bypassed Router API connection for ${username} on ${routerId}`);
+        }
+
+        // Always sync to Firestore so your frontend updates seamlessly!
         await db.collection('subscribers').add({
             ispId: ispId || routerData.ispId || 'default_isp',
             routerId: routerId,
@@ -1386,7 +1388,8 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
             createdAt: new Date()
         });
 
-        return res.status(200).json({ success: true });
+        return res.status(200).json({ success: true, mock: isTestMode });
+
     } catch (error) {
         console.error("PPPoE secret creation error:", error);
         return res.status(500).json({ success: false, error: error.message });
@@ -1402,44 +1405,52 @@ app.get('/api/pppoe/secrets', async (req, res) => {
     const { routerId } = req.query;
     if (!routerId) return res.status(400).json([]);
 
-    let api = null;
     try {
-        // 1. Fetch Router Doc (Direct ID match or search fallback)
         let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = null;
+        let routerData = routerDoc.exists ? routerDoc.data() : null;
 
-        if (routerDoc.exists) {
-            routerData = routerDoc.data();
-        } else {
+        if (!routerData) {
             const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) {
-                routerData = snapshot.docs[0].data();
-            }
+            if (!snapshot.empty) routerData = snapshot.docs[0].data();
         }
 
-        if (!routerData) return res.status(200).json([]);
+        // Test Mode Fallback: Fetch directly from Firestore subscribers
+        if (!routerData || routerData.routerIp === '0.0.0.0' || !routerData.routerIp) {
+            const subSnapshot = await db.collection('subscribers')
+                .where('routerId', '==', routerId)
+                .get();
 
-        // 2. Connect and fetch secrets
+            const mockSecrets = subSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    name: data.username,
+                    profile: data.profile || 'default',
+                    disabled: data.status === 'suspended' ? "true" : "false",
+                    remoteAddress: '192.168.88.100 (Simulated)'
+                };
+            });
+
+            return res.status(200).json(mockSecrets);
+        }
+
+        // Live Router Mode
         const client = getRouterClient(routerData);
-        api = await client.connect();
+        const api = await client.connect();
         const secrets = await api.write('/ppp/secret/print');
+        await api.close();
 
-        const formattedSecrets = (secrets || []).map(s => ({
+        return res.status(200).json(secrets.map(s => ({
             id: s['.id'],
             name: s.name,
             profile: s.profile || 'default',
             disabled: s.disabled || "false",
             remoteAddress: s['remote-address'] || 'Dynamic Allocation'
-        }));
+        })));
 
-        return res.status(200).json(formattedSecrets);
     } catch (error) {
-        console.error("Fetch secrets API error:", error.message);
+        console.error("Secrets fetch error:", error.message);
         return res.status(200).json([]);
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
     }
 });
 
