@@ -2103,7 +2103,6 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             fetchAndRenderExpenses();
         }
     } else if (activeTab === 'analytics') {
-        // FIXED: Swapped to your actual function name
         if (typeof fetchAndRenderAnalytics === "function") {
             fetchAndRenderAnalytics();
         }
@@ -2114,6 +2113,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'settings') { 
         if (typeof fetchAndRenderSystemSettings === "function") {
             fetchAndRenderSystemSettings();
+        }
+    
+    } else if (activeTab === 'pppoe') {
+        if (typeof fetchPPPoESubscriberBase === "function") {
+            fetchPPPoESubscriberBase();
         }
     }
 }
