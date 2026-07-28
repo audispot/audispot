@@ -1638,32 +1638,39 @@ async function handlePPPoEProvisioning(e) {
     }
 }
 
-async function fetchPPPoESubscriberBase() {
+async function fetchPPPoESubscriberBase(retryCount = 0) {
     const tbody = document.getElementById("pppoe-table-body");
     const routerSelect = document.getElementById("pppoe-router-select");
 
-    // FALLBACK: Read from localStorage if CURRENT_ISP_ID isn't set yet
-    let activeIspId = (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID !== 'default_isp') 
+    // Grab ISP ID from variable OR localStorage
+    let activeIspId = (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID && CURRENT_ISP_ID !== 'default_isp') 
         ? CURRENT_ISP_ID 
         : localStorage.getItem('isp_id');
 
-    // If auth state is still initializing, wait 300ms and retry automatically
+    // RACE CONDITION FIX: If ISP ID isn't ready yet, retry up to 10 times (3 seconds total)
     if (!activeIspId) {
-        setTimeout(fetchPPPoESubscriberBase, 300);
+        if (retryCount < 10) {
+            setTimeout(() => fetchPPPoESubscriberBase(retryCount + 1), 300);
+        } else {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Session initialization failed. Please reload the page.</td></tr>`;
+        }
         return;
     }
 
     try {
-        const routerRes = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${encodeURIComponent(activeIspId)}`);
-        if (!routerRes.ok) throw new Error("Failed fetching routers");
+        const apiBase = (typeof API_BASE_URL !== 'undefined') ? API_BASE_URL : window.location.origin;
+        const routerRes = await fetch(`${apiBase}/api/hotspot/routers?ispId=${encodeURIComponent(activeIspId)}`);
         
+        if (!routerRes.ok) throw new Error("Failed fetching routers");
         const routers = await routerRes.json();
 
         if (!Array.isArray(routers) || routers.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No active routers registered under your account.</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No active routers registered under your account.</td></tr>`;
+            if (routerSelect) routerSelect.innerHTML = `<option value="">No routers available</option>`;
             return;
         }
 
+        // Populate Dropdown
         if (routerSelect) {
             const currentSelection = routerSelect.value;
 
@@ -1674,22 +1681,22 @@ async function fetchPPPoESubscriberBase() {
                     return `<option value="${routerId}">${displayName}</option>`;
                 }).join('');
 
-            // Keep existing selection if valid, or auto-pick the first router
+            // Automatically pre-select 'Ismaels wifi' (first router) if nothing selected
             if (currentSelection && routers.some(r => (r.id || r.name) === currentSelection)) {
                 routerSelect.value = currentSelection;
             } else if (routers.length > 0) {
                 routerSelect.value = routers[0].id || routers[0].name;
             }
 
-            // Bind change listener for dropdown switching
+            // Bind change handler
             routerSelect.onchange = () => fetchPPPoESubscriberBase();
         }
 
         const selectedRouterId = routerSelect?.value || (routers[0]?.id || routers[0]?.name);
         if (!selectedRouterId) return;
 
-        // Fetch Secrets from Backend
-        const secretsRes = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${encodeURIComponent(selectedRouterId)}`);
+        // Fetch Secrets for Selected Router
+        const secretsRes = await fetch(`${apiBase}/api/pppoe/secrets?routerId=${encodeURIComponent(selectedRouterId)}`);
         const secrets = await secretsRes.json();
 
         if (!Array.isArray(secrets) || secrets.length === 0) {
@@ -1697,11 +1704,11 @@ async function fetchPPPoESubscriberBase() {
             if (document.getElementById("pppoe-metric-profiles")) document.getElementById("pppoe-metric-profiles").textContent = "0";
             if (document.getElementById("pppoe-metric-disabled")) document.getElementById("pppoe-metric-disabled").textContent = "0";
 
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No PPPoE subscriber secrets found on this router.</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-sans">No PPPoE subscriber secrets found on this router.</td></tr>`;
             return;
         }
 
-        // Metrics & Table rendering
+        // Metrics & Table Update
         const activeSecrets = secrets.filter(s => s.disabled !== "true" && s.disabled !== true);
         const disabledSecrets = secrets.filter(s => s.disabled === "true" || s.disabled === true);
         const uniqueProfiles = [...new Set(secrets.map(s => s.profile))];
@@ -1710,23 +1717,24 @@ async function fetchPPPoESubscriberBase() {
         if (document.getElementById("pppoe-metric-profiles")) document.getElementById("pppoe-metric-profiles").textContent = uniqueProfiles.length;
         if (document.getElementById("pppoe-metric-disabled")) document.getElementById("pppoe-metric-disabled").textContent = disabledSecrets.length;
 
-        tbody.innerHTML = secrets.map(sec => `
-            <tr class="hover:bg-slate-900/30 transition">
-                <td class="p-3 font-bold text-slate-200">${sec.name}</td>
-                <td class="p-3 text-indigo-400">${sec.profile || 'default'}</td>
-                <td class="p-3 text-slate-500 font-mono">${sec.remoteAddress || 'Dynamic Allocation'}</td>
-                <td class="p-3 text-right">
-                    ${(sec.disabled === "true" || sec.disabled === true)
-                        ? `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">Suspended</span>`
-                        : `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">Active Tunnel</span>`
-                    }
-                </td>
-            </tr>
-        `).join('');
+        if (tbody) {
+            tbody.innerHTML = secrets.map(sec => `
+                <tr class="hover:bg-slate-900/30 transition">
+                    <td class="p-3 font-bold text-slate-200">${sec.name}</td>
+                    <td class="p-3 text-indigo-400">${sec.profile || 'default'}</td>
+                    <td class="p-3 text-slate-500 font-mono">${sec.remoteAddress || 'Dynamic Allocation'}</td>
+                    <td class="p-3 text-right">
+                        ${(sec.disabled === "true" || sec.disabled === true)
+                            ? `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">Suspended</span>`
+                            : `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">Active Tunnel</span>`
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
 
     } catch (err) {
         console.error("PPPoE Sync Error:", err);
-        tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400 text-center">Failed loading subscriber details. Check console.</td></tr>`;
     }
 }
         
