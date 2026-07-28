@@ -1654,10 +1654,14 @@
     </div>
 </div>
 
-<div id="viewframe-packages" class="space-y-6 hidden viewframe">
+<div id="viewframe-packages" class="space-y-6 hidden viewframe relative">
+    
+    <!-- Top Header Bar -->
     <div class="flex justify-between items-center bg-slate-900/20 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
         <div>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-cubes text-indigo-500"></i> Hotspot Access Billing Tiers</h3>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-cubes text-indigo-500"></i> Hotspot Access Billing Tiers
+            </h3>
             <p class="text-xs text-slate-400 mt-0.5">Define your captive gateway packages. These pricing matrices directly populate your public M-Pesa splash screen portal.</p>
         </div>
         <button onclick="togglePackageCreationModal(true)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition shadow-lg shadow-indigo-600/20 flex items-center gap-1.5">
@@ -1665,21 +1669,26 @@
         </button>
     </div>
 
-    <div id="billing-packages-grid-mount" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Isolated Mounting Grid Container -->
+    <div id="billing-packages-grid-mount" class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-start">
         <div class="col-span-1 md:col-span-3 text-center py-12 text-slate-500">
             <i class="fa-solid fa-circle-notch animate-spin text-indigo-500 text-lg mb-2 block"></i>
             Fetching Packages...
         </div>
     </div>
 
-    <div id="package-creation-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+</div>
+
+<!-- Package Creation Modal (Placed Outside Viewframe or At End of Document Body) -->
+<div id="package-creation-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
     <div class="bg-gray-900 border border-gray-800 rounded-xl max-w-md w-full overflow-hidden shadow-2xl">
         <div class="px-5 py-4 border-b border-gray-800 bg-gray-950 flex justify-between items-center">
             <h4 class="text-xs font-bold uppercase tracking-widest text-white">Construct Network Billing Profile</h4>
-            <button type="button" onclick="togglePackageCreationModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <button type="button" onclick="togglePackageCreationModal(false)" class="text-gray-400 hover:text-white">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
         <form id="package-creation-form" class="p-5 space-y-4 text-xs" onsubmit="handlePackageSubmission(event)">
-            
             <!-- Package Name -->
             <div class="space-y-1">
                 <label class="text-slate-400">Package Name *</label>
