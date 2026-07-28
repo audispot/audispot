@@ -1347,6 +1347,7 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
 
     let api = null;
     try {
+        // 1. Fetch router doc by ID or name
         let routerDoc = await db.collection('routers').doc(routerId).get();
         let routerData = routerDoc.exists ? routerDoc.data() : null;
 
@@ -1359,11 +1360,11 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
             return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
         }
 
-        // MOCK / TEST MODE: Bypass physical socket connection if IP is dummy
-        const isTestMode = routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1' || !routerData.routerIp;
+        // 2. MOCK MODE CHECK: If IP is dummy/unconfigured, skip hardware TCP connection
+        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
 
         if (!isTestMode) {
-            // Real Router Production Mode
+            // Live Physical Router Execution
             const client = getRouterClient(routerData);
             api = await client.connect();
 
@@ -1374,10 +1375,10 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
                 `=service=pppoe`
             ]);
         } else {
-            console.log(`[TEST MODE] Bypassed Router API connection for ${username} on ${routerId}`);
+            console.log(`[TEST MODE] Bypassed physical MikroTik API connection for subscriber '${username}' on router '${routerId}'`);
         }
 
-        // Always sync to Firestore so your frontend updates seamlessly!
+        // 3. Persist in Firestore subscribers collection
         await db.collection('subscribers').add({
             ispId: ispId || routerData.ispId || 'default_isp',
             routerId: routerId,
@@ -1400,12 +1401,14 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
     }
 });
 
-// Fetch Secrets from MikroTik Router
+// Fetch Secrets from MikroTik Router or Firestore Fallback
 app.get('/api/pppoe/secrets', async (req, res) => {
     const { routerId } = req.query;
     if (!routerId) return res.status(400).json([]);
 
+    let api = null;
     try {
+        // 1. Fetch router doc by ID or name
         let routerDoc = await db.collection('routers').doc(routerId).get();
         let routerData = routerDoc.exists ? routerDoc.data() : null;
 
@@ -1414,8 +1417,10 @@ app.get('/api/pppoe/secrets', async (req, res) => {
             if (!snapshot.empty) routerData = snapshot.docs[0].data();
         }
 
-        // Test Mode Fallback: Fetch directly from Firestore subscribers
-        if (!routerData || routerData.routerIp === '0.0.0.0' || !routerData.routerIp) {
+        const isTestMode = !routerData || !routerData.routerIp || routerData.routerIp === '0.0.0.0';
+
+        // 2. MOCK MODE / FALLBACK: Read directly from Firestore 'subscribers'
+        if (isTestMode) {
             const subSnapshot = await db.collection('subscribers')
                 .where('routerId', '==', routerId)
                 .get();
@@ -1434,23 +1439,28 @@ app.get('/api/pppoe/secrets', async (req, res) => {
             return res.status(200).json(mockSecrets);
         }
 
-        // Live Router Mode
+        // 3. Live Hardware Execution
         const client = getRouterClient(routerData);
-        const api = await client.connect();
+        api = await client.connect();
         const secrets = await api.write('/ppp/secret/print');
-        await api.close();
 
-        return res.status(200).json(secrets.map(s => ({
+        const formattedSecrets = (secrets || []).map(s => ({
             id: s['.id'],
             name: s.name,
             profile: s.profile || 'default',
             disabled: s.disabled || "false",
             remoteAddress: s['remote-address'] || 'Dynamic Allocation'
-        })));
+        }));
+
+        return res.status(200).json(formattedSecrets);
 
     } catch (error) {
-        console.error("Secrets fetch error:", error.message);
+        console.error("Fetch secrets API error:", error.message);
         return res.status(200).json([]);
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
     }
 });
 
