@@ -2281,16 +2281,22 @@ window.handleCreateStaticCustomer = async function(e) {
     }
 };
 
-// Form Handler: Create Static Package (Fixed Route & No Alert Popups)
+// Form Handler: Create Static Package (Fixed API Route & Payload)
 window.handleCreateStaticPlan = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
-    payload.ispId = CURRENT_ISP_ID;
+    
+    // Set system metadata parameters
+    payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com';
     payload.type = 'static';
 
+    // Normalize price to number format
+    if (payload.price) payload.price = Number(payload.price);
+
     try {
-        const res = await fetch(`${API_BASE_URL}/api/packages`, {
+        // Changed endpoint from /api/packages -> /api/packages/create
+        const res = await fetch(`${API_BASE_URL}/api/packages/create`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -2300,25 +2306,27 @@ window.handleCreateStaticPlan = async function(e) {
             e.target.reset();
             window.closeNewStaticPlanModal();
             window.fetchStaticPlans();
+            
             if (typeof window.fetchActiveBillingCatalog === 'function') {
-                window.fetchActiveBillingCatalog(); // Keeps main Packages page updated
+                window.fetchActiveBillingCatalog(); // Keeps main Hotspot Packages page refreshed
             }
             if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay("Package saved successfully!");
+                triggerToastDisplay("Static package saved successfully!");
             }
         } else {
             const errData = await res.json().catch(() => ({}));
             if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay(errData.error || "Failed to save package.", true);
+                triggerToastDisplay(errData.error || errData.message || "Failed to save static package.", true);
             }
         }
     } catch (err) {
+        console.error("Static package creation error:", err);
         if (typeof triggerToastDisplay === 'function') {
-            triggerToastDisplay("Error saving static package.", true);
+            triggerToastDisplay("Network error while creating static package.", true);
         }
     }
 };
-
+        
 // Form Handler: Setup Subnet (No Alert Popups)
 window.handleStaticSetup = async function(e) {
     e.preventDefault();
