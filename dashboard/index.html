@@ -1564,8 +1564,6 @@ async function terminateTargetLease(routerId, username) {
 
 // Helper function for non-blocking UI notifications (replaces alert popups)
 function showNotification(message, type = 'info') {
-    // If you have SweetAlert / Toastify installed, you can hook it here.
-    // Default fallback creates or reuses an in-app notification banner
     let notifBanner = document.getElementById("app-toast-notification");
     if (!notifBanner) {
         notifBanner = document.createElement("div");
@@ -1600,7 +1598,7 @@ async function handlePPPoEProvisioning(e) {
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
     
-    // Ensure we use CURRENT_ISP_ID directly
+    // Ensure we use CURRENT_ISP_ID directly with localStorage fallback
     payload.ispId = (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID !== 'default_isp') 
         ? CURRENT_ISP_ID 
         : (localStorage.getItem('isp_id') || '');
@@ -1622,7 +1620,12 @@ async function handlePPPoEProvisioning(e) {
         const data = await res.json();
         if (data.success) {
             e.target.reset();
-            showNotification("PPPoE Subscriber account successfully bound to router!", "success");
+            showNotification(
+                data.mock 
+                    ? "PPPoE account saved (Simulated Test Mode - No Router Connected)!" 
+                    : "PPPoE Subscriber account successfully bound to router!", 
+                "success"
+            );
             fetchPPPoESubscriberBase();
         } else { 
             showNotification("PPPoE configuration anomaly: " + (data.error || "Failed to create secret."), "error"); 
@@ -1644,7 +1647,7 @@ async function fetchPPPoESubscriberBase() {
         ? CURRENT_ISP_ID 
         : localStorage.getItem('isp_id');
 
-    // If still missing, wait 300ms for auth state to finish loading
+    // If auth state is still initializing, wait 300ms and retry automatically
     if (!activeIspId) {
         setTimeout(fetchPPPoESubscriberBase, 300);
         return;
@@ -1671,19 +1674,21 @@ async function fetchPPPoESubscriberBase() {
                     return `<option value="${routerId}">${displayName}</option>`;
                 }).join('');
 
+            // Keep existing selection if valid, or auto-pick the first router
             if (currentSelection && routers.some(r => (r.id || r.name) === currentSelection)) {
                 routerSelect.value = currentSelection;
             } else if (routers.length > 0) {
                 routerSelect.value = routers[0].id || routers[0].name;
             }
 
+            // Bind change listener for dropdown switching
             routerSelect.onchange = () => fetchPPPoESubscriberBase();
         }
 
         const selectedRouterId = routerSelect?.value || (routers[0]?.id || routers[0]?.name);
         if (!selectedRouterId) return;
 
-        // Fetch Secrets...
+        // Fetch Secrets from Backend
         const secretsRes = await fetch(`${API_BASE_URL}/api/pppoe/secrets?routerId=${encodeURIComponent(selectedRouterId)}`);
         const secrets = await secretsRes.json();
 
@@ -1696,7 +1701,7 @@ async function fetchPPPoESubscriberBase() {
             return;
         }
 
-        // Metrics & Table rendering...
+        // Metrics & Table rendering
         const activeSecrets = secrets.filter(s => s.disabled !== "true" && s.disabled !== true);
         const disabledSecrets = secrets.filter(s => s.disabled === "true" || s.disabled === true);
         const uniqueProfiles = [...new Set(secrets.map(s => s.profile))];
@@ -1721,6 +1726,7 @@ async function fetchPPPoESubscriberBase() {
 
     } catch (err) {
         console.error("PPPoE Sync Error:", err);
+        tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-rose-400 text-center">Failed loading subscriber details. Check console.</td></tr>`;
     }
 }
         
