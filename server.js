@@ -1468,12 +1468,11 @@ app.get('/api/pppoe/secrets', async (req, res) => {
 // DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
 // ====================================================================
 
-// Create Static DHCP Lease on MikroTik + Persist Customer to Firestore
 app.post('/api/dhcp/create-lease', async (req, res) => {
-    const { routerId, macAddress, ipAddress, fullName, phone, plan, ipType, email, location, comment, ispId } = req.body;
+    const { routerId, macAddress, ipAddress, fullName, phone, packageId, plan, ipType, email, location, comment, ispId } = req.body;
     
-    // Fallback display name for MikroTik comment
     const customerName = fullName || comment || 'AudiSpot Static Customer';
+    const selectedPackage = packageId || plan || 'Default Package';
 
     if (!routerId) {
         return res.status(400).json({ success: false, error: "Missing required routerId field." });
@@ -1481,7 +1480,6 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
 
     let api = null;
     try {
-        // 1. Fetch router doc by Firestore Doc ID or Router Name
         let routerDoc = await db.collection('routers').doc(routerId).get();
         let routerData = routerDoc.exists ? routerDoc.data() : null;
 
@@ -1494,15 +1492,12 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
             return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
         }
 
-        // 2. MOCK MODE CHECK: If IP is dummy/unconfigured, skip physical connection
         const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
 
-        // Auto-assign dummy IP/MAC in test mode if fields were left optional in frontend
         const finalMac = macAddress || `02:00:00:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}`;
         const finalIp = ipAddress || `192.168.88.${Math.floor(Math.random()*150+50)}`;
 
         if (!isTestMode) {
-            // Live Hardware Execution
             const client = getRouterClient(routerData);
             api = await client.connect();
 
@@ -1515,13 +1510,13 @@ app.post('/api/dhcp/create-lease', async (req, res) => {
             console.log(`[TEST MODE] Bypassed physical MikroTik API for static lease '${customerName}' on router '${routerId}'`);
         }
 
-        // 3. Persist Full Customer Data in Firestore
+        // Persist Subscriber with mapped Package Name
         await db.collection('subscribers').add({
             ispId: ispId || routerData.ispId || 'default_isp',
             routerId: routerId,
-            fullName: fullName || customerName,
+            fullName: customerName,
             phone: phone || '',
-            plan: plan || 'Default Plan',
+            packageName: selectedPackage,
             ipType: ipType || 'private',
             email: email || '',
             location: location || '',
@@ -1573,10 +1568,11 @@ app.get('/api/dhcp/leases', async (req, res) => {
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    comment: data.fullName || 'Static Customer',
+                    comment: data.fullName || data.comment || 'Static Customer',
                     macAddress: data.macAddress || 'Auto-assigned',
                     address: data.ipAddress || 'Dynamic Allocation',
-                    plan: data.plan || 'Default Plan',
+                    packageName: data.packageName || data.plan || 'Default Package',
+                    plan: data.packageName || data.plan || 'Default Package',
                     status: data.status || 'active'
                 };
             });
@@ -1591,13 +1587,13 @@ app.get('/api/dhcp/leases', async (req, res) => {
         const leases = await api.write('/ip/dhcp-server/lease/print');
 
         const staticLeases = (leases || [])
-            .filter(l => l.dynamic === 'false')
+            .filter(l => String(l.dynamic) === 'false' || !l.dynamic)
             .map(l => ({
                 id: l['.id'],
                 macAddress: l['mac-address'],
                 address: l.address,
                 comment: l.comment || 'Permanent Hardware Binding',
-                status: l.disabled === 'true' ? 'suspended' : 'active'
+                status: l.disabled === 'true' || l.disabled === true ? 'suspended' : 'active'
             }));
 
         return res.status(200).json(staticLeases);
@@ -1636,33 +1632,49 @@ app.post('/api/dhcp/setup-subnet', async (req, res) => {
 
         const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
 
+        // Extract subnet prefix dynamically (e.g. "10.20.0.0/24" -> prefix "24")
+        const cidrMatch = subnet.match(/\/(\d+)$/);
+        const prefix = cidrMatch ? cidrMatch[1] : '24';
+        const gwAddress = gateway || subnet.replace(/\.0\/\d+$/, '.1');
+
         if (!isTestMode) {
             const client = getRouterClient(routerData);
             api = await client.connect();
 
-            // 1. Add Gateway IP Address to interface
-            const gwAddress = gateway || subnet.replace(/\.0\/\d+$/, '.1');
-            await api.write('/ip/address/add', [
-                `=address=${gwAddress}/24`,
-                `=interface=${bridgeInterface || 'bridge'}`
-            ]);
+            // 1. Add Gateway IP Address to interface (Safely catch duplicate errors)
+            try {
+                await api.write('/ip/address/add', [
+                    `=address=${gwAddress}/${prefix}`,
+                    `=interface=${bridgeInterface || 'bridge'}`
+                ]);
+            } catch (ipErr) {
+                console.warn("IP Address setup warning (may already exist):", ipErr.message);
+            }
 
             // 2. Optionally configure DHCP Server Pool
             if (runDhcp) {
                 const poolName = `static_pool_${routerId}`;
                 const poolRange = subnet.replace(/\.0\/\d+$/, '.10-.250');
 
-                await api.write('/ip/pool/add', [
-                    `=name=${poolName}`,
-                    `=ranges=${poolRange}`
-                ]);
+                try {
+                    await api.write('/ip/pool/add', [
+                        `=name=${poolName}`,
+                        `=ranges=${poolRange}`
+                    ]);
+                } catch (poolErr) {
+                    console.warn("Pool creation warning:", poolErr.message);
+                }
 
-                await api.write('/ip/dhcp-server/add', [
-                    `=name=dhcp_static_${routerId}`,
-                    `=interface=${bridgeInterface || 'bridge'}`,
-                    `=address-pool=${poolName}`,
-                    `=disabled=no`
-                ]);
+                try {
+                    await api.write('/ip/dhcp-server/add', [
+                        `=name=dhcp_static_${routerId}`,
+                        `=interface=${bridgeInterface || 'bridge'}`,
+                        `=address-pool=${poolName}`,
+                        `=disabled=no`
+                    ]);
+                } catch (dhcpErr) {
+                    console.warn("DHCP server creation warning:", dhcpErr.message);
+                }
             }
         }
 
@@ -1671,7 +1683,7 @@ app.post('/api/dhcp/setup-subnet', async (req, res) => {
             ispId: ispId || routerData.ispId || 'default_isp',
             routerId,
             subnet,
-            gateway: gateway || subnet.replace(/\.0\/\d+$/, '.1'),
+            gateway: gwAddress,
             bridgeInterface: bridgeInterface || 'bridge',
             createdAt: new Date()
         });
