@@ -2281,21 +2281,33 @@ window.handleCreateStaticCustomer = async function(e) {
     }
 };
 
-// Form Handler: Create Static Package (Fixed API Route & Payload)
+// Form Handler: Create Static Package
 window.handleCreateStaticPlan = async function(e) {
     e.preventDefault();
     const fData = new FormData(e.target);
     const payload = Object.fromEntries(fData.entries());
     
-    // Set system metadata parameters
     payload.ispId = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com';
     payload.type = 'static';
 
-    // Normalize price to number format
+    // 1. Map 'validity' to 'duration' (convert days to hours if needed, or send directly)
+    if (!payload.duration) {
+        const val = Number(payload.validity || payload.durationVal || 1);
+        // If your validity dropdown is set to 'Days', convert to hours:
+        payload.duration = val * 24; 
+    }
+
+    // 2. Map 'download' & 'upload' or speed values to 'bandwidthProfile'
+    if (!payload.bandwidthProfile) {
+        const down = payload.download || '10M';
+        const up = payload.upload || '10M';
+        payload.bandwidthProfile = `${down}M/${up}M`;
+    }
+
+    // 3. Ensure price is a number
     if (payload.price) payload.price = Number(payload.price);
 
     try {
-        // Changed endpoint from /api/packages -> /api/packages/create
         const res = await fetch(`${API_BASE_URL}/api/packages/create`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -2308,7 +2320,7 @@ window.handleCreateStaticPlan = async function(e) {
             window.fetchStaticPlans();
             
             if (typeof window.fetchActiveBillingCatalog === 'function') {
-                window.fetchActiveBillingCatalog(); // Keeps main Hotspot Packages page refreshed
+                window.fetchActiveBillingCatalog();
             }
             if (typeof triggerToastDisplay === 'function') {
                 triggerToastDisplay("Static package saved successfully!");
