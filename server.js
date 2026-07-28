@@ -1612,6 +1612,82 @@ app.get('/api/dhcp/leases', async (req, res) => {
     }
 });
 
+// Setup Static Subnet & Optional DHCP Pool on MikroTik Router
+app.post('/api/dhcp/setup-subnet', async (req, res) => {
+    const { routerId, subnet, gateway, bridgeInterface, runDhcp, ispId } = req.body;
+
+    if (!routerId || !subnet) {
+        return res.status(400).json({ success: false, error: "Router and Subnet (CIDR) are required." });
+    }
+
+    let api = null;
+    try {
+        let routerDoc = await db.collection('routers').doc(routerId).get();
+        let routerData = routerDoc.exists ? routerDoc.data() : null;
+
+        if (!routerData) {
+            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
+            if (!snapshot.empty) routerData = snapshot.docs[0].data();
+        }
+
+        if (!routerData) {
+            return res.status(404).json({ success: false, error: "Router configuration not found." });
+        }
+
+        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
+
+        if (!isTestMode) {
+            const client = getRouterClient(routerData);
+            api = await client.connect();
+
+            // 1. Add Gateway IP Address to interface
+            const gwAddress = gateway || subnet.replace(/\.0\/\d+$/, '.1');
+            await api.write('/ip/address/add', [
+                `=address=${gwAddress}/24`,
+                `=interface=${bridgeInterface || 'bridge'}`
+            ]);
+
+            // 2. Optionally configure DHCP Server Pool
+            if (runDhcp) {
+                const poolName = `static_pool_${routerId}`;
+                const poolRange = subnet.replace(/\.0\/\d+$/, '.10-.250');
+
+                await api.write('/ip/pool/add', [
+                    `=name=${poolName}`,
+                    `=ranges=${poolRange}`
+                ]);
+
+                await api.write('/ip/dhcp-server/add', [
+                    `=name=dhcp_static_${routerId}`,
+                    `=interface=${bridgeInterface || 'bridge'}`,
+                    `=address-pool=${poolName}`,
+                    `=disabled=no`
+                ]);
+            }
+        }
+
+        // Save setup record in Firestore
+        await db.collection('static_subnets').add({
+            ispId: ispId || routerData.ispId || 'default_isp',
+            routerId,
+            subnet,
+            gateway: gateway || subnet.replace(/\.0\/\d+$/, '.1'),
+            bridgeInterface: bridgeInterface || 'bridge',
+            createdAt: new Date()
+        });
+
+        return res.status(200).json({ success: true, mock: isTestMode });
+
+    } catch (error) {
+        console.error("Setup subnet error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    } finally {
+        if (api && typeof api.close === 'function') {
+            try { await api.close(); } catch(e) {}
+        }
+    }
+});
+
 // ====================================================================
 // SYSTEM COMPONENT: SECURE SYSTEM ACCESS VOUCHERS API
 // ====================================================================
