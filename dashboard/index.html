@@ -1042,52 +1042,66 @@
 </div>
                 
 <div id="viewframe-sessions" class="space-y-6 hidden viewframe">
+    <!-- Top Bar Header & Router Selection Dropdown -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-network-wired text-indigo-500"></i> Active Hotspot Sessions
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Live bandwidth consumption and connected subscriber session tracking.</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <select id="sessions-router-select" onchange="syncLiveSessions()" class="bg-slate-900 border border-slate-700 text-white text-xs font-semibold rounded-lg px-3 py-2 w-full sm:w-auto cursor-pointer focus:outline-none focus:border-indigo-500">
+                <option value="">Loading Routers...</option>
+            </select>
+            <button onclick="syncLiveSessions()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition flex items-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-rotate animate-spin-slow"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Metrics Header -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Online Now</p>
             <h3 class="text-2xl font-bold text-indigo-500 mt-1" id="session-metric-online">0 <span class="text-xs font-normal text-slate-400">devices</span></h3>
         </div>
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
-            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Authenticated Today</p>
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Authenticated</p>
             <h3 class="text-2xl font-bold text-slate-900 dark:text-white mt-1" id="session-metric-total">0</h3>
         </div>
         <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
-            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Bandwidth Consumption</p>
-            <h3 class="text-2xl font-bold text-emerald-500 mt-1" id="session-metric-traffic">0.00 <span class="text-xs font-normal text-slate-400">Mbps</span></h3>
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Data Transferred</p>
+            <h3 class="text-2xl font-bold text-emerald-500 mt-1" id="session-metric-traffic">0 MB</h3>
         </div>
     </div>
 
     <div id="sessions-router-warning" class="hidden bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg text-xs flex items-center gap-2">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        <span><strong>No active router endpoint selected.</strong> Head over to the <a href="routers.html" class="underline font-bold hover:text-white">Routers Panel</a> to anchor an edge hardware instance first.</span>
+        <span><strong>No active router endpoints found.</strong> Head over to the <a href="#" class="underline font-bold hover:text-white">Routers Panel</a> to anchor an edge hardware instance first.</span>
     </div>
 
-    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-slate-200 dark:border-vunaborder flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
-            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Active Lease Sessions Tracker</span>
-            <button onclick="syncLiveSessions()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-white rounded transition flex items-center gap-1.5">
-                <i class="fa-solid fa-rotate animate-spin-slow"></i> Refresh
-            </button>
-        </div>
+    <!-- Table Frame -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs font-mono">
                 <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
                     <tr>
                         <th class="p-3">MAC / IP Address</th>
-                        <th class="p-3">User Token</th>
-                        <th class="p-3">Router Node</th>
+                        <th class="p-3">Subscriber Token</th>
+                        <th class="p-3">Data Consumed (Tx / Rx)</th>
                         <th class="p-3">Uptime</th>
                         <th class="p-3 text-right">Disconnect</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="sessions-table-body">
-                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No active device leases discovered across current hardware endpoints.</td></tr>
+                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">Discovering active lease sessions...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-
+        
 <div id="viewframe-pppoe" class="space-y-6 hidden viewframe">
     <!-- Top Metric Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1770,43 +1784,130 @@ function evaluateActiveViewRoutingContext() {
 // ==========================================
 // SYSTEM COMPONENT MODULE 1: LIVE SESSIONS
 // ==========================================
+
+let sessionsAutoRefreshInterval = null;
+
+// Helper to humanize byte sizes into clean MB / GB units
+function formatDataBytes(bytes) {
+    if (!bytes || isNaN(bytes) || bytes === 0) return "0 MB";
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function loadSessionsRoutersDropdown() {
+    const routerSelect = document.getElementById("sessions-router-select");
+    if (!routerSelect) return null;
+
+    try {
+        const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com';
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${targetTenant}`);
+        const routers = await response.json();
+
+        if (!routers || !Array.isArray(routers) || routers.length === 0) {
+            document.getElementById("sessions-router-warning")?.classList.remove("hidden");
+            routerSelect.innerHTML = `<option value="">No Routers Connected</option>`;
+            return null;
+        }
+
+        document.getElementById("sessions-router-warning")?.classList.add("hidden");
+
+        // Keep current selected router value if already user-selected
+        const currentSelected = routerSelect.value;
+        routerSelect.innerHTML = routers.map(r => 
+            `<option value="${r.id}" ${currentSelected === r.id ? 'selected' : ''}>${r.name || r.id}</option>`
+        ).join('');
+
+        return routerSelect.value;
+    } catch (err) {
+        console.error("Router dropdown load error:", err);
+        return null;
+    }
+}
+
 async function syncLiveSessions() {
     const tbody = document.getElementById("sessions-table-body");
+    const routerSelect = document.getElementById("sessions-router-select");
+    if (!tbody) return;
+
+    let selectedRouterId = routerSelect ? routerSelect.value : null;
+
+    // Populate dropdown if empty
+    if (!selectedRouterId || routerSelect.options.length <= 1) {
+        selectedRouterId = await loadSessionsRoutersDropdown();
+    }
+
+    if (!selectedRouterId) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No hardware router selected.</td></tr>`;
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE_URL}/api/hotspot/routers?ispId=${CURRENT_ISP_ID}`);
-        const routers = await response.json();
+        const res = await fetch(`${API_BASE_URL}/api/hotspot/active-sessions?routerId=${selectedRouterId}`);
+        if (!res.ok) throw new Error("Failed to reach router node session endpoint.");
         
-        if (!routers || routers.length === 0) {
-            document.getElementById("sessions-router-warning").classList.remove("hidden");
-            tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500">Hardware mapping arrays absent. Waiting for hardware linkage.</td></tr>`;
-            return;
-        }
-        document.getElementById("sessions-router-warning").classList.add("hidden");
+        const sessions = await res.json();
 
-        // Target active hardware node instance array tracking metrics data stream
-        const targetRouter = routers[0].id; 
-        const sessionsRes = await fetch(`${API_BASE_URL}/api/hotspot/active-sessions?routerId=${targetRouter}`);
-        const sessions = await sessionsRes.json();
-
+        // Update top summary metrics
         document.getElementById("session-metric-online").innerHTML = `${sessions.length} <span class="text-xs font-normal text-slate-400">devices</span>`;
-        document.getElementById("session-metric-total").textContent = sessions.length + 4; // Total lease generation factor metrics
+        document.getElementById("session-metric-total").textContent = sessions.length;
+
+        // Sum total cumulative data consumption for all active subscribers
+        const totalVolumeBytes = sessions.reduce((sum, s) => sum + (s.bytesIn || 0) + (s.bytesOut || 0), 0);
+        document.getElementById("session-metric-traffic").textContent = formatDataBytes(totalVolumeBytes);
 
         if (sessions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 font-sans">No data packets streaming or mobile phones connected to hotspot terminal right now.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 font-sans">No active devices connected to this router right now.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = sessions.map(session => `
-            <tr class="hover:bg-slate-900/30 transition">
-                <td class="p-3 text-indigo-400 font-bold">${session.macAddress}<br><span class="text-slate-500 font-normal text-[11px]">${session.address || 'DHCP Pool'}</span></td>
-                <td class="p-3 text-slate-300">${session.user}</td>
-                <td class="p-3 text-slate-400 font-sans"><span class="bg-slate-800 px-2 py-0.5 rounded text-[10px]">${targetRouter}</span></td>
-                <td class="p-3 text-slate-400">${session.uptime || '00:02:15'}</td>
-                <td class="p-3 text-right"><button onclick="terminateTargetLease('${targetRouter}', '${session.user}')" class="px-2 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded transition text-[10px]">Disconnect</button></td>
-            </tr>
-        `).join('');
+        // Render session rows with formatted MB/GB data values
+        tbody.innerHTML = sessions.map(session => {
+            const rxFormatted = formatDataBytes(session.bytesIn || 0);  // Download
+            const txFormatted = formatDataBytes(session.bytesOut || 0); // Upload
+
+            return `
+                <tr class="hover:bg-slate-900/30 transition">
+                    <td class="p-3 text-indigo-400 font-bold">${session.macAddress}<br><span class="text-slate-500 font-normal text-[11px]">${session.address || 'DHCP Pool'}</span></td>
+                    <td class="p-3 text-slate-200 font-semibold">${session.user}</td>
+                    <td class="p-3 text-slate-300 font-sans">
+                        <div class="flex items-center gap-2">
+                            <span class="text-emerald-400"><i class="fa-solid fa-arrow-down text-[10px]"></i> ${rxFormatted}</span>
+                            <span class="text-slate-600">|</span>
+                            <span class="text-indigo-400"><i class="fa-solid fa-arrow-up text-[10px]"></i> ${txFormatted}</span>
+                        </div>
+                    </td>
+                    <td class="p-3 text-slate-400">${session.uptime || '00:00:00'}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="terminateTargetLease('${selectedRouterId}', '${session.user}')" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded transition text-[10px] font-bold">Disconnect</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400">API Pipeline Stream Interrupted: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400 font-sans">Session stream drop: ${err.message}</td></tr>`;
+    }
+}
+
+// Global 10-second polling interval management
+function startSessionsAutoPolling() {
+    stopSessionsAutoPolling(); // Clear existing timers
+    syncLiveSessions(); // Initial trigger
+    sessionsAutoRefreshInterval = setInterval(() => {
+        // Auto-refresh only if the sessions view is actively displayed
+        const sessionsFrame = document.getElementById("viewframe-sessions");
+        if (sessionsFrame && !sessionsFrame.classList.contains("hidden")) {
+            syncLiveSessions();
+        }
+    }, 10000); // 10,000 ms = 10 seconds
+}
+
+function stopSessionsAutoPolling() {
+    if (sessionsAutoRefreshInterval) {
+        clearInterval(sessionsAutoRefreshInterval);
+        sessionsAutoRefreshInterval = null;
     }
 }
 
