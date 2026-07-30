@@ -529,7 +529,25 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 console.log(`ISP ${ispId} uses Custom Daraja Gateway or Default Pool. Funds settled directly.`);
             }
 
-            // 6. UPDATE SUBSCRIBER RECORD
+            // ====================================================================
+            // 6. UPDATE SUBSCRIBER RECORD (DYNAMIC LOYALTY POINTS LOOKUP)
+            // ====================================================================
+            let pointsToAward = 1; // Default fallback if not configured by ISP
+
+            try {
+                const portalDesignDoc = await db.collection('isp_portals').doc(ispId).get();
+                if (portalDesignDoc.exists) {
+                    const portalData = portalDesignDoc.data();
+                    if (portalData.pointsEarnedPerPurchase !== undefined) {
+                        pointsToAward = parseInt(portalData.pointsEarnedPerPurchase, 10) || 1;
+                    } else if (portalData.pointsEarned !== undefined) {
+                        pointsToAward = parseInt(portalData.pointsEarned, 10) || 1;
+                    }
+                }
+            } catch (portalErr) {
+                console.error("Error reading ISP portal design for points:", portalErr.message);
+            }
+
             if (cleanMac !== 'nomac') {
                 const subRef = db.collection('subscribers').doc(cleanMac);
                 await db.runTransaction(async (ts) => {
@@ -537,7 +555,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     const currentPoints = subDoc.exists ? (subDoc.data().loyaltyPoints || 0) : 0;
                     ts.set(subRef, {
                         phoneNumber: payingPhone,
-                        loyaltyPoints: currentPoints + 10,
+                        loyaltyPoints: currentPoints + pointsToAward, // Now dynamic!
                         lastActivePackage: amountPaid,
                         lastActiveTimestamp: new Date().toISOString(),
                         routerId: routerId || 'unknown',
@@ -548,19 +566,35 @@ app.post('/api/mpesa/callback', async (req, res) => {
 
             // 7. DIRECT ROUTER PROVISIONING VIA MIKROTIK API
             if (ispConfig && ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
+                let api = null;
                 try {
                     const client = getRouterClient(ispConfig);
-                    const api = await client.connect();
+                    api = await client.connect();
                     
-                    await api.write('/ip/hotspot/user/add', [
-                        `=name=${payingPhone}`, 
-                        `=password=${payingPhone}`, 
-                        `=profile=${bandwidthProfile}`, 
-                        `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
+                    // Check if user entry already exists to avoid MikroTik duplicate add errors
+                    const existingUsers = await api.write('/ip/hotspot/user/print', [
+                        `.query=name=${payingPhone}`
                     ]);
-                    await api.close();
+
+                    if (existingUsers && existingUsers.length > 0) {
+                        const userId = existingUsers[0]['.id'];
+                        await api.write('/ip/hotspot/user/set', [
+                            `=.id=${userId}`,
+                            `=profile=${bandwidthProfile}`,
+                            `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
+                        ]);
+                    } else {
+                        await api.write('/ip/hotspot/user/add', [
+                            `=name=${payingPhone}`, 
+                            `=password=${payingPhone}`, 
+                            `=profile=${bandwidthProfile}`, 
+                            `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
+                        ]);
+                    }
                 } catch (rErr) {
                     console.error("Router provisioning error:", rErr.message);
+                } finally {
+                    if (api) await api.close(); // Guarantee connection closes safely
                 }
             }
 
