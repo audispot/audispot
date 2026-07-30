@@ -2821,6 +2821,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         if (typeof fetchStaticDHCPLeases === "function") {
             fetchStaticDHCPLeases();
         }
+
+    } else if (activeTab === 'sessions') {
+        if (typeof loadSessionsRoutersDropdown === "function") {
+            loadSessionsRoutersDropdown();
+        }
     
     } else if (activeTab === 'pppoe') {
         if (typeof fetchPPPoESubscriberBase === "function") {
