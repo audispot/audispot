@@ -913,19 +913,24 @@ app.post('/api/packages/delete', async (req, res) => {
 // ====================================================================
 // LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
 // ====================================================================
+
 app.get('/api/hotspot/loyalty/balance', async (req, res) => {
     const { macAddress } = req.query;
     if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
     
+    // Normalize MAC address format
     const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+
     try {
         const subDoc = await db.collection('subscribers').doc(cleanMac).get();
         if (!subDoc.exists) {
             return res.status(200).json({ points: 0, phoneNumber: null });
         }
+        
+        const data = subDoc.data();
         return res.status(200).json({
-            points: subDoc.data().loyaltyPoints || 0,
-            phoneNumber: subDoc.data().phoneNumber || null
+            points: data.loyaltyPoints || 0,
+            phoneNumber: data.phoneNumber || null
         });
     } catch (error) {
         return res.status(500).json({ error: error.message });
@@ -933,7 +938,6 @@ app.get('/api/hotspot/loyalty/balance', async (req, res) => {
 });
 
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
-    // Expect selectedTierId from the frontend catalog choice
     const { macAddress, routerId, selectedTierId } = req.body; 
     if (!macAddress || !routerId) {
         return res.status(400).json({ success: false, error: "Missing identity credentials." });
@@ -942,39 +946,40 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
 
     try {
+        // 1. Fetch Router Config
         const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router network not found." });
+        if (!routerDoc.exists) {
+            return res.status(404).json({ success: false, error: "Router network not found." });
+        }
         const routerData = routerDoc.data();
         const ispId = routerData.ispId || "default_isp";
 
         let pointsRequired = 100; 
-        let targetProfile = "24_Hour_Plan"; // Fallback safety
+        let targetProfile = "default"; // Safer default MikroTik profile name
 
-        // DYNAMIC LOOKUP: If a specific tier was selected, lookup its specific config
+        // 2. Fetch Selected Reward Tier Config
         if (selectedTierId) {
             const tierDoc = await db.collection('routers').doc(routerId).collection('rewardTiers').doc(selectedTierId).get();
             if (tierDoc.exists) {
                 const tierData = tierDoc.data();
-                pointsRequired = parseInt(tierData.pointsRequired) || 100;
-                // Dynamically build or read profile name from your hours configuration
+                pointsRequired = parseInt(tierData.pointsRequired, 10) || 100;
                 targetProfile = tierData.mikrotikProfile || `${tierData.durationHours}_Hour_Plan`;
             }
         } else {
-            // Fallback to legacy ISP portal master option if no individual catalog matches
             try {
                 const designDoc = await db.collection('isp_portals').doc(ispId).get();
                 if (designDoc.exists && designDoc.data().redeemPoints) {
-                    pointsRequired = parseInt(designDoc.data().redeemPoints) || 100;
+                    pointsRequired = parseInt(designDoc.data().redeemPoints, 10) || 100;
                 }
             } catch (pe) {
-                console.error("Design fetch fail during loyalty logic:", pe.message);
+                console.error("Portal design fetch issue:", pe.message);
             }
         }
 
         const subRef = db.collection('subscribers').doc(cleanMac);
 
-        // Run the atomic transaction block correctly (Reads inside the write locks)
-        const outputResult = await db.runTransaction(async (ts) => {
+        // 3. Atomic Point Deduction
+        const subscriberIdentifier = await db.runTransaction(async (ts) => {
             const freshSubDoc = await ts.get(subRef);
             if (!freshSubDoc.exists) {
                 throw new Error("Subscriber profile not found.");
@@ -982,33 +987,77 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
 
             const freshPoints = freshSubDoc.data().loyaltyPoints || 0;
             if (freshPoints < pointsRequired) {
-                throw new Error(`Insufficient points. You need ${pointsRequired} points.`);
+                throw new Error(`Insufficient points. You need ${pointsRequired} points (Balance: ${freshPoints}).`);
             }
 
+            // Deduct Points
             ts.update(subRef, { 
                 loyaltyPoints: freshPoints - pointsRequired,
                 lastActiveTimestamp: new Date().toISOString()
             });
 
+            // Audit Trail for ISP Admin Panel
+            const redemptionRef = db.collection('loyalty_redemptions').doc();
+            ts.set(redemptionRef, {
+                ispId,
+                routerId,
+                macAddress: cleanMac,
+                pointsRedeemed: pointsRequired,
+                rewardProfile: targetProfile,
+                timestamp: new Date().toISOString()
+            });
+
             return freshSubDoc.data().phoneNumber || cleanMac;
         });
 
-        // Provision dynamic network allocation profiles on Mikrotik API RouterOS instance
+        // 4. Provision Subscriber on MikroTik Router
         if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
-            const client = getRouterClient(routerData);
-            const api = await client.connect();
-            await api.write('/ip/hotspot/user/add', [
-                `=name=${outputResult}`, 
-                `=password=${outputResult}`, 
-                `=profile=${targetProfile}`, // Bound dynamically now!
-                `=comment=LoyaltyRedeem_${cleanMac}`
-            ]);
-            await api.close();
+            let api = null;
+            try {
+                const client = getRouterClient(routerData);
+                api = await client.connect();
+
+                // Check if user already exists in MikroTik
+                const existingUsers = await api.write('/ip/hotspot/user/print', [
+                    `.query=name=${subscriberIdentifier}`
+                ]);
+
+                if (existingUsers && existingUsers.length > 0) {
+                    // Update existing user's profile and reset counters
+                    const userId = existingUsers[0]['.id'];
+                    await api.write('/ip/hotspot/user/set', [
+                        `=.id=${userId}`,
+                        `=profile=${targetProfile}`,
+                        `=comment=LoyaltyRedeem_${cleanMac}_${Date.now()}`
+                    ]);
+                } else {
+                    // Create new user entry
+                    await api.write('/ip/hotspot/user/add', [
+                        `=name=${subscriberIdentifier}`, 
+                        `=password=${subscriberIdentifier}`, 
+                        `=profile=${targetProfile}`,
+                        `=comment=LoyaltyRedeem_${cleanMac}`
+                    ]);
+                }
+            } catch (routerErr) {
+                console.error("MikroTik Provisioning Error:", routerErr.message);
+                // Return success since points were deducted, but alert admin in logs
+                return res.status(200).json({ 
+                    success: true, 
+                    message: "Points redeemed! Please reconnect to the hotspot network." 
+                });
+            } finally {
+                if (api) await api.close(); // Always close connection safely
+            }
         }
 
-        return res.status(200).json({ success: true, message: "Free internet pass activated! Enjoy browsing." });
+        return res.status(200).json({ 
+            success: true, 
+            message: "Free internet pass activated! Enjoy browsing." 
+        });
+
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(400).json({ success: false, error: error.message });
     }
 });
 
