@@ -1300,7 +1300,9 @@ app.get('/api/hotspot/active-sessions', async (req, res) => {
             user: s.user || 'Unknown',
             address: s.address || '0.0.0.0',
             macAddress: s['mac-address'] || '00:00:00:00:00:00',
-            uptime: s.uptime || '00:00:00'
+            uptime: s.uptime || '00:00:00',
+            bytesIn: parseInt(s['bytes-in'] || 0, 10),
+            bytesOut: parseInt(s['bytes-out'] || 0, 10)
         }));
 
         return res.status(200).json(standardized);
