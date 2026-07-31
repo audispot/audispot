@@ -355,7 +355,7 @@ app.post('/api/hotspot/register-router', async (req, res) => {
 });
 
 // ====================================================================
-// Multi-Tenant Hotspot Login STK Push Engine (MATCHING YOUR CLOUD RUN ENVs)
+// Multi-Tenant Hotspot Login STK Push Engine (PAYBILL & TILL FIXED)
 // ====================================================================
 app.post('/api/hotspot/login', async (req, res) => {
     let { phoneNumber, amount, routerId, macAddress, planProfile } = req.body;
@@ -450,11 +450,13 @@ app.post('/api/hotspot/login', async (req, res) => {
             ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
             : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 
-        // Detect Buy Goods (Till) vs Paybill based on shortcode length or prefix
         const cleanShortcode = shortcode.trim();
-        const transactionType = (cleanShortcode.length >= 7 || !isLive) 
-            ? "CustomerBuyGoodsOnline" 
-            : "CustomerPayBillOnline";
+        
+        // Handle Paybill vs Buy Goods dynamically:
+        // Use CustomerBuyGoodsOnline ONLY if an explicit tillNumber is set in settings
+        const hasTillNumber = Boolean(settings.tillNumber && settings.tillNumber.trim() !== "");
+        const transactionType = hasTillNumber ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline";
+        const partyB = hasTillNumber ? settings.tillNumber.trim() : cleanShortcode;
 
         const stkPayload = {
             BusinessShortCode: cleanShortcode,
@@ -463,7 +465,7 @@ app.post('/api/hotspot/login', async (req, res) => {
             TransactionType: transactionType, 
             Amount: Math.round(Number(amount)),
             PartyA: formattedPhone, 
-            PartyB: cleanShortcode, 
+            PartyB: partyB, 
             PhoneNumber: formattedPhone,
             CallBackURL: callbackUrl,
             AccountReference: "AudiSpot WiFi", 
