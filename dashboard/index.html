@@ -3187,6 +3187,14 @@ async function loadPaymentHistoryView(overrideIspId) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
+
+        console.log("=======================");
+        console.log("PAYMENT HISTORY RESPONSE");
+        console.log(data);
+        console.log("Gross:", data.metrics.grossEarnedAllTime);
+        console.log("Withdrawable:", data.withdrawableBalance);
+        console.log("=======================");
+        
         if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
         allTransactionsCache = (data.transactions || []).map(tx => ({
