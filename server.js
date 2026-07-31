@@ -3093,7 +3093,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FULLY UPDATED)
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (PURE LEDGER VERSION)
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
@@ -3112,7 +3112,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         ]);
 
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-        const ispData = ispDoc.exists ? ispDoc.data() : {};
 
         // 2. Discover all Router IDs registered to THIS specific tenant
         const tenantRouterIds = new Set([ispId]);
@@ -3233,8 +3232,8 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             normalizedGateway = 'daraja';
         }
 
-        // 5. DYNAMIC WITHDRAWABLE BALANCE CALCULATOR
-        // Deducts all successfully completed or currently pending withdrawal amounts from Gross Revenue
+        // 5. PURE LEDGER WITHDRAWABLE BALANCE CALCULATOR
+        // Calculate total amount already withdrawn or currently pending
         let totalWithdrawnOrPending = 0;
         settlementsSnap.forEach(doc => {
             const s = doc.data();
@@ -3244,13 +3243,8 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             }
         });
 
-        let calculatedWithdrawable = 0;
-        if (ispData.walletBalance !== undefined && ispData.walletBalance !== null) {
-            calculatedWithdrawable = parseFloat(ispData.walletBalance || 0);
-        } else {
-            // Net available balance
-            calculatedWithdrawable = Math.max(0, grossEarnedAllTime - totalWithdrawnOrPending);
-        }
+        // Calculate available balance purely from transaction revenue minus payouts
+        const calculatedWithdrawable = Math.max(0, grossEarnedAllTime - totalWithdrawnOrPending);
 
         return res.status(200).json({
             success: true,
