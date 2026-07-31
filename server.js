@@ -355,7 +355,7 @@ app.post('/api/hotspot/register-router', async (req, res) => {
 });
 
 // ====================================================================
-// 5. Multi-Tenant Hotspot Login STK Push Engine (DUAL-GATEWAY FIXED)
+// Multi-Tenant Hotspot Login STK Push Engine (MATCHING YOUR CLOUD RUN ENVs)
 // ====================================================================
 app.post('/api/hotspot/login', async (req, res) => {
     let { phoneNumber, amount, routerId, macAddress, planProfile } = req.body;
@@ -363,7 +363,7 @@ app.post('/api/hotspot/login', async (req, res) => {
         return res.status(400).json({ success: false, error: "Missing checkout parameters." });
     }
     
-    // Format Phone Number to International Standard
+    // 1. Format Phone Number to International Standard (254...)
     let formattedPhone = String(phoneNumber).replace(/[^0-9]/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
     if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) formattedPhone = '254' + formattedPhone;
@@ -372,14 +372,13 @@ app.post('/api/hotspot/login', async (req, res) => {
     const profileRef = planProfile || 'default';
 
     try {
-        // 1. Direct document lookup by routerId
+        // 2. Lookup Router Document
         let routerDoc = await db.collection('routers').doc(routerId).get();
         let ispConfig = null;
 
         if (routerDoc.exists) {
             ispConfig = routerDoc.data();
         } else {
-            // Fallback query if routerId passed was actually an ispId
             const snapshot = await db.collection('routers').where('ispId', '==', routerId).limit(1).get();
             if (snapshot.empty) {
                 return res.status(404).json({ success: false, error: "Hotspot router configuration not found." });
@@ -387,97 +386,122 @@ app.post('/api/hotspot/login', async (req, res) => {
             ispConfig = snapshot.docs[0].data();
         }
 
-        // 2. Multi-tenant Tenant ID Resolution
+        // 3. Resolve Tenant ID
         const ispId = ispConfig.ispId || ispConfig.userId || routerId;
 
-        // 3. FETCH GATEWAY SETTINGS FROM FIRESTORE SETTINGS COLLECTION
+        // 4. Fetch ISP Gateway Choice from Firestore
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
         const gatewayType = settings.mpesaIntegrationType || 'platform';
 
-        // 4. RESOLVE CREDENTIALS (CUSTOM DARAJA VS PLATFORM FALLBACK)
+        // 5. RESOLVE CREDENTIALS (Matches your exact Cloud Run Env names)
         let consumerKey, consumerSecret, passkey, shortcode, env;
 
         if (gatewayType === 'daraja' && settings.mpesaConsumerKey) {
-            // Custom Daraja Mode
+            // ISP Custom Daraja Mode
             consumerKey = settings.mpesaConsumerKey.trim();
             consumerSecret = settings.mpesaConsumerSecret.trim();
             passkey = settings.mpesaPasskey ? settings.mpesaPasskey.trim() : '';
             shortcode = settings.mpesaShortcode ? settings.mpesaShortcode.trim() : '';
             env = settings.mpesaEnv || 'sandbox';
         } else {
-            // AudiSpot Platform Gateway Fallback (Uses Server .env)
-            consumerKey = process.env.PLATFORM_MPESA_KEY || process.env.MPESA_CONSUMER_KEY;
-            consumerSecret = process.env.PLATFORM_MPESA_SECRET || process.env.MPESA_CONSUMER_SECRET;
-            passkey = process.env.PLATFORM_MPESA_PASSKEY || process.env.MPESA_PASSKEY;
-            shortcode = process.env.PLATFORM_MPESA_SHORTCODE || process.env.MPESA_SHORTCODE;
-            env = process.env.PLATFORM_MPESA_ENV || 'production';
+            // AudiSpot Platform Mode -> DIRECTLY READS CLOUD RUN ENV VARS
+            consumerKey = process.env.MPESA_CONSUMER_KEY || process.env.PLATFORM_MPESA_KEY;
+            consumerSecret = process.env.MPESA_CONSUMER_SECRET || process.env.PLATFORM_MPESA_SECRET;
+            passkey = process.env.MPESA_PASSKEY || process.env.PLATFORM_MPESA_PASSKEY;
+            shortcode = process.env.MPESA_SHORTCODE || process.env.PLATFORM_MPESA_SHORTCODE;
+            env = process.env.MPESA_ENV || 'production';
         }
 
+        // Verification check
         if (!consumerKey || !consumerSecret || !shortcode) {
             return res.status(500).json({ 
                 success: false, 
                 error: gatewayType === 'daraja' 
-                    ? "Custom Daraja credentials incomplete in Settings." 
-                    : "AudiSpot Platform M-Pesa environment keys missing on server." 
+                    ? "Custom Daraja parameters incomplete in Settings." 
+                    : "AudiSpot Platform M-Pesa environment variables are missing." 
             });
         }
 
-        // 5. GET MPESA AUTH TOKEN DYNAMICALLY
-        const token = await getDynamicMpesaToken(consumerKey, consumerSecret, env);
-        
-        const date = new Date();
-        const timestamp = date.getFullYear() + ('0' + (date.getMonth() + 1)).slice(-2) + ('0' + date.getDate()).slice(-2) + ('0' + date.getHours()).slice(-2) + ('0' + date.getMinutes()).slice(-2) + ('0' + date.getSeconds()).slice(-2);
-        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+        // 6. DARAJA AUTH TOKEN GENERATION
+        const isLive = (env === 'live' || env === 'production');
+        const authUrl = isLive
+            ? 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+            : 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+
+        const authHeader = Buffer.from(`${consumerKey.trim()}:${consumerSecret.trim()}`).toString('base64');
+        const tokenRes = await axios.get(authUrl, {
+            headers: { Authorization: `Basic ${authHeader}` }
+        });
+
+        const accessToken = tokenRes.data.access_token;
+        if (!accessToken) {
+            return res.status(500).json({ success: false, error: "Failed to obtain token from Safaricom." });
+        }
+
+        // 7. PREPARE STK PAYLOAD
+        const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+        const password = Buffer.from(`${shortcode.trim()}${passkey.trim()}${timestamp}`).toString('base64');
 
         const callbackUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}&macAddress=${encodeURIComponent(targetMac)}&profile=${encodeURIComponent(profileRef)}`;
 
-        const mpesaHostUrl = (env === 'live' || env === 'production')
-            ? 'https://api.safaricom.co.ke'
-            : 'https://sandbox.safaricom.co.ke';
+        const processRequestUrl = isLive
+            ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+            : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 
-        const mpesaPayload = {
-            BusinessShortCode: shortcode,
+        // Detect Buy Goods (Till) vs Paybill based on shortcode length or prefix
+        const cleanShortcode = shortcode.trim();
+        const transactionType = (cleanShortcode.length >= 7 || !isLive) 
+            ? "CustomerBuyGoodsOnline" 
+            : "CustomerPayBillOnline";
+
+        const stkPayload = {
+            BusinessShortCode: cleanShortcode,
             Password: password, 
             Timestamp: timestamp,
-            TransactionType: (env === 'sandbox') ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline", 
-            Amount: parseInt(amount),
+            TransactionType: transactionType, 
+            Amount: Math.round(Number(amount)),
             PartyA: formattedPhone, 
-            PartyB: shortcode, 
+            PartyB: cleanShortcode, 
             PhoneNumber: formattedPhone,
             CallBackURL: callbackUrl,
             AccountReference: "AudiSpot WiFi", 
             TransactionDesc: "WiFi Payment"
         };
 
-        const mpesaResponse = await axios.post(`${mpesaHostUrl}/mpesa/stkpush/v1/processrequest`, mpesaPayload, {
-            headers: { Authorization: `Bearer ${token}` }
+        const pushResponse = await axios.post(processRequestUrl, stkPayload, {
+            headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        const checkoutId = mpesaResponse.data.CheckoutRequestID;
+        if (pushResponse.data.ResponseCode === "0") {
+            const checkoutId = pushResponse.data.CheckoutRequestID;
 
-        // Save under both standard ID and 'ws_' prefix so polling always works
-        const pendingDoc = {
-            status: 'PENDING',
-            routerId,
-            ispId,
-            phoneNumber: formattedPhone,
-            macAddress: targetMac,
-            amount: parseInt(amount),
-            timestamp: new Date().toISOString()
-        };
+            const pendingDoc = {
+                status: 'PENDING',
+                routerId,
+                ispId,
+                phoneNumber: formattedPhone,
+                macAddress: targetMac,
+                amount: Math.round(Number(amount)),
+                timestamp: new Date().toISOString()
+            };
 
-        await db.collection('stk_requests').doc(checkoutId).set(pendingDoc);
-        await db.collection('stk_requests').doc(`ws_${checkoutId}`).set(pendingDoc);
+            await db.collection('stk_requests').doc(checkoutId).set(pendingDoc);
+            await db.collection('stk_requests').doc(`ws_${checkoutId}`).set(pendingDoc);
 
-        return res.status(200).json({ success: true, CheckoutRequestID: checkoutId });
+            return res.status(200).json({ success: true, CheckoutRequestID: checkoutId });
+        } else {
+            return res.status(400).json({ 
+                success: false, 
+                error: pushResponse.data.ResponseDescription || "STK Push rejected by Safaricom." 
+            });
+        }
+
     } catch (error) {
-        console.error("STK Push error details:", error.response ? error.response.data : error.message);
-        return res.status(500).json({ 
-            success: false, 
-            error: error.response?.data?.errorMessage || error.message || "STK Push failed." 
-        });
+        console.error("STK Push Error Details:", error.response ? error.response.data : error.message);
+        const errMsg = error.response?.data?.errorMessage || error.response?.data?.ResponseDescription || error.message;
+        return res.status(500).json({ success: false, error: errMsg });
     }
 });
 
