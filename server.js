@@ -355,22 +355,26 @@ app.post('/api/hotspot/register-router', async (req, res) => {
 });
 
 // ====================================================================
-// 5. Multi-Tenant Hotspot Login STK Push Engine (FIXED ROUTER LOOKUP)
+// 5. Multi-Tenant Hotspot Login STK Push Engine (DUAL-GATEWAY FIXED)
 // ====================================================================
 app.post('/api/hotspot/login', async (req, res) => {
     let { phoneNumber, amount, routerId, macAddress, planProfile } = req.body;
     if (!routerId || !phoneNumber || !amount) {
         return res.status(400).json({ success: false, error: "Missing checkout parameters." });
     }
-    if (phoneNumber.startsWith('0')) phoneNumber = '254' + phoneNumber.slice(1);
+    
+    // Format Phone Number to International Standard
+    let formattedPhone = String(phoneNumber).replace(/[^0-9]/g, '');
+    if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
+    if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) formattedPhone = '254' + formattedPhone;
     
     const targetMac = macAddress || 'nomac';
     const profileRef = planProfile || 'default';
 
     try {
-        // Direct document lookup by routerId
+        // 1. Direct document lookup by routerId
         let routerDoc = await db.collection('routers').doc(routerId).get();
-        let ispConfig;
+        let ispConfig = null;
 
         if (routerDoc.exists) {
             ispConfig = routerDoc.data();
@@ -383,22 +387,71 @@ app.post('/api/hotspot/login', async (req, res) => {
             ispConfig = snapshot.docs[0].data();
         }
 
-        const token = await getDynamicMpesaToken(ispConfig.mpesaConsumerKey, ispConfig.mpesaConsumerSecret);
+        // 2. Multi-tenant Tenant ID Resolution
+        const ispId = ispConfig.ispId || ispConfig.userId || routerId;
+
+        // 3. FETCH GATEWAY SETTINGS FROM FIRESTORE SETTINGS COLLECTION
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+
+        const gatewayType = settings.mpesaIntegrationType || 'platform';
+
+        // 4. RESOLVE CREDENTIALS (CUSTOM DARAJA VS PLATFORM FALLBACK)
+        let consumerKey, consumerSecret, passkey, shortcode, env;
+
+        if (gatewayType === 'daraja' && settings.mpesaConsumerKey) {
+            // Custom Daraja Mode
+            consumerKey = settings.mpesaConsumerKey.trim();
+            consumerSecret = settings.mpesaConsumerSecret.trim();
+            passkey = settings.mpesaPasskey ? settings.mpesaPasskey.trim() : '';
+            shortcode = settings.mpesaShortcode ? settings.mpesaShortcode.trim() : '';
+            env = settings.mpesaEnv || 'sandbox';
+        } else {
+            // AudiSpot Platform Gateway Fallback (Uses Server .env)
+            consumerKey = process.env.PLATFORM_MPESA_KEY || process.env.MPESA_CONSUMER_KEY;
+            consumerSecret = process.env.PLATFORM_MPESA_SECRET || process.env.MPESA_CONSUMER_SECRET;
+            passkey = process.env.PLATFORM_MPESA_PASSKEY || process.env.MPESA_PASSKEY;
+            shortcode = process.env.PLATFORM_MPESA_SHORTCODE || process.env.MPESA_SHORTCODE;
+            env = process.env.PLATFORM_MPESA_ENV || 'production';
+        }
+
+        if (!consumerKey || !consumerSecret || !shortcode) {
+            return res.status(500).json({ 
+                success: false, 
+                error: gatewayType === 'daraja' 
+                    ? "Custom Daraja credentials incomplete in Settings." 
+                    : "AudiSpot Platform M-Pesa environment keys missing on server." 
+            });
+        }
+
+        // 5. GET MPESA AUTH TOKEN DYNAMICALLY
+        const token = await getDynamicMpesaToken(consumerKey, consumerSecret, env);
         
         const date = new Date();
         const timestamp = date.getFullYear() + ('0' + (date.getMonth() + 1)).slice(-2) + ('0' + date.getDate()).slice(-2) + ('0' + date.getHours()).slice(-2) + ('0' + date.getMinutes()).slice(-2) + ('0' + date.getSeconds()).slice(-2);
-        const password = Buffer.from(`${ispConfig.mpesaShortcode}${ispConfig.mpesaPasskey}${timestamp}`).toString('base64');
+        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+        const callbackUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}&macAddress=${encodeURIComponent(targetMac)}&profile=${encodeURIComponent(profileRef)}`;
+
+        const mpesaHostUrl = (env === 'live' || env === 'production')
+            ? 'https://api.safaricom.co.ke'
+            : 'https://sandbox.safaricom.co.ke';
 
         const mpesaPayload = {
-            BusinessShortCode: ispConfig.mpesaShortcode,
-            Password: password, Timestamp: timestamp,
-            TransactionType: "CustomerPayBillOnline", Amount: parseInt(amount),
-            PartyA: phoneNumber, PartyB: ispConfig.mpesaShortcode, PhoneNumber: phoneNumber,
-            CallBackURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback?routerId=${routerId}&macAddress=${encodeURIComponent(targetMac)}&profile=${encodeURIComponent(profileRef)}`,
-            AccountReference: "AudiSpot WiFi", TransactionDesc: `WiFi Payment`
+            BusinessShortCode: shortcode,
+            Password: password, 
+            Timestamp: timestamp,
+            TransactionType: (env === 'sandbox') ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline", 
+            Amount: parseInt(amount),
+            PartyA: formattedPhone, 
+            PartyB: shortcode, 
+            PhoneNumber: formattedPhone,
+            CallBackURL: callbackUrl,
+            AccountReference: "AudiSpot WiFi", 
+            TransactionDesc: "WiFi Payment"
         };
 
-        const mpesaResponse = await axios.post(`${MPESA_HOST}/mpesa/stkpush/v1/processrequest`, mpesaPayload, {
+        const mpesaResponse = await axios.post(`${mpesaHostUrl}/mpesa/stkpush/v1/processrequest`, mpesaPayload, {
             headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -408,6 +461,8 @@ app.post('/api/hotspot/login', async (req, res) => {
         const pendingDoc = {
             status: 'PENDING',
             routerId,
+            ispId,
+            phoneNumber: formattedPhone,
             macAddress: targetMac,
             amount: parseInt(amount),
             timestamp: new Date().toISOString()
@@ -418,8 +473,11 @@ app.post('/api/hotspot/login', async (req, res) => {
 
         return res.status(200).json({ success: true, CheckoutRequestID: checkoutId });
     } catch (error) {
-        console.error("STK Push error:", error.response ? error.response.data : error.message);
-        return res.status(500).json({ success: false, error: error.message });
+        console.error("STK Push error details:", error.response ? error.response.data : error.message);
+        return res.status(500).json({ 
+            success: false, 
+            error: error.response?.data?.errorMessage || error.message || "STK Push failed." 
+        });
     }
 });
 
