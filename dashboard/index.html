@@ -3138,29 +3138,40 @@ async function loadPaymentHistoryView(overrideIspId) {
         return;
     }
 
-    // Currency Formatter Helper (Prevents duplicate KSh prefixes)
-    const formatKsh = (val) => {
-        if (val === null || val === undefined) return 'KSh 0.00';
+    // Strict numerical formatter: outputs raw number formatted to 2 decimals
+    const formatAmount = (val) => {
+        if (val === null || val === undefined) return '0.00';
         const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0;
-        return `KSh ${num.toFixed(2)}`;
+        return num.toFixed(2);
+    };
+
+    // Helper to safely set text without duplicating static "KSh" prefixes in DOM
+    const setCurrencyDOM = (ids, valueStr) => {
+        const cleanVal = `KSh ${formatAmount(valueStr)}`;
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                // Remove parent static "KSh" if it exists nearby to avoid duplicate labels
+                if (el.previousSibling && el.previousSibling.nodeType === 3 && el.previousSibling.nodeValue.includes('KSh')) {
+                    el.previousSibling.nodeValue = el.previousSibling.nodeValue.replace(/KSh\s*/g, '');
+                }
+                el.innerText = cleanVal;
+            }
+        });
     };
 
     try {
-        // 1. Fetch Package Catalog dynamically for this specific ISP
         if (typeof fetchIspPackageCatalog === 'function') {
             await fetchIspPackageCatalog(tenantId);
         }
 
-        // 2. Fetch Ledger Data
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
         const response = await fetch(url);
-
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
         if (!data.success) throw new Error(data.error || "Failed to load payment history");
 
-        // 3. Map transactions with Package Resolver
         allTransactionsCache = (data.transactions || []).map(tx => ({
             ...tx,
             displayPackage: typeof resolvePackageDisplayName === 'function' 
@@ -3169,19 +3180,17 @@ async function loadPaymentHistoryView(overrideIspId) {
         }));
 
         const m = data.metrics || {};
-        
-        // Strict Boolean Gateway Check
         const rawGw = String(data.gatewayType || 'platform').toLowerCase();
         const isDaraja = rawGw === 'daraja' || rawGw === 'custom_daraja';
 
-        // 4. REVENUE CARDS
+        // 1. GROSS REVENUE
         const grossEarned = m.grossEarnedAllTime != null 
             ? m.grossEarnedAllTime 
             : allTransactionsCache.reduce((a, c) => a + (c.amount || c.grossAmount || 0), 0);
         
-        setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], formatKsh(grossEarned));
+        setCurrencyDOM(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], grossEarned);
 
-        // Dynamic Gateway Badge & Settled Funds Box
+        // 2. SETTLEMENT & GATEWAY CONTROLS
         const userTillNumber = data.tillNumber || '';
         const badge = document.getElementById('badge-gateway-type');
         const withdrawBtn = document.getElementById('btn-request-settlement');
@@ -3189,10 +3198,11 @@ async function loadPaymentHistoryView(overrideIspId) {
 
         if (isDaraja) {
             const tillStr = userTillNumber ? ` (Till #${userTillNumber})` : ' (Custom Daraja)';
-            
-            // For Daraja users, display full gross revenue as settled direct into their account
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `${formatKsh(grossEarned)}${tillStr}`);
-            
+            const settledEl = document.getElementById('settled-funds-balance');
+            if (settledEl) {
+                settledEl.innerText = `KSh ${formatAmount(grossEarned)}${tillStr}`;
+            }
+
             if (badge) {
                 badge.innerText = userTillNumber ? `CUSTOM DARAJA (TILL #${userTillNumber})` : "CUSTOM DARAJA";
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
@@ -3208,10 +3218,10 @@ async function loadPaymentHistoryView(overrideIspId) {
                 withdrawBtn.title = "Withdrawals disabled for Custom Daraja users.";
             }
         } else {
-            // Platform users read withdrawable pool (walletBalance)
+            // Platform User: Display available wallet balance
             const availableBalance = parseFloat(data.withdrawableBalance != null ? data.withdrawableBalance : 0);
             
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], formatKsh(availableBalance));
+            setCurrencyDOM(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], availableBalance);
             
             if (badge) {
                 badge.innerText = "PLATFORM GATEWAY";
@@ -3229,9 +3239,9 @@ async function loadPaymentHistoryView(overrideIspId) {
             }
         }
 
-        // 5. COUNTS
+        // 3. TRANSACTION COUNTS
         const total = m.totalCount || allTransactionsCache.length;
-        const completed = m.completedCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'completed' || (t.status || '').toLowerCase() === 'success').length;
+        const completed = m.completedCount || allTransactionsCache.filter(t => ['completed', 'success'].includes((t.status || '').toLowerCase())).length;
         const pending = m.pendingCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'pending').length;
         const failed = m.failedCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'failed').length;
 
@@ -3240,25 +3250,19 @@ async function loadPaymentHistoryView(overrideIspId) {
         setDOMValues(['pending-tx-count', 'cnt-pending', 'stat-pending-tx'], pending);
         setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], failed);
 
-        // Update Tab Pill Counters
         if (typeof updateTabBadges === 'function') {
             updateTabBadges(total, completed, pending, failed);
         }
 
-        // 6. PERIODIC METRICS
+        // 4. PERIODIC TOTALS
         const periodic = typeof calculatePeriodicTotals === 'function' 
             ? calculatePeriodicTotals(allTransactionsCache) 
             : { today: 0, week: 0, month: 0 };
 
-        const todayVal = (m.collectedToday && m.collectedToday > 0) ? m.collectedToday : periodic.today;
-        const weekVal = (m.collectedThisWeek && m.collectedThisWeek > 0) ? m.collectedThisWeek : periodic.week;
-        const monthVal = (m.collectedThisMonth && m.collectedThisMonth > 0) ? m.collectedThisMonth : periodic.month;
+        setCurrencyDOM(['collected-today', 'stat-collected-today', 'lbl-collected-today'], m.collectedToday || periodic.today);
+        setCurrencyDOM(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], m.collectedThisWeek || periodic.week);
+        setCurrencyDOM(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], m.collectedThisMonth || periodic.month);
 
-        setDOMValues(['collected-today', 'stat-collected-today', 'lbl-collected-today'], formatKsh(todayVal));
-        setDOMValues(['collected-this-week', 'stat-collected-week', 'lbl-collected-this-week'], formatKsh(weekVal));
-        setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], formatKsh(monthVal));
-
-        // 7. RENDER TABLE
         if (typeof renderTransactionTable === 'function') {
             renderTransactionTable(allTransactionsCache);
         }
