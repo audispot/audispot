@@ -589,48 +589,111 @@
             }
         }
 
-        async function loadAndOpenRedeemModal() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const ispId = urlParams.get('ispId');
-            const optionsWrapper = document.getElementById('portal-redeem-options');
-            const actionBtn = document.getElementById('submit-redemption-btn');
+        // Dynamic Reward Tier Loader
+async function loadAndOpenRedeemModal() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ispId = urlParams.get('ispId');
+    const optionsWrapper = document.getElementById('portal-redeem-options');
+    const actionBtn = document.getElementById('submit-redemption-btn');
 
-            openPortalModal('modal-redeem');
+    openPortalModal('modal-redeem');
 
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
-                if (!res.ok) throw new Error("Failed to pull configuration parameters.");
-                
-                const config = await res.json();
-                const tiers = config.rewardTiers || [];
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
+        if (!res.ok) throw new Error("Failed to pull configuration parameters.");
+        
+        const config = await res.json();
+        const tiers = config.rewardTiers || [];
 
-                if (tiers.length === 0) {
-                    optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers added by ISP.</p>`;
-                    actionBtn.classList.add('hidden');
-                    return;
-                }
-
-                optionsWrapper.innerHTML = tiers.map((tier, idx) => `
-                    <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                        <div class="flex items-center gap-2">
-                            <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
-                            <span class="text-xs text-white font-bold">${tier.displayName || 'Premium Pass'}</span>
-                        </div>
-                        <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired} Points</span>
-                    </label>
-                `).join('');
-                
-                actionBtn.classList.remove('hidden');
-            } catch (err) {
-                console.error("Redemption loading loop exception:", err);
-                optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize dynamic tiers catalog.</p>`;
-            }
+        if (tiers.length === 0) {
+            optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers configured by ISP.</p>`;
+            actionBtn.classList.add('hidden');
+            return;
         }
 
-        async function executePointsRedeemExchange() {
-            triggerUINotifier("Processing reward network allocation pass...");
+        // Render each tier with data attributes for points and target Mikrotik profile
+        optionsWrapper.innerHTML = tiers.map((tier, idx) => `
+            <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" data-points="${tier.pointsRequired || tier.points}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
+                    <span class="text-xs text-white font-bold">${tier.displayName || 'Reward Pass'}</span>
+                </div>
+                <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired || tier.points} Points</span>
+            </label>
+        `).join('');
+        
+        actionBtn.classList.remove('hidden');
+    } catch (err) {
+        console.error("Redemption loading loop exception:", err);
+        optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize reward catalog.</p>`;
+    }
+}
+
+// Redeem Execution Pipeline
+async function executePointsRedeemExchange() {
+    const selectedTierNode = document.querySelector('input[name="redeemTier"]:checked');
+    const actionBtn = document.getElementById('submit-redemption-btn');
+    const urlParams = new URLSearchParams(window.location.search);
+    const ispId = urlParams.get('ispId');
+
+    if (!selectedTierNode) {
+        triggerUINotifier("Please select a pass tier from the options.", "error");
+        return;
+    }
+
+    // Auto-grab phone number if user already entered it in the main field
+    let phoneInput = document.getElementById('buyer-phone').value.trim();
+    if (!phoneInput) {
+        phoneInput = prompt("Enter your registered phone number to redeem points:");
+    }
+
+    if (!phoneInput) {
+        triggerUINotifier("Phone number is required to redeem points.", "error");
+        return;
+    }
+
+    const targetProfile = selectedTierNode.value;
+    const requiredPoints = selectedTierNode.getAttribute('data-points');
+
+    actionBtn.disabled = true;
+    actionBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Exchanging Points...`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/loyalty/redeem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                phoneNumber: phoneInput,
+                macAddress: capturedMacAddress,
+                routerId: ispId,
+                pointsToRedeem: requiredPoints,
+                targetProfile: targetProfile
+            })
+        });
+
+        const outcome = await response.json();
+
+        if (response.ok && outcome.success) {
+            triggerUINotifier(outcome.message || "Redemption successful!", "success");
             closePortalModal('modal-redeem');
+
+            // Format phone for login credential redirect
+            const formattedPhone = phoneInput.startsWith('0') ? '254' + phoneInput.slice(1) : phoneInput;
+
+            showSuccessModalAndRedirect({
+                username: formattedPhone,
+                password: formattedPhone
+            });
+        } else {
+            throw new Error(outcome.error || outcome.message || "Failed to redeem points.");
         }
+    } catch (err) {
+        triggerUINotifier(err.message, "error");
+    } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerText = "Confirm Exchange";
+    }
+}
 
         // Load ISP Configurations & Packages
         document.addEventListener('DOMContentLoaded', async () => {
