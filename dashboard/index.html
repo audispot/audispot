@@ -3135,7 +3135,9 @@ async function loadPaymentHistoryView(overrideIspId) {
 
     try {
         // 1. Fetch Package Catalog dynamically for this specific ISP
-        await fetchIspPackageCatalog(tenantId);
+        if (typeof fetchIspPackageCatalog === 'function') {
+            await fetchIspPackageCatalog(tenantId);
+        }
 
         // 2. Fetch Ledger Data
         const url = `${activeBaseUrl}/api/isp/payment-history/${encodeURIComponent(tenantId)}`;
@@ -3149,42 +3151,74 @@ async function loadPaymentHistoryView(overrideIspId) {
         // 3. Map transactions with Package Resolver
         allTransactionsCache = (data.transactions || []).map(tx => ({
             ...tx,
-            displayPackage: resolvePackageDisplayName(tx.package, tx.amount)
+            displayPackage: typeof resolvePackageDisplayName === 'function' 
+                ? resolvePackageDisplayName(tx.package, tx.amount) 
+                : (tx.package || `KSh ${tx.amount}`)
         }));
 
         const m = data.metrics || {};
         const isDaraja = data.gatewayType === 'daraja' || data.gatewayType === 'custom_daraja';
 
         // 4. REVENUE CARDS
-        const grossEarned = m.grossEarnedAllTime != null ? m.grossEarnedAllTime : allTransactionsCache.reduce((a, c) => a + (c.amount || 0), 0);
+        const grossEarned = m.grossEarnedAllTime != null 
+            ? m.grossEarnedAllTime 
+            : allTransactionsCache.reduce((a, c) => a + (c.amount || c.grossAmount || 0), 0);
         
         setDOMValues(['gross-revenue-earned', 'lbl-gross-earned', 'stat-gross-revenue'], `KSh ${grossEarned.toFixed(2)}`);
 
         // Dynamic Gateway Badge & Settled Funds Box
         const userTillNumber = data.tillNumber || data.paybillNumber || '';
         const badge = document.getElementById('badge-gateway-type');
+        const withdrawBtn = document.getElementById('btn-request-settlement');
+        const descLabel = document.getElementById('lbl-settlement-desc');
 
         if (isDaraja) {
             const tillStr = userTillNumber ? ` (Till #${userTillNumber})` : ' (Custom Daraja)';
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${grossEarned.toFixed(2)}${tillStr}`);
+            
+            // For Daraja users, display full gross revenue as settled direct into their account
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `KSh ${grossEarned.toFixed(2)}`);
             
             if (badge) {
                 badge.innerText = userTillNumber ? `CUSTOM DARAJA (TILL #${userTillNumber})` : "CUSTOM DARAJA";
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
             }
+
+            if (descLabel) {
+                descLabel.innerText = "Direct Daraja integration active. Payments settle immediately into your own Paybill/Till.";
+            }
+
+            if (withdrawBtn) {
+                withdrawBtn.disabled = true;
+                withdrawBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                withdrawBtn.title = "Withdrawals disabled for Custom Daraja users.";
+            }
         } else {
-            setDOMValues(['settled-funds-balance', 'stat-settled-balance'], `KSh ${(data.withdrawableBalance || 0).toFixed(2)}`);
+            // Platform users read withdrawable pool (walletBalance)
+            const availableBalance = parseFloat(data.withdrawableBalance != null ? data.withdrawableBalance : (data.walletBalance || 0));
+            
+            setDOMValues(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], `KSh ${availableBalance.toFixed(2)}`);
+            
             if (badge) {
                 badge.innerText = "PLATFORM GATEWAY";
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+            }
+
+            if (descLabel) {
+                descLabel.innerText = "Disbursals clear directly via Safaricom B2C/B2B to your designated destination.";
+            }
+
+            if (withdrawBtn) {
+                withdrawBtn.disabled = false;
+                withdrawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                withdrawBtn.title = "Click to withdraw earnings";
             }
         }
 
         // 5. COUNTS
         const total = m.totalCount || allTransactionsCache.length;
-        const completed = m.completedCount || allTransactionsCache.filter(t => t.status === 'completed').length;
-        const pending = m.pendingCount || allTransactionsCache.filter(t => t.status === 'pending').length;
-        const failed = m.failedCount || allTransactionsCache.filter(t => t.status === 'failed').length;
+        const completed = m.completedCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'completed' || (t.status || '').toLowerCase() === 'success').length;
+        const pending = m.pendingCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'pending').length;
+        const failed = m.failedCount || allTransactionsCache.filter(t => (t.status || '').toLowerCase() === 'failed').length;
 
         setDOMValues(['total-tx-count', 'cnt-total', 'stat-total-tx'], total);
         setDOMValues(['completed-tx-count', 'cnt-completed', 'stat-completed-tx'], completed);
@@ -3192,10 +3226,15 @@ async function loadPaymentHistoryView(overrideIspId) {
         setDOMValues(['failed-tx-count', 'cnt-failed', 'stat-failed-tx'], failed);
 
         // Update Tab Pill Counters
-        updateTabBadges(total, completed, pending, failed);
+        if (typeof updateTabBadges === 'function') {
+            updateTabBadges(total, completed, pending, failed);
+        }
 
         // 6. PERIODIC METRICS
-        const periodic = calculatePeriodicTotals(allTransactionsCache);
+        const periodic = typeof calculatePeriodicTotals === 'function' 
+            ? calculatePeriodicTotals(allTransactionsCache) 
+            : { today: 0, week: 0, month: 0 };
+
         const todayVal = (m.collectedToday && m.collectedToday > 0) ? m.collectedToday : periodic.today;
         const weekVal = (m.collectedThisWeek && m.collectedThisWeek > 0) ? m.collectedThisWeek : periodic.week;
         const monthVal = (m.collectedThisMonth && m.collectedThisMonth > 0) ? m.collectedThisMonth : periodic.month;
@@ -3205,13 +3244,15 @@ async function loadPaymentHistoryView(overrideIspId) {
         setDOMValues(['collected-this-month', 'stat-collected-month', 'lbl-collected-this-month'], `KSh ${monthVal.toFixed(2)}`);
 
         // 7. RENDER TABLE
-        renderTransactionTable(allTransactionsCache);
+        if (typeof renderTransactionTable === 'function') {
+            renderTransactionTable(allTransactionsCache);
+        }
 
     } catch (error) {
         console.error("[PAYMENT FETCH] Sync failed:", error);
     }
 }
-
+        
 /**
  * Updates Tab Badges
  */
