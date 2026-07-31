@@ -7,63 +7,63 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans selection:bg-indigo-500/30">
+<body class="bg-slate-100 text-slate-800 min-h-screen flex items-center justify-center p-3 md:p-8 font-sans selection:bg-indigo-500/20">
 
     <!-- Status Toast Banner Notifier -->
-    <div id="toast-banner" class="fixed top-4 right-4 left-4 md:left-auto md:w-80 p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-medium text-white shadow-2xl hidden z-50 items-center gap-2.5">
+    <div id="toast-banner" class="fixed top-4 right-4 left-4 md:left-auto md:w-80 p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-medium text-white shadow-2xl hidden z-50 items-center gap-2.5">
         <i id="toast-icon" class="fa-solid fa-circle-info text-indigo-400"></i>
         <span id="toast-text" class="flex-1">Notification text here</span>
     </div>
 
     <!-- Main Card Frame Layout Grid Container -->
-    <div class="bg-[#11131c] border border-zinc-800 rounded-3xl w-full max-w-sm md:max-w-4xl overflow-hidden shadow-2xl flex flex-col transition-all duration-300">
+    <div class="bg-white border border-slate-200/80 rounded-3xl w-full max-w-sm md:max-w-4xl overflow-hidden shadow-xl flex flex-col transition-all duration-300">
         
         <!-- Center Header Brand Context -->
-        <div class="p-6 pb-0 text-center space-y-3">
-            <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-lg shadow-indigo-600/20">
+        <div class="p-6 pb-2 text-center space-y-2">
+            <div id="portal-icon-bg" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl text-white shadow-md shadow-indigo-600/20">
                 <i class="fa-solid fa-wifi"></i>
             </div>
-            <h1 id="portal-brand-title" class="text-lg md:text-xl font-black tracking-tight text-white">Loading...</h1>
-            <p id="portal-welcome-text" class="text-xs text-slate-400 max-w-md mx-auto">Please wait while we synchronize configurations...</p>
+            <h1 id="portal-brand-title" class="text-lg md:text-xl font-black tracking-tight text-slate-900">Loading...</h1>
+            <p id="portal-welcome-text" class="text-xs text-slate-500 max-w-md mx-auto">Please wait while we synchronize configurations...</p>
         </div>
 
         <!-- Grid Body Split Columns -->
-        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div class="p-6 pt-2 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             
             <!-- LEFT COLUMN: Packages Panel, Direct Checkout, Reconnect & Vouchers -->
             <div class="space-y-4">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Select Internet Package</label>
                     <div id="public-packages-wrapper" class="space-y-2">
-                        <div class="text-center py-12 text-slate-500 text-xs animate-pulse">
+                        <div class="text-center py-12 text-slate-400 text-xs animate-pulse">
                             <i class="fa-solid fa-circle-notch fa-spin mb-2 text-base block"></i> Synchronizing profiles...
                         </div>
                     </div>
                 </div>
 
-                <div class="space-y-3 pt-2">
+                <div class="space-y-3 pt-1">
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Mobile Number</label>
-                        <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-indigo-500 transition">
+                        <input type="text" id="buyer-phone" placeholder="0712345678" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-base md:text-xs font-semibold focus:outline-none focus:border-indigo-500 transition">
                     </div>
-                    <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg">
+                    <button id="portal-connect-btn" class="w-full py-3.5 bg-indigo-600 hover:opacity-90 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-md">
                         Purchase Internet Pass
                     </button>
                 </div>
 
                 <!-- Voucher Redemption Trigger Area -->
-                <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
+                <div class="text-center space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400" id="portal-voucher-label">Have a Voucher Code?</p>
-                    <button onclick="openPortalModal('modal-voucher')" class="text-[11px] font-bold text-emerald-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                    <button onclick="openPortalModal('modal-voucher')" class="text-[11px] font-bold text-emerald-600 hover:underline inline-block pt-0.5 bg-transparent border-0 cursor-pointer">
                         <i class="fa-solid fa-ticket mr-1"></i> <span id="portal-voucher-btn-text">Redeem Voucher</span>
                     </button>
                 </div>
 
                 <!-- Reconnect Engine Trigger Area -->
-                <div class="text-center space-y-1 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/60">
+                <div class="text-center space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already Paid?</p>
-                    <p class="text-[11px] text-slate-400" id="portal-reconnect-msg">Click button below to search active sessions.</p>
-                    <button onclick="handleInitialDeviceReconnect()" class="text-[11px] font-bold text-indigo-400 hover:underline inline-block pt-1 bg-transparent border-0 cursor-pointer">
+                    <p class="text-[11px] text-slate-500" id="portal-reconnect-msg">Click button below to search active sessions.</p>
+                    <button onclick="handleInitialDeviceReconnect()" class="text-[11px] font-bold text-indigo-600 hover:underline inline-block pt-0.5 bg-transparent border-0 cursor-pointer">
                         Reconnect Device
                     </button>
                 </div>
@@ -71,45 +71,45 @@
 
             <!-- RIGHT COLUMN: Rewards Engine / Smart Appliance Panels -->
             <div class="space-y-4">
-                <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
+                <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3">
                     <div class="flex items-start gap-2.5">
-                        <i class="fa-solid fa-star text-amber-400 text-xs mt-0.5"></i>
+                        <i class="fa-solid fa-star text-amber-500 text-xs mt-0.5"></i>
                         <div class="space-y-0.5">
-                            <p class="text-xs font-bold text-white">Hotspot Loyalty Rewards</p>
-                            <p class="text-[10px] text-slate-400 leading-relaxed">
-                                Earn +<span id="label-earn-pts" class="font-bold text-indigo-400">1</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-400">20</span> points to redeem an instant pass.
+                            <p class="text-xs font-bold text-slate-900">Hotspot Loyalty Rewards</p>
+                            <p class="text-[10px] text-slate-500 leading-relaxed">
+                                Earn +<span id="label-earn-pts" class="font-bold text-indigo-600">1</span> points on every checkout! Reach <span id="label-redeem-threshold" class="font-bold text-indigo-600">20</span> points to redeem an instant pass.
                             </p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2 pt-1">
-                        <button onclick="openPortalModal('modal-points')" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Check Points</button>
-                        <button onclick="loadAndOpenRedeemModal()" class="py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-slate-300 transition">Redeem Pass</button>
+                        <button onclick="openPortalModal('modal-points')" class="py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 transition shadow-sm">Check Points</button>
+                        <button onclick="loadAndOpenRedeemModal()" class="py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 transition shadow-sm">Redeem Pass</button>
                     </div>
                 </div>
 
-                <div class="bg-zinc-900/30 border border-zinc-900 rounded-xl p-4 space-y-3">
-                    <div class="flex items-center gap-2 text-white font-bold text-xs">
-                        <i class="fa-solid fa-tv text-indigo-400"></i>
+                <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center gap-2 text-slate-900 font-bold text-xs">
+                        <i class="fa-solid fa-tv text-indigo-600"></i>
                         <span>Smart TV / Game Console Setup</span>
                     </div>
-                    <ol id="portal-tv-setup-list" class="text-[10px] text-slate-400 list-decimal list-inside space-y-1 pl-0.5">
+                    <ol id="portal-tv-setup-list" class="text-[10px] text-slate-500 list-decimal list-inside space-y-1 pl-0.5">
                         <li>Locate MAC address of TV</li>
                         <li>Submit register address</li>
                         <li>TV is authorized automatically.</li>
                     </ol>
                     <div class="space-y-1.5 pt-1">
                         <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">Device MAC Address</label>
-                        <input type="text" id="appliance-mac-input" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-white font-mono text-base md:text-[10px] focus:outline-none transition uppercase">
+                        <input type="text" id="appliance-mac-input" placeholder="AA:BB:CC:DD:EE:FF" class="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono text-base md:text-[10px] focus:outline-none transition uppercase">
                     </div>
-                    <button id="btn-register-appliance" onclick="registerApplianceMac()" class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-slate-300 font-bold rounded-lg text-[10px] transition">Register Appliance MAC</button>
+                    <button id="btn-register-appliance" onclick="registerApplianceMac()" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-[10px] transition shadow-sm">Register Appliance MAC</button>
                 </div>
             </div>
         </div>
 
         <!-- Footer Help and Copyright Section -->
-        <div class="bg-[#0b0c12] p-4 text-center border-t border-zinc-900 text-[10px] text-slate-400 space-y-1">
-            <p>Need Help? Dial support helpline: <strong class="text-white text-xs tracking-wide" id="portal-support-phone">Not Configured</strong></p>
-            <p class="text-slate-600 font-medium pt-1 border-t border-zinc-900/60 text-[9px]">&copy; 2026 Audispot. All rights reserved.</p>
+        <div class="bg-slate-50 p-4 text-center border-t border-slate-200/80 text-[10px] text-slate-500 space-y-1">
+            <p>Need Help? Dial support helpline: <strong class="text-slate-800 text-xs tracking-wide" id="portal-support-phone">Not Configured</strong></p>
+            <p class="text-slate-400 font-medium pt-1 border-t border-slate-200/60 text-[9px]">&copy; 2026 Audispot. All rights reserved.</p>
         </div>
     </div>
 
@@ -118,84 +118,82 @@
     <!-- ======================================================= -->
 
     <!-- Reconnect Code Fallback Sheet Frame -->
-    <div id="modal-reconnect" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+    <div id="modal-reconnect" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center">
-                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-rotate-right text-indigo-400"></i> Reconnect Device</h3>
-                <button onclick="closePortalModal('modal-reconnect')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+                <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><i class="fa-solid fa-rotate-right text-indigo-600"></i> Reconnect Device</h3>
+                <button onclick="closePortalModal('modal-reconnect')" class="text-slate-400 hover:text-slate-700 transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">Enter your M-Pesa confirmation code token below to trace subscription state mappings and get back online.</p>
+            <p class="text-[11px] text-slate-500 leading-relaxed">Enter your M-Pesa confirmation code token below to trace subscription state mappings and get back online.</p>
             <div class="space-y-3">
-                <input type="text" id="reconnect-mpesa-code" placeholder="E.g. SGR34XYZ99" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-bold tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-indigo-500 transition">
-                <p id="reconnect-error-log" class="text-[10px] text-rose-400 hidden"></p>
-                <button onclick="triggerCodeReconnect()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition">Verify & Reconnect</button>
+                <input type="text" id="reconnect-mpesa-code" placeholder="E.g. SGR34XYZ99" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-indigo-500 transition">
+                <p id="reconnect-error-log" class="text-[10px] text-rose-500 hidden"></p>
+                <button onclick="triggerCodeReconnect()" class="w-full py-3 bg-indigo-600 hover:opacity-90 text-white font-bold rounded-xl text-xs transition shadow-md">Verify & Reconnect</button>
             </div>
         </div>
     </div>
 
     <!-- Loyalty Wallet Point Checker Interface Sheet -->
-    <div id="modal-points" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+    <div id="modal-points" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center">
-                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-wallet text-amber-400"></i> Check Loyalty Metrics</h3>
-                <button onclick="closePortalModal('modal-points')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+                <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><i class="fa-solid fa-wallet text-amber-500"></i> Check Loyalty Metrics</h3>
+                <button onclick="closePortalModal('modal-points')" class="text-slate-400 hover:text-slate-700 transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
-            <p class="text-[11px] text-slate-400">Provide your subscriber phone number to verify available wallet point balances.</p>
+            <p class="text-[11px] text-slate-500">Provide your subscriber phone number to verify available wallet point balances.</p>
             <div class="space-y-3">
-                <input type="text" id="points-query-phone" placeholder="Enter M-Pesa Number" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs focus:outline-none focus:border-indigo-500 transition">
-                <div id="points-display-status" class="p-3 bg-zinc-950 rounded-xl border border-zinc-900 text-xs font-bold text-center text-indigo-400 hidden"></div>
-                <button onclick="executeQueryLoyaltyPoints()" class="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs transition border border-zinc-700">Query Wallet Balances</button>
+                <input type="text" id="points-query-phone" placeholder="Enter M-Pesa Number" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-base md:text-xs focus:outline-none focus:border-indigo-500 transition">
+                <div id="points-display-status" class="p-3 bg-indigo-50/80 rounded-xl border border-indigo-100 text-xs font-bold text-center text-indigo-700 hidden"></div>
+                <button onclick="executeQueryLoyaltyPoints()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition border border-slate-800">Query Wallet Balances</button>
             </div>
         </div>
     </div>
 
     <!-- Reward Tiers Points Exchange Catalog List Frame -->
-    <div id="modal-redeem" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+    <div id="modal-redeem" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center">
-                <h3 class="text-sm font-black text-white flex items-center gap-2">
-                    <i class="fa-solid fa-gift text-emerald-400"></i> Redeem Points Pass
+                <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-gift text-emerald-600"></i> Redeem Points Pass
                 </h3>
-                <button onclick="closePortalModal('modal-redeem')" class="text-slate-500 hover:text-white transition text-xs">
+                <button onclick="closePortalModal('modal-redeem')" class="text-slate-400 hover:text-slate-700 transition text-xs">
                     <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
         
-            <p class="text-[11px] text-slate-400">Select an active package tier and enter your phone number to claim your pass:</p>
+            <p class="text-[11px] text-slate-500">Select an active package tier and enter your phone number to claim your pass:</p>
         
-            <!-- Added Phone Input Field inside Modal -->
             <div class="space-y-1">
                 <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Phone Number</label>
-                <input type="text" id="redeem-phone-input" placeholder="e.g. 0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-emerald-500 transition">
+                <input type="text" id="redeem-phone-input" placeholder="e.g. 0712345678" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-base md:text-xs font-medium focus:outline-none focus:border-emerald-500 transition">
             </div>
 
-            <!-- Dynamic Tiers List Container -->
             <div id="portal-redeem-options" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                <p class="text-xs text-slate-500 text-center py-4">Querying reward catalogs...</p>
+                <p class="text-xs text-slate-400 text-center py-4">Querying reward catalogs...</p>
             </div>
         
-            <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden shadow-lg">
+            <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden shadow-md">
                 Confirm Exchange
             </button>
         </div>
     </div>
 
     <!-- Voucher Code Redemption Modal Frame -->
-    <div id="modal-voucher" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
+    <div id="modal-voucher" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center">
-                <h3 class="text-sm font-black text-white flex items-center gap-2">
-                    <i class="fa-solid fa-ticket text-emerald-400"></i> <span id="modal-voucher-title">Redeem Voucher</span>
+                <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-ticket text-emerald-600"></i> <span id="modal-voucher-title">Redeem Voucher</span>
                 </h3>
-                <button onclick="closePortalModal('modal-voucher')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+                <button onclick="closePortalModal('modal-voucher')" class="text-slate-400 hover:text-slate-700 transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
             </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed" id="modal-voucher-desc">
+            <p class="text-[11px] text-slate-500 leading-relaxed" id="modal-voucher-desc">
                 Enter your voucher token below to activate your internet pass.
             </p>
             <div class="space-y-3">
-                <input type="text" id="voucher-code-input" placeholder="e.g. AUDI-X7K9P2" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-bold font-mono tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-emerald-500 transition">
-                <p id="voucher-error-log" class="text-[10px] text-rose-400 hidden"></p>
-                <button id="btn-redeem-voucher" onclick="triggerVoucherRedemption()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-lg">
+                <input type="text" id="voucher-code-input" placeholder="e.g. AUDI-X7K9P2" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold font-mono tracking-wider text-base md:text-xs uppercase focus:outline-none focus:border-emerald-500 transition">
+                <p id="voucher-error-log" class="text-[10px] text-rose-500 hidden"></p>
+                <button id="btn-redeem-voucher" onclick="triggerVoucherRedemption()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-md">
                     Activate Pass
                 </button>
             </div>
@@ -203,19 +201,19 @@
     </div>
 
     <!-- Success Screen Customization Overlay Modal -->
-    <div id="modal-success" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4 z-50">
-        <div class="bg-[#141622] border border-emerald-500/30 rounded-3xl max-w-sm w-full p-6 text-center space-y-5 shadow-2xl animate-fade-in">
-            <div id="success-icon-bg" class="w-16 h-16 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/10">
+    <div id="modal-success" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+        <div class="bg-white border border-emerald-500/30 rounded-3xl max-w-sm w-full p-6 text-center space-y-5 shadow-2xl animate-fade-in">
+            <div id="success-icon-bg" class="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
                 <i class="fa-solid fa-circle-check"></i>
             </div>
         
             <div class="space-y-1">
-                <h3 id="modal-success-title" class="text-lg font-black text-white">Welcome Online!</h3>
-                <p id="modal-success-subtitle" class="text-xs text-slate-400">Connection Successfully Authorized</p>
+                <h3 id="modal-success-title" class="text-lg font-black text-slate-900">Welcome Online!</h3>
+                <p id="modal-success-subtitle" class="text-xs text-slate-500">Connection Successfully Authorized</p>
             </div>
 
             <div class="pt-2">
-                <a id="btn-success-redirect" href="https://audispot.audiory.site/login" class="block w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-lg">
+                <a id="btn-success-redirect" href="https://audispot.audiory.site/login" class="block w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition tracking-wide shadow-md">
                     Proceed to Browsing
                 </a>
             </div>
@@ -226,7 +224,7 @@
         const API_BASE_URL = "https://audispoty-749056206562.europe-west1.run.app";
         let capturedMacAddress = "00:00:00:00:00:00"; 
 
-        // Portal Configuration State (Loaded dynamically from API)
+        // Portal Configuration State
         let portalConfig = {
             redirectUrl: "",
             successTitle: "Welcome Online!",
@@ -274,7 +272,6 @@
             return `${hours} Hour${hours !== 1 ? 's' : ''}`;
         }
 
-       // Success Screen & Router Post Handler
         function showSuccessModalAndRedirect(credentials = null) {
             const modalTitle = document.getElementById('modal-success-title');
             const modalSubtitle = document.getElementById('modal-success-subtitle');
@@ -284,7 +281,6 @@
             if (modalSubtitle) modalSubtitle.innerText = portalConfig.successSubtitle;
             if (redirectBtn) {
                 redirectBtn.innerText = portalConfig.successBtnText;
-                // Set the button link directly to the ISP's marketing URL
                 redirectBtn.href = portalConfig.redirectUrl || '#';
             }
 
@@ -296,7 +292,6 @@
                     : null;
 
                 if (credentials) {
-                    // 1. Post credentials to the router's local login endpoint
                     const loginForm = document.createElement('form');
                     loginForm.method = 'POST';
                     loginForm.action = window.location.origin + '/login'; 
@@ -311,11 +306,10 @@
                     inputPass.name = 'password';
                     inputPass.value = credentials.password;
 
-                    // 2. If MikroTik / Router supports redirect parameter, attach destination
                     if (marketingUrl) {
                         const inputDst = document.createElement('input');
                         inputDst.type = 'hidden';
-                        inputDst.name = 'dst'; // Standard MikroTik destination redirect parameter
+                        inputDst.name = 'dst';
                         inputDst.value = marketingUrl;
                         loginForm.appendChild(inputDst);
                     }
@@ -326,7 +320,6 @@
                     loginForm.submit();
 
                 } else if (marketingUrl) {
-                    // Direct GET redirect for non-credential flows
                     window.location.href = marketingUrl;
                 }
             }, 2500);
@@ -604,115 +597,112 @@
         }
 
         // Dynamic Reward Tier Loader
-async function loadAndOpenRedeemModal() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const ispId = urlParams.get('ispId');
-    const optionsWrapper = document.getElementById('portal-redeem-options');
-    const actionBtn = document.getElementById('submit-redemption-btn');
-    const redeemPhoneInput = document.getElementById('redeem-phone-input');
+        async function loadAndOpenRedeemModal() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
+            const optionsWrapper = document.getElementById('portal-redeem-options');
+            const actionBtn = document.getElementById('submit-redemption-btn');
+            const redeemPhoneInput = document.getElementById('redeem-phone-input');
 
-    // Auto-populate from main phone field if user already entered it
-    const mainPhone = document.getElementById('buyer-phone')?.value.trim();
-    if (mainPhone && redeemPhoneInput) {
-        redeemPhoneInput.value = mainPhone;
-    }
+            const mainPhone = document.getElementById('buyer-phone')?.value.trim();
+            if (mainPhone && redeemPhoneInput) {
+                redeemPhoneInput.value = mainPhone;
+            }
 
-    openPortalModal('modal-redeem');
+            openPortalModal('modal-redeem');
 
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
-        if (!res.ok) throw new Error("Failed to pull configuration parameters.");
-        
-        const config = await res.json();
-        const tiers = config.rewardTiers || [];
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/portal/design?ispId=${ispId}`);
+                if (!res.ok) throw new Error("Failed to pull configuration parameters.");
+                
+                const config = await res.json();
+                const tiers = config.rewardTiers || [];
 
-        if (tiers.length === 0) {
-            optionsWrapper.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No active point exchange tiers configured by ISP.</p>`;
-            actionBtn.classList.add('hidden');
-            return;
+                if (tiers.length === 0) {
+                    optionsWrapper.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No active point exchange tiers configured by ISP.</p>`;
+                    actionBtn.classList.add('hidden');
+                    return;
+                }
+
+                optionsWrapper.innerHTML = tiers.map((tier, idx) => `
+                    <label class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center cursor-pointer hover:border-slate-300 transition">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" data-points="${tier.pointsRequired || tier.points}" ${idx === 0 ? 'checked' : ''} class="accent-emerald-600">
+                            <span class="text-xs text-slate-900 font-bold">${tier.displayName || 'Reward Pass'}</span>
+                        </div>
+                        <span class="text-[11px] text-amber-600 font-bold">${tier.pointsRequired || tier.points} Points</span>
+                    </label>
+                `).join('');
+                
+                actionBtn.classList.remove('hidden');
+            } catch (err) {
+                console.error("Redemption loading loop exception:", err);
+                optionsWrapper.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">Failed to initialize reward catalog.</p>`;
+            }
         }
 
-        // Render each tier with data attributes for points
-        optionsWrapper.innerHTML = tiers.map((tier, idx) => `
-            <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" data-points="${tier.pointsRequired || tier.points}" ${idx === 0 ? 'checked' : ''} class="accent-emerald-500">
-                    <span class="text-xs text-white font-bold">${tier.displayName || 'Reward Pass'}</span>
-                </div>
-                <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired || tier.points} Points</span>
-            </label>
-        `).join('');
-        
-        actionBtn.classList.remove('hidden');
-    } catch (err) {
-        console.error("Redemption loading loop exception:", err);
-        optionsWrapper.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to initialize reward catalog.</p>`;
-    }
-}
+        // Redeem Execution Pipeline
+        async function executePointsRedeemExchange() {
+            const selectedTierNode = document.querySelector('input[name="redeemTier"]:checked');
+            const actionBtn = document.getElementById('submit-redemption-btn');
+            const redeemPhoneInput = document.getElementById('redeem-phone-input');
+            const urlParams = new URLSearchParams(window.location.search);
+            const ispId = urlParams.get('ispId');
 
-// Redeem Execution Pipeline
-async function executePointsRedeemExchange() {
-    const selectedTierNode = document.querySelector('input[name="redeemTier"]:checked');
-    const actionBtn = document.getElementById('submit-redemption-btn');
-    const redeemPhoneInput = document.getElementById('redeem-phone-input');
-    const urlParams = new URLSearchParams(window.location.search);
-    const ispId = urlParams.get('ispId');
+            const phoneInput = redeemPhoneInput ? redeemPhoneInput.value.trim() : '';
 
-    const phoneInput = redeemPhoneInput ? redeemPhoneInput.value.trim() : '';
+            if (!phoneInput) {
+                triggerUINotifier("Please enter your M-Pesa phone number.", "error");
+                if (redeemPhoneInput) redeemPhoneInput.focus();
+                return;
+            }
 
-    if (!phoneInput) {
-        triggerUINotifier("Please enter your M-Pesa phone number.", "error");
-        if (redeemPhoneInput) redeemPhoneInput.focus();
-        return;
-    }
+            if (!selectedTierNode) {
+                triggerUINotifier("Please select a pass tier from the options.", "error");
+                return;
+            }
 
-    if (!selectedTierNode) {
-        triggerUINotifier("Please select a pass tier from the options.", "error");
-        return;
-    }
+            const targetProfile = selectedTierNode.value;
+            const requiredPoints = selectedTierNode.getAttribute('data-points');
 
-    const targetProfile = selectedTierNode.value;
-    const requiredPoints = selectedTierNode.getAttribute('data-points');
+            actionBtn.disabled = true;
+            actionBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Exchanging Points...`;
 
-    actionBtn.disabled = true;
-    actionBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Exchanging Points...`;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/loyalty/redeem`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phoneInput,
+                        macAddress: capturedMacAddress,
+                        routerId: ispId,
+                        pointsToRedeem: requiredPoints,
+                        targetProfile: targetProfile
+                    })
+                });
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/hotspot/loyalty/redeem`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                phoneNumber: phoneInput,
-                macAddress: capturedMacAddress,
-                routerId: ispId,
-                pointsToRedeem: requiredPoints,
-                targetProfile: targetProfile
-            })
-        });
+                const outcome = await response.json();
 
-        const outcome = await response.json();
+                if (response.ok && outcome.success) {
+                    triggerUINotifier(outcome.message || "Redemption successful!", "success");
+                    closePortalModal('modal-redeem');
 
-        if (response.ok && outcome.success) {
-            triggerUINotifier(outcome.message || "Redemption successful!", "success");
-            closePortalModal('modal-redeem');
+                    const formattedPhone = phoneInput.startsWith('0') ? '254' + phoneInput.slice(1) : phoneInput;
 
-            // Format phone for login credential redirect
-            const formattedPhone = phoneInput.startsWith('0') ? '254' + phoneInput.slice(1) : phoneInput;
-
-            showSuccessModalAndRedirect({
-                username: formattedPhone,
-                password: formattedPhone
-            });
-        } else {
-            throw new Error(outcome.error || outcome.message || "Failed to redeem points.");
+                    showSuccessModalAndRedirect({
+                        username: formattedPhone,
+                        password: formattedPhone
+                    });
+                } else {
+                    throw new Error(outcome.error || outcome.message || "Failed to redeem points.");
+                }
+            } catch (err) {
+                triggerUINotifier(err.message, "error");
+            } finally {
+                actionBtn.disabled = false;
+                actionBtn.innerText = "Confirm Exchange";
+            }
         }
-    } catch (err) {
-        triggerUINotifier(err.message, "error");
-    } finally {
-        actionBtn.disabled = false;
-        actionBtn.innerText = "Confirm Exchange";
-    }
-}
 
         // Load ISP Configurations & Packages
         document.addEventListener('DOMContentLoaded', async () => {
@@ -723,7 +713,7 @@ async function executePointsRedeemExchange() {
 
             if (!ispId) {
                 document.getElementById('public-packages-wrapper').innerHTML = `
-                    <div class="text-center py-4 text-rose-400 border border-rose-500/10 bg-rose-500/5 rounded-xl font-medium text-xs">
+                    <div class="text-center py-4 text-rose-500 border border-rose-200 bg-rose-50 rounded-xl font-medium text-xs">
                         Missing routing credentials.
                     </div>`;
                 return;
@@ -738,7 +728,6 @@ async function executePointsRedeemExchange() {
                 if (!designRes.ok) throw new Error("Faulty network response maps.");
                 const config = await designRes.json();
                 
-                // Store branding & redirect settings
                 if (config.redirectUrl) portalConfig.redirectUrl = config.redirectUrl;
                 if (config.successTitle) portalConfig.successTitle = config.successTitle;
                 if (config.successSubtitle) portalConfig.successSubtitle = config.successSubtitle;
@@ -764,7 +753,8 @@ async function executePointsRedeemExchange() {
                     }
                 }
 
-                const accentColor = config.accentColor || '#4f46e5';
+                // Dynamic Accent Color
+                const accentColor = config.accentColor || '#007BFF';
                 document.getElementById('portal-connect-btn').style.backgroundColor = accentColor;
                 document.getElementById('portal-icon-bg').style.backgroundColor = accentColor;
 
@@ -783,13 +773,13 @@ async function executePointsRedeemExchange() {
                             const matchedProfileName = pkg.mikrotikProfile || pkg.profileName || '';
                             
                             return `
-                                <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-zinc-900/20" 
-                                       style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px;` : 'border-color: #27272a;'}">
+                                <label class="p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition bg-white hover:bg-slate-50" 
+                                       style="${idx === 0 ? `border-color: ${accentColor}; border-width: 2px; shadow: 0 2px 4px rgba(0,0,0,0.05);` : 'border-color: #e2e8f0;'}">
                                     <div class="flex items-center gap-3">
                                         <input type="radio" name="selectedPlan" value="${pkgId}" data-price="${pkg.price || 0}" data-profile="${matchedProfileName}" ${idx === 0 ? 'checked' : ''} style="accent-color: ${accentColor}">
                                         <div class="space-y-0.5">
-                                            <p class="text-xs font-black text-white">${pkg.packageName || 'Standard Plan'}</p>
-                                            <p class="text-[10px] text-slate-400 font-medium">${displayDetails}</p>
+                                            <p class="text-xs font-black text-slate-900">${pkg.packageName || 'Standard Plan'}</p>
+                                            <p class="text-[10px] text-slate-500 font-medium">${displayDetails}</p>
                                         </div>
                                     </div>
                                     <span class="text-xs font-black" style="color: ${accentColor}">KSh ${pkg.price || 0}</span>
