@@ -1355,31 +1355,78 @@ app.post('/api/hotspot/reconnect-verify', async (req, res) => {
 // ====================================================================
 
 app.post('/api/hotspot/register-tv', async (req, res) => {
-    const { routerId, tvMacAddress, comment } = req.body;
-    if (!routerId || !tvMacAddress) {
-        return res.status(400).json({ success: false, error: "Missing required setup parameters." });
+    // 1. Destructure with fallback to support both 'tvMacAddress' and 'targetMac'
+    const { routerId, tvMacAddress, targetMac, comment } = req.body;
+    const rawMac = tvMacAddress || targetMac;
+
+    if (!routerId || !rawMac) {
+        return res.status(400).json({ 
+            success: false, 
+            error: "Missing required setup parameters (routerId or MAC address)." 
+        });
     }
 
-    const cleanTvMac = tvMacAddress.toUpperCase().replace(/[^A-F0-9]/g, '').replace(/(.{2})(?=.)/g, '$1:');
+    // 2. Clean and format MAC Address strictly (AA:BB:CC:DD:EE:FF)
+    const cleanTvMac = rawMac.toUpperCase().replace(/[^A-F0-9]/g, '').replace(/(.{2})(?=.)/g, '$1:');
+    
+    if (cleanTvMac.length !== 17) {
+        return res.status(400).json({ success: false, error: "Invalid MAC address format." });
+    }
+
+    let api = null;
 
     try {
         const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) return res.status(404).json({ success: false, error: "Router router node path not found." });
-        const routerData = routerDoc.data();
-
-        const client = getRouterClient(routerData);
-        const api = await client.connect();
+        if (!routerDoc.exists) {
+            return res.status(404).json({ success: false, error: "Router node path not found." });
+        }
         
-        await api.write('/ip/hotspot/ip-binding/add', [
-            `=mac-address=${cleanTvMac}`,
-            `=type=bypassed`,
-            `=comment=${comment || 'SmartTV Setup Bypass'}`
-        ]);
-        await api.close();
+        const routerData = routerDoc.data();
+        const client = getRouterClient(routerData);
+        api = await client.connect();
 
-        return res.status(200).json({ success: true, message: `TV Hardware (${cleanTvMac}) bypassed successfully!` });
+        // 3. Check if an IP binding already exists for this MAC address
+        const existingBindings = await api.write('/ip/hotspot/ip-binding/print', [
+            `?.mac-address=${cleanTvMac}`
+        ]);
+
+        if (existingBindings && existingBindings.length > 0) {
+            // Update existing binding to bypassed status
+            const bindingId = existingBindings[0]['.id'];
+            await api.write('/ip/hotspot/ip-binding/set', [
+                `=.id=${bindingId}`,
+                `=type=bypassed`,
+                `=comment=${comment || 'SmartTV Setup Bypass (Updated)'}`
+            ]);
+        } else {
+            // Create brand new IP binding
+            await api.write('/ip/hotspot/ip-binding/add', [
+                `=mac-address=${cleanTvMac}`,
+                `=type=bypassed`,
+                `=comment=${comment || 'SmartTV Setup Bypass'}`
+            ]);
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            message: `Appliance MAC (${cleanTvMac}) bypassed successfully!` 
+        });
+
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        console.error("Smart TV Registration Error:", error);
+        return res.status(500).json({ 
+            success: false, 
+            error: error.message || "Failed to provision hardware bypass on router." 
+        });
+    } finally {
+        // Ensure connection is safely closed regardless of outcome
+        if (api) {
+            try {
+                await api.close();
+            } catch (closeErr) {
+                console.error("Error closing router socket connection:", closeErr);
+            }
+        }
     }
 });
 
