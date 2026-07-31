@@ -2978,7 +2978,7 @@ let ispPackagesCache = [];
 let currentFilter = 'all';
 
 /**
- * Robust DOM Updater
+ * Robust DOM Value Setter
  */
 function setDOMValues(idVariants, value) {
     const list = Array.isArray(idVariants) ? idVariants : [idVariants];
@@ -2993,6 +2993,45 @@ function setDOMValues(idVariants, value) {
             }
         }
     });
+}
+
+/**
+ * Sweeps element & surrounding parent nodes to prevent double "KSh KSh" duplication
+ */
+function updateCurrencyElement(elementId, rawAmount, suffix = '') {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    // Standardize to clean 2-decimal floating point number
+    const num = typeof rawAmount === 'number' 
+        ? rawAmount 
+        : parseFloat(String(rawAmount || 0).replace(/[^0-9.]/g, '')) || 0;
+    
+    const cleanFormatted = `KSh ${num.toFixed(2)}${suffix}`;
+
+    // Clean sibling text nodes if static "KSh" exists outside the span
+    if (el.previousSibling && el.previousSibling.nodeType === 3) {
+        el.previousSibling.nodeValue = el.previousSibling.nodeValue.replace(/KSh\s*/gi, '');
+    }
+    
+    // Clean parent container nodes if nested inside a badge or header
+    if (el.parentElement) {
+        Array.from(el.parentElement.childNodes).forEach(node => {
+            if (node.nodeType === 3 && node !== el) {
+                node.nodeValue = node.nodeValue.replace(/KSh\s*/gi, '');
+            }
+        });
+    }
+
+    el.innerText = cleanFormatted;
+}
+
+/**
+ * Helper to update multiple currency elements safely
+ */
+function setCurrencyDOM(ids, rawAmount, suffix = '') {
+    const list = Array.isArray(ids) ? ids : [ids];
+    list.forEach(id => updateCurrencyElement(id, rawAmount, suffix));
 }
 
 /**
@@ -3069,7 +3108,7 @@ function showModernConfirmModal(title, message, onConfirm) {
                         Cancel
                     </button>
                     <button id="btn-modal-confirm" class="w-1/2 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl transition">
-                        Confirm Void
+                        Confirm
                     </button>
                 </div>
             </div>
@@ -3138,28 +3177,6 @@ async function loadPaymentHistoryView(overrideIspId) {
         return;
     }
 
-    // Strict numerical formatter: outputs raw number formatted to 2 decimals
-    const formatAmount = (val) => {
-        if (val === null || val === undefined) return '0.00';
-        const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0;
-        return num.toFixed(2);
-    };
-
-    // Helper to safely set text without duplicating static "KSh" prefixes in DOM
-    const setCurrencyDOM = (ids, valueStr) => {
-        const cleanVal = `KSh ${formatAmount(valueStr)}`;
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                // Remove parent static "KSh" if it exists nearby to avoid duplicate labels
-                if (el.previousSibling && el.previousSibling.nodeType === 3 && el.previousSibling.nodeValue.includes('KSh')) {
-                    el.previousSibling.nodeValue = el.previousSibling.nodeValue.replace(/KSh\s*/g, '');
-                }
-                el.innerText = cleanVal;
-            }
-        });
-    };
-
     try {
         if (typeof fetchIspPackageCatalog === 'function') {
             await fetchIspPackageCatalog(tenantId);
@@ -3198,10 +3215,9 @@ async function loadPaymentHistoryView(overrideIspId) {
 
         if (isDaraja) {
             const tillStr = userTillNumber ? ` (Till #${userTillNumber})` : ' (Custom Daraja)';
-            const settledEl = document.getElementById('settled-funds-balance');
-            if (settledEl) {
-                settledEl.innerText = `KSh ${formatAmount(grossEarned)}${tillStr}`;
-            }
+            
+            // For custom Daraja users, display gross earned along with the Till label
+            setCurrencyDOM(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], grossEarned, tillStr);
 
             if (badge) {
                 badge.innerText = userTillNumber ? `CUSTOM DARAJA (TILL #${userTillNumber})` : "CUSTOM DARAJA";
@@ -3218,8 +3234,10 @@ async function loadPaymentHistoryView(overrideIspId) {
                 withdrawBtn.title = "Withdrawals disabled for Custom Daraja users.";
             }
         } else {
-            // Platform User: Display available wallet balance
-            const availableBalance = parseFloat(data.withdrawableBalance != null ? data.withdrawableBalance : 0);
+            // Platform User: Display withdrawable balance with fallback to gross revenue if uninitialized
+            const availableBalance = (data.withdrawableBalance !== undefined && data.withdrawableBalance !== null && parseFloat(data.withdrawableBalance) > 0)
+                ? parseFloat(data.withdrawableBalance)
+                : grossEarned;
             
             setCurrencyDOM(['settled-funds-balance', 'stat-settled-balance', 'lbl-earnings-withdrawable'], availableBalance);
             
@@ -3409,7 +3427,6 @@ async function triggerMonthlySettlementDisbursal() {
         return;
     }
 
-    // Modern Modal Confirmation instead of browser confirm()
     showModernConfirmModal(
         "Request Monthly Settlement?",
         "Are you sure you want to initiate a disbursal request for your accumulated earnings?",
@@ -3432,7 +3449,6 @@ async function triggerMonthlySettlementDisbursal() {
                         triggerToastDisplay("Settlement request submitted successfully!", "success");
                     }
                     
-                    // Refresh table/ledger view dynamically
                     if (typeof loadPaymentHistoryView === 'function') {
                         loadPaymentHistoryView(tenantId);
                     }
