@@ -674,6 +674,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 const transactionPayload = {
                     mpesaReceipt: mpesaReceipt,
                     grossAmount: amountPaid,
+                    amount: amountPaid,
                     durationHours: durationHours,
                     phoneNumber: payingPhone,
                     customerPhone: payingPhone,
@@ -684,7 +685,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     profileName: bandwidthProfile,
                     timestamp: new Date().toISOString(),
                     createdAt: new Date().toISOString(),
-                    status: 'SUCCESS'
+                    status: 'completed'
                 };
 
                 await db.collection('transactions').doc(mpesaReceipt).set(transactionPayload, { merge: true });
@@ -694,21 +695,24 @@ app.post('/api/mpesa/callback', async (req, res) => {
             // 5. CREDIT ISP OWNER DASHBOARD WALLET (ONLY IF USING PLATFORM GATEWAY)
             if (ispId && ispId !== 'default_isp' && gatewayType === 'platform') {
                 const ispRef = db.collection('isp_users').doc(ispId);
+                
                 await db.runTransaction(async (ts) => {
                     const iDoc = await ts.get(ispRef);
                     if (iDoc.exists) {
-                        const currentBal = iDoc.data().walletBalance || 0;
+                        const currentBal = parseFloat(iDoc.data().walletBalance || 0);
                         ts.update(ispRef, { walletBalance: currentBal + amountPaid });
-                        console.log(`Credited ISP ${ispId} platform wallet with +KES ${amountPaid}.`);
+                    } else {
+                        // Initialize document with wallet balance if it doesn't exist
+                        ts.set(ispRef, { walletBalance: amountPaid, ispId: ispId }, { merge: true });
                     }
                 });
+
+                console.log(`[WALLET CREDITED] Added +KSh ${amountPaid} to ISP ${ispId} platform balance.`);
             } else {
-                console.log(`ISP ${ispId} uses Custom Daraja Gateway or Default Pool. Funds settled directly.`);
+                console.log(`[DARAJA DIRECT] ISP ${ispId} uses Custom Daraja Gateway or Default Pool. Funds settled directly.`);
             }
 
-            // ====================================================================
             // 6. UPDATE SUBSCRIBER RECORD (DYNAMIC LOYALTY POINTS LOOKUP)
-            // ====================================================================
             let pointsToAward = 1; // Default fallback if not configured by ISP
 
             try {
@@ -732,7 +736,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     const currentPoints = subDoc.exists ? (subDoc.data().loyaltyPoints || 0) : 0;
                     ts.set(subRef, {
                         phoneNumber: payingPhone,
-                        loyaltyPoints: currentPoints + pointsToAward, // Now dynamic!
+                        loyaltyPoints: currentPoints + pointsToAward,
                         lastActivePackage: amountPaid,
                         lastActiveTimestamp: new Date().toISOString(),
                         routerId: routerId || 'unknown',
@@ -748,7 +752,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
                     const client = getRouterClient(ispConfig);
                     api = await client.connect();
                     
-                    // Check if user entry already exists to avoid MikroTik duplicate add errors
                     const existingUsers = await api.write('/ip/hotspot/user/print', [
                         `.query=name=${payingPhone}`
                     ]);
@@ -771,7 +774,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
                 } catch (rErr) {
                     console.error("Router provisioning error:", rErr.message);
                 } finally {
-                    if (api) await api.close(); // Guarantee connection closes safely
+                    if (api) await api.close();
                 }
             }
 
