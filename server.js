@@ -3164,19 +3164,15 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             const rawTime = tx.createdAt || tx.timestamp || tx.date;
 
             if (rawTime && typeof rawTime.toDate === 'function') {
-                // Native Firestore Timestamp
                 txDateObj = rawTime.toDate();
             } else if (rawTime && rawTime._seconds) {
-                // Serialized Firestore Timestamp
                 txDateObj = new Date(rawTime._seconds * 1000);
             } else if (rawTime) {
-                // String or numeric epoch
                 txDateObj = new Date(rawTime);
             } else {
                 txDateObj = new Date();
             }
 
-            // Fallback if Date parsing fails
             if (isNaN(txDateObj.getTime())) {
                 txDateObj = new Date();
             }
@@ -3215,16 +3211,21 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         // Sort descending by date
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        // Resolve normalized Gateway Type
-        const rawIntegration = String(settings.mpesaIntegrationType || settings.gatewayType || 'platform').toLowerCase();
-        const isDarajaType = rawIntegration.includes('daraja') || settings.tillNumber || settings.mpesaShortcode;
-        const normalizedGateway = isDarajaType ? 'daraja' : 'platform';
+        // STRICT GATEWAY MODE RESOLUTION
+        // Only classify as 'daraja' if explicit mode is custom_daraja/daraja OR custom keys exist
+        const integrationType = String(settings.mpesaIntegrationType || settings.gatewayType || 'platform').toLowerCase();
+        const hasCustomKeys = Boolean(settings.consumerKey && settings.consumerSecret && settings.passkey);
+        
+        let normalizedGateway = 'platform';
+        if (integrationType === 'custom_daraja' || integrationType === 'daraja' || hasCustomKeys) {
+            normalizedGateway = 'daraja';
+        }
 
         return res.status(200).json({
             success: true,
             gatewayType: normalizedGateway,
-            tillNumber: settings.tillNumber || settings.mpesaShortcode || '4030905',
-            withdrawableBalance: ispData.walletBalance !== undefined ? ispData.walletBalance : grossEarnedAllTime,
+            tillNumber: settings.tillNumber || settings.paybillNumber || settings.mpesaShortcode || '',
+            withdrawableBalance: ispData.walletBalance !== undefined ? parseFloat(ispData.walletBalance || 0) : 0,
             metrics: {
                 totalCount: totalTx,
                 completedCount: completedTx,
