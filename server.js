@@ -972,122 +972,145 @@ app.get('/api/hotspot/loyalty/balance', async (req, res) => {
 });
 
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
-    const { macAddress, routerId, selectedTierId } = req.body; 
+    const { macAddress, routerId, pointsToRedeem, targetProfile } = req.body; 
+
     if (!macAddress || !routerId) {
-        return res.status(400).json({ success: false, error: "Missing identity credentials." });
+        return res.status(400).json({ success: false, error: "Missing required identity parameter (macAddress / routerId)." });
     }
 
     const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
 
     try {
-        // 1. Fetch Router Config
+        // 1. RESOLVE ROUTER & ISP TENANT ID
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (!routerDoc.exists) {
             return res.status(404).json({ success: false, error: "Router network not found." });
         }
+        
         const routerData = routerDoc.data();
-        const ispId = routerData.ispId || "default_isp";
+        const ispId = routerData.ispId || routerData.userId || "default_isp";
 
-        let pointsRequired = 100; 
-        let targetProfile = "default"; // Safer default MikroTik profile name
+        // 2. FETCH ISP DYNAMIC REWARD TIERS CONFIGURATION
+        let requiredPoints = parseInt(pointsToRedeem, 10) || 100;
+        let selectedProfile = targetProfile || "24_Hour_Plan";
+        let tierDisplayName = "Reward Pass";
 
-        // 2. Fetch Selected Reward Tier Config
-        if (selectedTierId) {
-            const tierDoc = await db.collection('routers').doc(routerId).collection('rewardTiers').doc(selectedTierId).get();
-            if (tierDoc.exists) {
-                const tierData = tierDoc.data();
-                pointsRequired = parseInt(tierData.pointsRequired, 10) || 100;
-                targetProfile = tierData.mikrotikProfile || `${tierData.durationHours}_Hour_Plan`;
+        try {
+            // First check ISP Portal Design Document
+            const portalDoc = await db.collection('isp_portals').doc(ispId).get();
+            let rewardTiers = [];
+
+            if (portalDoc.exists && portalDoc.data().rewardTiers) {
+                rewardTiers = portalDoc.data().rewardTiers;
             }
-        } else {
-            try {
-                const designDoc = await db.collection('isp_portals').doc(ispId).get();
-                if (designDoc.exists && designDoc.data().redeemPoints) {
-                    pointsRequired = parseInt(designDoc.data().redeemPoints, 10) || 100;
+
+            // Find matching tier based on selected profile or point cost passed from frontend
+            if (Array.isArray(rewardTiers) && rewardTiers.length > 0) {
+                const matchedTier = rewardTiers.find(t => 
+                    (targetProfile && (t.mikrotikProfile === targetProfile || t.profile === targetProfile)) ||
+                    (pointsToRedeem && parseInt(t.points, 10) === parseInt(pointsToRedeem, 10))
+                );
+
+                if (matchedTier) {
+                    requiredPoints = parseInt(matchedTier.points || matchedTier.pointsRequired, 10);
+                    selectedProfile = matchedTier.mikrotikProfile || matchedTier.profile || selectedProfile;
+                    tierDisplayName = matchedTier.displayName || matchedTier.name || `${requiredPoints} Points Pass`;
                 }
-            } catch (pe) {
-                console.error("Portal design fetch issue:", pe.message);
             }
+        } catch (tierErr) {
+            console.error("Error reading ISP reward tiers config:", tierErr.message);
         }
 
+        // 3. ATOMIC TRANSACTION: DEDUCT POINTS & SAVE REDEMPTION AUDIT RECORD
         const subRef = db.collection('subscribers').doc(cleanMac);
 
-        // 3. Atomic Point Deduction
-        const subscriberIdentifier = await db.runTransaction(async (ts) => {
-            const freshSubDoc = await ts.get(subRef);
-            if (!freshSubDoc.exists) {
+        const subscriberData = await db.runTransaction(async (ts) => {
+            const subDoc = await ts.get(subRef);
+            if (!subDoc.exists) {
                 throw new Error("Subscriber profile not found.");
             }
 
-            const freshPoints = freshSubDoc.data().loyaltyPoints || 0;
-            if (freshPoints < pointsRequired) {
-                throw new Error(`Insufficient points. You need ${pointsRequired} points (Balance: ${freshPoints}).`);
+            const currentPoints = subDoc.data().loyaltyPoints || 0;
+            if (currentPoints < requiredPoints) {
+                throw new Error(`Insufficient points balance. You need ${requiredPoints} points but have ${currentPoints}.`);
             }
 
-            // Deduct Points
-            ts.update(subRef, { 
-                loyaltyPoints: freshPoints - pointsRequired,
+            // Calculate new deducted points
+            const newPointBalance = currentPoints - requiredPoints;
+
+            // Update Subscriber points in Firestore
+            ts.update(subRef, {
+                loyaltyPoints: newPointBalance,
                 lastActiveTimestamp: new Date().toISOString()
             });
 
-            // Audit Trail for ISP Admin Panel
+            // Save Redemption Document for ISP Dashboard Analytics
             const redemptionRef = db.collection('loyalty_redemptions').doc();
             ts.set(redemptionRef, {
-                ispId,
-                routerId,
+                redemptionId: redemptionRef.id,
+                ispId: ispId,
+                routerId: routerId,
                 macAddress: cleanMac,
-                pointsRedeemed: pointsRequired,
-                rewardProfile: targetProfile,
+                phoneNumber: subDoc.data().phoneNumber || cleanMac,
+                pointsDeducted: requiredPoints,
+                remainingPoints: newPointBalance,
+                grantedProfile: selectedProfile,
+                rewardName: tierDisplayName,
                 timestamp: new Date().toISOString()
             });
 
-            return freshSubDoc.data().phoneNumber || cleanMac;
+            return {
+                phoneNumber: subDoc.data().phoneNumber || cleanMac,
+                remainingPoints: newPointBalance
+            };
         });
 
-        // 4. Provision Subscriber on MikroTik Router
+        // 4. PROVISION ACCESS ON MIKROTIK ROUTER
         if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
             let api = null;
             try {
                 const client = getRouterClient(routerData);
                 api = await client.connect();
 
+                const userIdentifier = subscriberData.phoneNumber;
+
                 // Check if user already exists in MikroTik
                 const existingUsers = await api.write('/ip/hotspot/user/print', [
-                    `.query=name=${subscriberIdentifier}`
+                    `.query=name=${userIdentifier}`
                 ]);
 
                 if (existingUsers && existingUsers.length > 0) {
-                    // Update existing user's profile and reset counters
                     const userId = existingUsers[0]['.id'];
                     await api.write('/ip/hotspot/user/set', [
                         `=.id=${userId}`,
-                        `=profile=${targetProfile}`,
+                        `=profile=${selectedProfile}`,
                         `=comment=LoyaltyRedeem_${cleanMac}_${Date.now()}`
                     ]);
                 } else {
-                    // Create new user entry
                     await api.write('/ip/hotspot/user/add', [
-                        `=name=${subscriberIdentifier}`, 
-                        `=password=${subscriberIdentifier}`, 
-                        `=profile=${targetProfile}`,
+                        `=name=${userIdentifier}`,
+                        `=password=${userIdentifier}`,
+                        `=profile=${selectedProfile}`,
                         `=comment=LoyaltyRedeem_${cleanMac}`
                     ]);
                 }
             } catch (routerErr) {
-                console.error("MikroTik Provisioning Error:", routerErr.message);
-                // Return success since points were deducted, but alert admin in logs
-                return res.status(200).json({ 
-                    success: true, 
-                    message: "Points redeemed! Please reconnect to the hotspot network." 
+                console.error("MikroTik Provisioning Error during redemption:", routerErr.message);
+                // Return success since points were deducted, but alert client to reconnect
+                return res.status(200).json({
+                    success: true,
+                    message: "Points redeemed! Please reconnect to the Wi-Fi network.",
+                    remainingPoints: subscriberData.remainingPoints
                 });
             } finally {
-                if (api) await api.close(); // Always close connection safely
+                if (api) await api.close(); // Clean up router connection
             }
         }
 
-        return res.status(200).json({ 
-            success: true, 
-            message: "Free internet pass activated! Enjoy browsing." 
+        return res.status(200).json({
+            success: true,
+            message: `Successfully redeemed ${tierDisplayName}!`,
+            remainingPoints: subscriberData.remainingPoints
         });
 
     } catch (error) {
