@@ -2826,6 +2826,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         if (typeof loadSessionsRoutersDropdown === "function") {
             loadSessionsRoutersDropdown();
         }
+
+    } else if (activeTab === 'earnings') {
+        if (typeof loadPaymentHistoryView === "function") {
+            loadPaymentHistoryView();
+        }
     
     } else if (activeTab === 'pppoe') {
         if (typeof fetchPPPoESubscriberBase === "function") {
