@@ -3095,7 +3095,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FIXED)
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FULLY UPDATED)
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
@@ -3212,7 +3212,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // STRICT GATEWAY MODE RESOLUTION
-        // Only classify as 'daraja' if explicit mode is custom_daraja/daraja OR custom keys exist
         const integrationType = String(settings.mpesaIntegrationType || settings.gatewayType || 'platform').toLowerCase();
         const hasCustomKeys = Boolean(settings.consumerKey && settings.consumerSecret && settings.passkey);
         
@@ -3221,11 +3220,20 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             normalizedGateway = 'daraja';
         }
 
+        // DYNAMIC WITHDRAWABLE BALANCE RESOLUTION
+        // Use explicitly logged walletBalance if stored, else fallback to gross revenue for Platform users
+        let calculatedWithdrawable = 0;
+        if (ispData.walletBalance !== undefined && ispData.walletBalance !== null) {
+            calculatedWithdrawable = parseFloat(ispData.walletBalance || 0);
+        } else {
+            calculatedWithdrawable = grossEarnedAllTime;
+        }
+
         return res.status(200).json({
             success: true,
             gatewayType: normalizedGateway,
             tillNumber: settings.tillNumber || settings.paybillNumber || settings.mpesaShortcode || '',
-            withdrawableBalance: ispData.walletBalance !== undefined ? parseFloat(ispData.walletBalance || 0) : 0,
+            withdrawableBalance: calculatedWithdrawable,
             metrics: {
                 totalCount: totalTx,
                 completedCount: completedTx,
