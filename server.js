@@ -1086,15 +1086,17 @@ app.post('/api/isp/request-settlement', async (req, res) => {
         return res.status(400).json({ success: false, error: "Missing ISP tenant identifier." });
     }
 
+    let reservedAmount = 0; // Tracked for precise rollback if Daraja API fails
+
     try {
         // 1. FETCH ISP SETTINGS TO CHECK GATEWAY TYPE & DESTINATION
         const settingsDoc = await db.collection('settings').doc(ispId).get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
-        const gatewayType = settings.mpesaIntegrationType || 'platform';
+        const gatewayType = String(settings.mpesaIntegrationType || settings.gatewayType || 'platform').toLowerCase();
 
-        // ❌ BLOCK CUSTOM DARAJA USERS FROM WITHDRAWING
-        if (gatewayType === 'daraja') {
+        // BLOCK CUSTOM DARAJA USERS FROM WITHDRAWING
+        if (gatewayType === 'daraja' || gatewayType === 'custom_daraja') {
             return res.status(403).json({
                 success: false,
                 error: "Withdrawal not allowed: Your account uses Custom Daraja. Customer payments settle directly into your own Paybill/Till."
@@ -1111,7 +1113,6 @@ app.post('/api/isp/request-settlement', async (req, res) => {
 
         const currentBalance = parseFloat(ispUserDoc.data().walletBalance || 0);
 
-        // Minimum payout validation
         if (currentBalance <= 0) {
             return res.status(400).json({
                 success: false,
@@ -1120,8 +1121,7 @@ app.post('/api/isp/request-settlement', async (req, res) => {
         }
 
         // 3. RESOLVE PAYOUT DESTINATION
-        // Matches options: "M-Pesa Phone Number", "Lipa Na M-Pesa Buy Goods Till", "M-Pesa Business Paybill"
-        const destType = (settings.payoutDestinationType || settings.settlementDestination || 'phone').toLowerCase();
+        const destType = String(settings.payoutDestinationType || settings.settlementDestination || 'phone').toLowerCase();
         const destNumber = settings.payoutDestinationNumber || settings.settlementPhone || settings.payoutPhone || ispUserDoc.data().phoneNumber;
 
         if (!destNumber) {
@@ -1134,34 +1134,34 @@ app.post('/api/isp/request-settlement', async (req, res) => {
         let formattedDestNumber = String(destNumber).replace(/[^0-9]/g, '');
         if (formattedDestNumber.startsWith('0')) formattedDestNumber = '254' + formattedDestNumber.slice(1);
 
-        // 4. ATOMIC BALANCE RESERVATION (Prevents double spending)
-        const withdrawalAmount = currentBalance;
+        // 4. ATOMIC BALANCE RESERVATION (Prevents Double Spending)
+        reservedAmount = currentBalance;
         const settlementId = `SETTLE_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 
         await db.runTransaction(async (transaction) => {
             const freshDoc = await transaction.get(ispUserRef);
             const freshBalance = parseFloat(freshDoc.data().walletBalance || 0);
 
-            if (freshBalance < withdrawalAmount || freshBalance <= 0) {
+            if (freshBalance < reservedAmount || freshBalance <= 0) {
                 throw new Error("Balance updated during processing. Please try again.");
             }
 
-            // Deduct balance & create pending disbursal audit log
+            // Zero out balance temporarily while request processes
             transaction.update(ispUserRef, { walletBalance: 0 });
         });
 
         // 5. GENERATE PLATFORM B2C/B2B OAUTH TOKEN
-        const consumerKey = process.env.MPESA_CONSUMER_KEY || process.env.PLATFORM_MPESA_KEY;
-        const consumerSecret = process.env.MPESA_CONSUMER_SECRET || process.env.PLATFORM_MPESA_SECRET;
-        const shortcode = process.env.MPESA_SHORTCODE || process.env.PLATFORM_MPESA_SHORTCODE;
-        const b2cInitiator = process.env.MPESA_B2C_INITIATOR_NAME || 'audispot_admin';
-        const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL;
+        const consumerKey = (process.env.MPESA_CONSUMER_KEY || process.env.PLATFORM_MPESA_KEY || '').trim();
+        const consumerSecret = (process.env.MPESA_CONSUMER_SECRET || process.env.PLATFORM_MPESA_SECRET || '').trim();
+        const shortcode = (process.env.MPESA_SHORTCODE || process.env.PLATFORM_MPESA_SHORTCODE || '').trim();
+        const b2cInitiator = (process.env.MPESA_B2C_INITIATOR_NAME || 'audispot_admin').trim();
+        const securityCredential = (process.env.MPESA_B2C_SECURITY_CREDENTIAL || '').trim();
         const env = process.env.MPESA_ENV || 'production';
 
         const isLive = (env === 'live' || env === 'production');
         const baseUrl = isLive ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
-        const authHeader = Buffer.from(`${consumerKey.trim()}:${consumerSecret.trim()}`).toString('base64');
+        const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
         const tokenRes = await axios.get(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
             headers: { Authorization: `Basic ${authHeader}` }
         });
@@ -1173,14 +1173,13 @@ app.post('/api/isp/request-settlement', async (req, res) => {
         const callbackUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-callback?settlementId=${settlementId}&ispId=${ispId}`;
 
         if (destType.includes('till')) {
-            // --- DESTINATION: LIPA NA M-PESA BUY GOODS TILL (B2B) ---
             const b2bPayload = {
                 Initiator: b2cInitiator,
                 SecurityCredential: securityCredential,
                 CommandID: "BusinessPayToTill",
-                SenderIdentifierType: "4", // Shortcode
-                RecieverIdentifierType: "2", // Till
-                Amount: Math.round(withdrawalAmount),
+                SenderIdentifierType: "4",
+                RecieverIdentifierType: "2",
+                Amount: Math.round(reservedAmount),
                 PartyA: shortcode,
                 PartyB: formattedDestNumber,
                 AccountReference: `ISP_${ispId.slice(0, 6)}`,
@@ -1194,14 +1193,13 @@ app.post('/api/isp/request-settlement', async (req, res) => {
             });
 
         } else if (destType.includes('paybill')) {
-            // --- DESTINATION: M-PESA BUSINESS PAYBILL (B2B) ---
             const b2bPayload = {
                 Initiator: b2cInitiator,
                 SecurityCredential: securityCredential,
                 CommandID: "BusinessPayBill",
                 SenderIdentifierType: "4",
                 RecieverIdentifierType: "4",
-                Amount: Math.round(withdrawalAmount),
+                Amount: Math.round(reservedAmount),
                 PartyA: shortcode,
                 PartyB: formattedDestNumber,
                 AccountReference: `ISP_${ispId.slice(0, 6)}`,
@@ -1215,12 +1213,11 @@ app.post('/api/isp/request-settlement', async (req, res) => {
             });
 
         } else {
-            // --- DESTINATION: M-PESA PHONE NUMBER (B2C) ---
             const b2cPayload = {
                 InitiatorName: b2cInitiator,
                 SecurityCredential: securityCredential,
                 CommandID: "BusinessPayment",
-                Amount: Math.round(withdrawalAmount),
+                Amount: Math.round(reservedAmount),
                 PartyA: shortcode,
                 PartyB: formattedDestNumber,
                 Remarks: "AudiSpot WiFi Disbursal",
@@ -1238,7 +1235,7 @@ app.post('/api/isp/request-settlement', async (req, res) => {
         const settlementRecord = {
             settlementId: settlementId,
             ispId: ispId,
-            amount: withdrawalAmount,
+            amount: reservedAmount,
             destinationType: destType,
             destinationNumber: formattedDestNumber,
             status: 'PENDING',
@@ -1251,23 +1248,24 @@ app.post('/api/isp/request-settlement', async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: `Settlement request of KSh ${withdrawalAmount.toFixed(2)} submitted successfully.`,
-            amount: withdrawalAmount,
+            message: `Settlement request of KSh ${reservedAmount.toFixed(2)} submitted successfully.`,
+            amount: reservedAmount,
             destination: formattedDestNumber
         });
 
     } catch (error) {
         console.error("Settlement Disbursal Error:", error.response ? error.response.data : error.message);
         
-        // ROLLBACK WALLET BALANCE IF SAFARICOM CALL FAILED INSTANTLY
-        try {
-            if (req.body.ispId) {
+        // SAFE ROLLBACK USING `@google-cloud/firestore` SDK Syntax
+        if (reservedAmount > 0) {
+            try {
                 await db.collection('isp_users').doc(ispId).update({
-                    walletBalance: firebaseAdmin.firestore.FieldValue.increment(req.body.amount || 0)
+                    walletBalance: Firestore.FieldValue.increment(reservedAmount)
                 });
+                console.log(`[ROLLBACK SUCCESS] Reverted KSh ${reservedAmount} back to wallet for ISP ${ispId}`);
+            } catch (rollbackErr) {
+                console.error("[ROLLBACK CRITICAL FAILURE]:", rollbackErr.message);
             }
-        } catch (rollbackErr) {
-            console.error("Rollback failed:", rollbackErr.message);
         }
 
         const errMsg = error.response?.data?.errorMessage || error.response?.data?.ResponseDescription || error.message;
@@ -3095,7 +3093,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FULLY UPDATED)
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (OPTIMIZED)
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
@@ -3105,45 +3103,60 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 
     try {
-        // 1. Fetch ISP User Profile & Settings
-        const ispDoc = await db.collection('isp_users').doc(ispId).get();
-        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        // 1. Fetch ISP User Profile & Settings in Parallel
+        const [ispDoc, settingsDoc, routerDocs] = await Promise.all([
+            db.collection('isp_users').doc(ispId).get(),
+            db.collection('settings').doc(ispId).get(),
+            db.collection('routers').where('ispId', '==', ispId).get()
+        ]);
+
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
         const ispData = ispDoc.exists ? ispDoc.data() : {};
 
         // 2. Discover all Router IDs registered to THIS specific tenant
-        const routerDocs = await db.collection('routers').where('ispId', '==', ispId).get();
         const tenantRouterIds = new Set([ispId]);
-
         routerDocs.forEach(r => {
             tenantRouterIds.add(r.id);
             if (r.data().routerId) tenantRouterIds.add(r.data().routerId);
         });
 
-        // 3. Query transactions for THIS TENANT ONLY
+        const routerIdsArray = Array.from(tenantRouterIds);
+
+        // 3. Query transactions IN PARALLEL across collections using Promise.all
         const rawDocsMap = new Map();
         const collections = ['global_transactions', 'transactions'];
 
-        for (const col of collections) {
-            const snapByIsp = await db.collection(col).where('ispId', '==', ispId).get();
-            snapByIsp.forEach(d => rawDocsMap.set(d.id, d.data()));
+        const queryPromises = [];
 
-            for (const rId of tenantRouterIds) {
-                const snapByRouter = await db.collection(col).where('routerId', '==', rId).get();
-                snapByRouter.forEach(d => rawDocsMap.set(d.id, d.data()));
+        for (const col of collections) {
+            // Direct tenant queries
+            queryPromises.push(db.collection(col).where('ispId', '==', ispId).get());
+
+            // Individual router queries (Executed in parallel rather than sequentially)
+            for (const rId of routerIdsArray) {
+                queryPromises.push(db.collection(col).where('routerId', '==', rId).get());
             }
         }
 
-        // 4. Calculate isolated financial metrics with ROBUST DATE PARSING
+        const querySnapshots = await Promise.all(queryPromises);
+        
+        // Merge results and eliminate duplicates by Document ID
+        querySnapshots.forEach(snap => {
+            snap.forEach(d => rawDocsMap.set(d.id, d.data()));
+        });
+
+        // 4. Calculate isolated financial metrics with UTC+3 (East Africa Time) Precision
         const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const EAT_OFFSET = 3 * 60 * 60 * 1000;
+        const localNow = new Date(now.getTime() + EAT_OFFSET);
 
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-        const startOfWeekTime = startOfWeek.getTime();
+        const startOfDay = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate())).getTime() - EAT_OFFSET;
+        
+        const startOfWeekLocal = new Date(localNow);
+        startOfWeekLocal.setUTCDate(localNow.getUTCDate() - localNow.getUTCDay());
+        const startOfWeekTime = new Date(Date.UTC(startOfWeekLocal.getUTCFullYear(), startOfWeekLocal.getUTCMonth(), startOfWeekLocal.getUTCDate())).getTime() - EAT_OFFSET;
 
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        const startOfMonth = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), 1)).getTime() - EAT_OFFSET;
 
         let totalTx = 0, completedTx = 0, pendingTx = 0, failedTx = 0;
         let collectedToday = 0, collectedThisWeek = 0, collectedThisMonth = 0, grossEarnedAllTime = 0;
@@ -3159,7 +3172,7 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
 
             const amount = parseFloat(tx.grossAmount || tx.amount || 0);
 
-            // --- ROBUST DATE PARSER (Handles Firestore Timestamps & Strings) ---
+            // --- ROBUST DATE PARSER ---
             let txDateObj;
             const rawTime = tx.createdAt || tx.timestamp || tx.date;
 
@@ -3221,7 +3234,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         }
 
         // DYNAMIC WITHDRAWABLE BALANCE RESOLUTION
-        // Use explicitly logged walletBalance if stored, else fallback to gross revenue for Platform users
         let calculatedWithdrawable = 0;
         if (ispData.walletBalance !== undefined && ispData.walletBalance !== null) {
             calculatedWithdrawable = parseFloat(ispData.walletBalance || 0);
