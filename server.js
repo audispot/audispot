@@ -37,11 +37,22 @@ const MPESA_HOST = process.env.MPESA_ENV === 'production'
     ? 'https://api.safaricom.co.ke' 
     : 'https://sandbox.safaricom.co.ke';
 
-// Helper Function: Fetch temporary Safaricom Access Token dynamically
+// ====================================================================
+// 1. DYNAMIC MPESA OAUTH TOKEN GENERATOR (CLEAN & SECURE)
+// ====================================================================
 async function getDynamicMpesaToken(consumerKey, consumerSecret) {
-    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+    if (!consumerKey || !consumerSecret) {
+        throw new Error("Missing M-Pesa consumer key or secret.");
+    }
+
+    const cleanKey = consumerKey.trim();
+    const cleanSecret = consumerSecret.trim();
+
+    const auth = Buffer.from(`${cleanKey}:${cleanSecret}`).toString('base64');
+    const baseUrl = process.env.MPESA_HOST || 'https://api.safaricom.co.ke';
+
     try {
-        const response = await axios.get(`${MPESA_HOST}/oauth/v1/generate?grant_type=client_credentials`, {
+        const response = await axios.get(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
             headers: { Authorization: `Basic ${auth}` }
         });
         return response.data.access_token;
@@ -51,39 +62,97 @@ async function getDynamicMpesaToken(consumerKey, consumerSecret) {
     }
 }
 
-// Helper Function: Trigger Safaricom B2C Payout to ISP Phone Number
-async function sendMpesaB2CPayout(phoneNumber, amount, payoutId) {
-    const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
+// ====================================================================
+// 2. DISBURSAL ENGINE (HANDLES B2C PHONE, TILL, AND PAYBILL)
+// ====================================================================
+async function sendMpesaB2CPayout(destinationNumber, amount, payoutId, destType = 'phone') {
+    // A. Format Phone / Destination Number
+    let formattedDest = String(destinationNumber).replace(/[^0-9]/g, '');
+    if (destType === 'phone') {
+        if (formattedDest.startsWith('0')) formattedDest = '254' + formattedDest.slice(1);
+        if (formattedDest.startsWith('7') || formattedDest.startsWith('1')) formattedDest = '254' + formattedDest;
+    }
+
+    // B. Obtain Platform Auth Token
+    const consumerKey = process.env.MPESA_CONSUMER_KEY || process.env.PLATFORM_MPESA_KEY;
+    const consumerSecret = process.env.MPESA_CONSUMER_SECRET || process.env.PLATFORM_MPESA_SECRET;
     
+    const accessToken = await getDynamicMpesaToken(consumerKey, consumerSecret);
+
+    const baseUrl = process.env.MPESA_HOST || 'https://api.safaricom.co.ke';
+    const b2cInitiator = process.env.MPESA_B2C_INITIATOR || process.env.MPESA_B2C_INITIATOR_NAME;
+    const shortcode = process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE;
+    const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL;
+
+    const callbackUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-callback?settlementId=${payoutId}`;
+    const timeoutUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-timeout?settlementId=${payoutId}`;
+
+    const parsedAmount = Math.round(Number(amount));
+
     try {
-        const tokenResponse = await axios.get(
-            `${MPESA_HOST}/oauth/v1/generate?grant_type=client_credentials`, 
-            { headers: { Authorization: `Basic ${auth}` } }
-        );
-        const accessToken = tokenResponse.data.access_token;
+        let endpointUrl;
+        let payload;
 
-        const b2cUrl = `${MPESA_HOST}/mpesa/b2c/v1/paymentrequest`;
-        const payload = {
-            InitiatorName: process.env.MPESA_B2C_INITIATOR, 
-            SecurityCredential: process.env.MPESA_B2C_SECURITY_CREDENTIAL, 
-            CommandID: "BusinessPayment", 
-            Amount: parseInt(amount),
-            PartyA: process.env.MPESA_B2C_SHORTCODE, 
-            PartyB: phoneNumber, 
-            Remarks: "AudiSpot Wallet Payout",
-            QueueTimeOutURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-timeout`,
-            ResultURL: `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-callback?payoutId=${payoutId}`,
-            Occasion: "Withdrawal"
-        };
+        // C. Route payout depending on destination choice (Phone, Till, or Paybill)
+        if (destType.includes('till')) {
+            // B2B Payout to Till
+            endpointUrl = `${baseUrl}/mpesa/b2b/v1/paymentrequest`;
+            payload = {
+                Initiator: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayToTill",
+                SenderIdentifierType: "4", // Shortcode
+                RecieverIdentifierType: "2", // Till
+                Amount: parsedAmount,
+                PartyA: shortcode,
+                PartyB: formattedDest,
+                AccountReference: `SETTLE_${payoutId.slice(-6)}`,
+                Remarks: "AudiSpot WiFi Settlement Payout",
+                QueueTimeOutURL: timeoutUrl,
+                ResultURL: callbackUrl
+            };
+        } else if (destType.includes('paybill')) {
+            // B2B Payout to Paybill
+            endpointUrl = `${baseUrl}/mpesa/b2b/v1/paymentrequest`;
+            payload = {
+                Initiator: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayBill",
+                SenderIdentifierType: "4",
+                RecieverIdentifierType: "4",
+                Amount: parsedAmount,
+                PartyA: shortcode,
+                PartyB: formattedDest,
+                AccountReference: `SETTLE_${payoutId.slice(-6)}`,
+                Remarks: "AudiSpot WiFi Settlement Payout",
+                QueueTimeOutURL: timeoutUrl,
+                ResultURL: callbackUrl
+            };
+        } else {
+            // Standard B2C Payout to Mobile Phone
+            endpointUrl = `${baseUrl}/mpesa/b2c/v1/paymentrequest`;
+            payload = {
+                InitiatorName: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayment",
+                Amount: parsedAmount,
+                PartyA: shortcode,
+                PartyB: formattedDest,
+                Remarks: "AudiSpot Wallet Payout",
+                QueueTimeOutURL: timeoutUrl,
+                ResultURL: callbackUrl,
+                Occasion: "Withdrawal"
+            };
+        }
 
-        const response = await axios.post(b2cUrl, payload, {
+        const response = await axios.post(endpointUrl, payload, {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
 
         return response.data;
     } catch (error) {
-        console.error("Safaricom API Error:", error.response ? error.response.data : error.message);
-        throw new Error("Failed to dispatch B2C payment through Safaricom");
+        console.error("Safaricom Disbursal Error:", error.response ? error.response.data : error.message);
+        throw new Error(error.response?.data?.errorMessage || "Failed to dispatch payout through Safaricom");
     }
 }
 
@@ -1004,63 +1073,283 @@ app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
     }
 });
 
-// 8a. Request Balance Withdrawal via Safaricom B2C
-app.post('/api/isp/withdraw', async (req, res) => {
-    const { ispId, amount } = req.body;
-    if (!ispId || !amount) {
-        return res.status(400).json({ success: false, error: "Missing withdrawal parameters." });
+// ====================================================================
+// ISP SETTLEMENT DISBURSAL ENGINE (PLATFORM-ONLY ANYTIME WITHDRAWALS)
+// ====================================================================
+app.post('/api/isp/request-settlement', async (req, res) => {
+    const { ispId } = req.body;
+
+    if (!ispId) {
+        return res.status(400).json({ success: false, error: "Missing ISP tenant identifier." });
     }
 
     try {
-        const ispRef = db.collection('isp_users').doc(ispId);
-        const wAmount = parseFloat(amount);
+        // 1. FETCH ISP SETTINGS TO CHECK GATEWAY TYPE & DESTINATION
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
-        if (isNaN(wAmount) || wAmount <= 0) {
-            return res.status(400).json({ success: false, error: "Invalid amount." });
-        }
-        
-        const transactionResult = await db.runTransaction(async (transaction) => {
-            const ispDoc = await transaction.get(ispRef);
-            if (!ispDoc.exists) throw new Error("Account missing.");
+        const gatewayType = settings.mpesaIntegrationType || 'platform';
 
-            const currentBalance = ispDoc.data().walletBalance || 0;
-            const phoneNumber = ispDoc.data().phoneNumber;
-
-            if (wAmount > currentBalance) throw new Error("Insufficient wallet balance.");
-
-            transaction.update(ispRef, { walletBalance: currentBalance - wAmount });
-
-            const payoutRef = db.collection('withdrawals').doc();
-            transaction.set(payoutRef, {
-                ispId,
-                amount: wAmount,
-                phoneTarget: phoneNumber,
-                status: "Pending_Safaricom",
-                timestamp: new Date().toISOString(),
-                payoutId: payoutRef.id
+        // ❌ BLOCK CUSTOM DARAJA USERS FROM WITHDRAWING
+        if (gatewayType === 'daraja') {
+            return res.status(403).json({
+                success: false,
+                error: "Withdrawal not allowed: Your account uses Custom Daraja. Customer payments settle directly into your own Paybill/Till."
             });
+        }
 
-            return { phoneNumber, payoutId: payoutRef.id };
+        // 2. CHECK ISP WALLET BALANCE IN FIRESTORE
+        const ispUserRef = db.collection('isp_users').doc(ispId);
+        const ispUserDoc = await ispUserRef.get();
+
+        if (!ispUserDoc.exists) {
+            return res.status(404).json({ success: false, error: "ISP account record not found." });
+        }
+
+        const currentBalance = parseFloat(ispUserDoc.data().walletBalance || 0);
+
+        // Minimum payout validation
+        if (currentBalance <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: `Insufficient balance for settlement. Current balance: KSh ${currentBalance.toFixed(2)}`
+            });
+        }
+
+        // 3. RESOLVE PAYOUT DESTINATION
+        // Matches options: "M-Pesa Phone Number", "Lipa Na M-Pesa Buy Goods Till", "M-Pesa Business Paybill"
+        const destType = (settings.payoutDestinationType || settings.settlementDestination || 'phone').toLowerCase();
+        const destNumber = settings.payoutDestinationNumber || settings.settlementPhone || settings.payoutPhone || ispUserDoc.data().phoneNumber;
+
+        if (!destNumber) {
+            return res.status(400).json({
+                success: false,
+                error: "Payout destination number is missing in your M-Pesa Integration Settings."
+            });
+        }
+
+        let formattedDestNumber = String(destNumber).replace(/[^0-9]/g, '');
+        if (formattedDestNumber.startsWith('0')) formattedDestNumber = '254' + formattedDestNumber.slice(1);
+
+        // 4. ATOMIC BALANCE RESERVATION (Prevents double spending)
+        const withdrawalAmount = currentBalance;
+        const settlementId = `SETTLE_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+        await db.runTransaction(async (transaction) => {
+            const freshDoc = await transaction.get(ispUserRef);
+            const freshBalance = parseFloat(freshDoc.data().walletBalance || 0);
+
+            if (freshBalance < withdrawalAmount || freshBalance <= 0) {
+                throw new Error("Balance updated during processing. Please try again.");
+            }
+
+            // Deduct balance & create pending disbursal audit log
+            transaction.update(ispUserRef, { walletBalance: 0 });
         });
 
-        const b2cResponse = await sendMpesaB2CPayout(transactionResult.phoneNumber, wAmount, transactionResult.payoutId);
+        // 5. GENERATE PLATFORM B2C/B2B OAUTH TOKEN
+        const consumerKey = process.env.MPESA_CONSUMER_KEY || process.env.PLATFORM_MPESA_KEY;
+        const consumerSecret = process.env.MPESA_CONSUMER_SECRET || process.env.PLATFORM_MPESA_SECRET;
+        const shortcode = process.env.MPESA_SHORTCODE || process.env.PLATFORM_MPESA_SHORTCODE;
+        const b2cInitiator = process.env.MPESA_B2C_INITIATOR_NAME || 'audispot_admin';
+        const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL;
+        const env = process.env.MPESA_ENV || 'production';
 
-        if (b2cResponse.ResponseCode === "0") {
-            return res.status(200).json({ 
-                success: true, 
-                message: "Withdrawal request submitted to M-Pesa. Processing...", 
-                payoutId: transactionResult.payoutId 
+        const isLive = (env === 'live' || env === 'production');
+        const baseUrl = isLive ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+
+        const authHeader = Buffer.from(`${consumerKey.trim()}:${consumerSecret.trim()}`).toString('base64');
+        const tokenRes = await axios.get(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+            headers: { Authorization: `Basic ${authHeader}` }
+        });
+
+        const accessToken = tokenRes.data.access_token;
+
+        // 6. ROUTE PAYOUT ACCORDING TO DESTINATION TYPE
+        let payoutResponse;
+        const callbackUrl = `https://audispoty-749056206562.europe-west1.run.app/api/mpesa/b2c-callback?settlementId=${settlementId}&ispId=${ispId}`;
+
+        if (destType.includes('till')) {
+            // --- DESTINATION: LIPA NA M-PESA BUY GOODS TILL (B2B) ---
+            const b2bPayload = {
+                Initiator: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayToTill",
+                SenderIdentifierType: "4", // Shortcode
+                RecieverIdentifierType: "2", // Till
+                Amount: Math.round(withdrawalAmount),
+                PartyA: shortcode,
+                PartyB: formattedDestNumber,
+                AccountReference: `ISP_${ispId.slice(0, 6)}`,
+                Remarks: "AudiSpot WiFi Revenue Disbursal",
+                QueueTimeOutURL: callbackUrl,
+                ResultURL: callbackUrl
+            };
+
+            payoutResponse = await axios.post(`${baseUrl}/mpesa/b2b/v1/paymentrequest`, b2bPayload, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+        } else if (destType.includes('paybill')) {
+            // --- DESTINATION: M-PESA BUSINESS PAYBILL (B2B) ---
+            const b2bPayload = {
+                Initiator: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayBill",
+                SenderIdentifierType: "4",
+                RecieverIdentifierType: "4",
+                Amount: Math.round(withdrawalAmount),
+                PartyA: shortcode,
+                PartyB: formattedDestNumber,
+                AccountReference: `ISP_${ispId.slice(0, 6)}`,
+                Remarks: "AudiSpot WiFi Revenue Disbursal",
+                QueueTimeOutURL: callbackUrl,
+                ResultURL: callbackUrl
+            };
+
+            payoutResponse = await axios.post(`${baseUrl}/mpesa/b2b/v1/paymentrequest`, b2bPayload, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+        } else {
+            // --- DESTINATION: M-PESA PHONE NUMBER (B2C) ---
+            const b2cPayload = {
+                InitiatorName: b2cInitiator,
+                SecurityCredential: securityCredential,
+                CommandID: "BusinessPayment",
+                Amount: Math.round(withdrawalAmount),
+                PartyA: shortcode,
+                PartyB: formattedDestNumber,
+                Remarks: "AudiSpot WiFi Disbursal",
+                QueueTimeOutURL: callbackUrl,
+                ResultURL: callbackUrl,
+                Occasion: "WiFi Payout"
+            };
+
+            payoutResponse = await axios.post(`${baseUrl}/mpesa/b2c/v1/paymentrequest`, b2cPayload, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+        }
+
+        // 7. RECORD SETTLEMENT LOG IN FIRESTORE LEDGER
+        const settlementRecord = {
+            settlementId: settlementId,
+            ispId: ispId,
+            amount: withdrawalAmount,
+            destinationType: destType,
+            destinationNumber: formattedDestNumber,
+            status: 'PENDING',
+            conversationID: payoutResponse.data.ConversationID || payoutResponse.data.OriginatorConversationID || null,
+            requestedAt: new Date().toISOString()
+        };
+
+        await db.collection('settlements').doc(settlementId).set(settlementRecord);
+        await db.collection('isp_users').doc(ispId).collection('disbursals').doc(settlementId).set(settlementRecord);
+
+        return res.status(200).json({
+            success: true,
+            message: `Settlement request of KSh ${withdrawalAmount.toFixed(2)} submitted successfully.`,
+            amount: withdrawalAmount,
+            destination: formattedDestNumber
+        });
+
+    } catch (error) {
+        console.error("Settlement Disbursal Error:", error.response ? error.response.data : error.message);
+        
+        // ROLLBACK WALLET BALANCE IF SAFARICOM CALL FAILED INSTANTLY
+        try {
+            if (req.body.ispId) {
+                await db.collection('isp_users').doc(ispId).update({
+                    walletBalance: firebaseAdmin.firestore.FieldValue.increment(req.body.amount || 0)
+                });
+            }
+        } catch (rollbackErr) {
+            console.error("Rollback failed:", rollbackErr.message);
+        }
+
+        const errMsg = error.response?.data?.errorMessage || error.response?.data?.ResponseDescription || error.message;
+        return res.status(500).json({ success: false, error: errMsg });
+    }
+});
+
+// ====================================================================
+// MPESA B2C / B2B TIMEOUT HANDLER (AUTOMATIC REFUND & AUDIT)
+// ====================================================================
+app.post('/api/mpesa/b2c-timeout', async (req, res) => {
+    console.warn("=== INCOMING B2C/B2B DISBURSAL TIMEOUT ===");
+    console.warn("Query:", req.query);
+    console.warn("Body:", JSON.stringify(req.body));
+
+    // Retrieve settlementId or payoutId from query string
+    const settlementId = req.query.settlementId || req.query.payoutId;
+    let ispId = req.query.ispId || null;
+
+    if (!settlementId) {
+        console.error("[TIMEOUT ERROR] Received timeout notification without settlementId");
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Timeout received without settlement ID" });
+    }
+
+    try {
+        let amountToRefund = 0;
+        const settlementRef = db.collection('settlements').doc(settlementId);
+        const settlementDoc = await settlementRef.get();
+
+        if (settlementDoc.exists) {
+            const sData = settlementDoc.data();
+            ispId = ispId || sData.ispId;
+            amountToRefund = parseFloat(sData.amount || 0);
+
+            // Prevent duplicate refund if callback already processed it
+            if (sData.status === 'COMPLETED' || sData.status === 'FAILED') {
+                console.log(`[TIMEOUT SKIPPED] Settlement ${settlementId} already finalized as ${sData.status}`);
+                return res.status(200).json({ ResultCode: 0, ResultDesc: "Already processed" });
+            }
+        }
+
+        if (ispId) {
+            const ispUserRef = db.collection('isp_users').doc(ispId);
+            const ispDisbursalRef = db.collection('isp_users').doc(ispId).collection('disbursals').doc(settlementId);
+
+            // Execute atomic refund transaction
+            await db.runTransaction(async (transaction) => {
+                const ispDoc = await transaction.get(ispUserRef);
+                const currentBal = ispDoc.exists ? parseFloat(ispDoc.data().walletBalance || 0) : 0;
+
+                // 1. Refund funds to ISP balance
+                if (amountToRefund > 0) {
+                    transaction.update(ispUserRef, {
+                        walletBalance: currentBal + amountToRefund
+                    });
+                    console.log(`[TIMEOUT REFUND SUCCESS] Refunded KSh ${amountToRefund} back to ISP ${ispId}. New balance: KSh ${currentBal + amountToRefund}`);
+                }
+
+                const timeoutUpdate = {
+                    status: 'FAILED',
+                    resultCode: 'TIMEOUT',
+                    resultDesc: 'Safaricom B2C/B2B processing timed out',
+                    failedAt: new Date().toISOString()
+                };
+
+                // 2. Mark records as failed due to timeout
+                transaction.set(settlementRef, timeoutUpdate, { merge: true });
+                transaction.set(ispDisbursalRef, timeoutUpdate, { merge: true });
             });
         } else {
-            await ispRef.update({ walletBalance: admin.firestore.FieldValue.increment(wAmount) });
-            await db.collection('withdrawals').doc(transactionResult.payoutId).update({ 
-                status: "Failed", 
-                error: b2cResponse.ResponseDescription || "Rejected by Safaricom" 
-            });
-            return res.status(500).json({ success: false, error: b2cResponse.ResponseDescription });
+            // If ISP record couldn't be resolved, just flag settlement record
+            await settlementRef.set({
+                status: 'FAILED',
+                resultCode: 'TIMEOUT',
+                resultDesc: 'Safaricom B2C/B2B request timed out without identifiable ISP tenant',
+                failedAt: new Date().toISOString()
+            }, { merge: true });
         }
+
+        // Always acknowledge Safaricom timeout callbacks with HTTP 200
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Timeout processed and balance refunded" });
+
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        console.error("[TIMEOUT PROCESSING EXCEPTION]:", error.message);
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Timeout error logged safely" });
     }
 });
 
@@ -2513,42 +2802,108 @@ app.get('/api/isp/analytics/:ispId', async (req, res) => {
     }
 });
 
-// FIXED: Handles withdrawal records correctly against 'withdrawals' and refunds to 'isp_users'
+// ====================================================================
+// MPESA B2C / B2B PAYOUT CALLBACK HANDLER (DYNAMIC SETTLEMENT AUDIT)
+// ====================================================================
 app.post('/api/mpesa/b2c-callback', async (req, res) => {
-    const { payoutId } = req.query;
-    const { Result } = req.body;
+    console.log("=== INCOMING B2C/B2B DISBURSAL CALLBACK ===");
+    console.log("Query:", req.query);
+    console.log("Body:", JSON.stringify(req.body));
+
+    // Support both settlementId and payoutId for backward compatibility
+    const settlementId = req.query.settlementId || req.query.payoutId;
+    const result = req.body?.Result;
+
+    if (!result) {
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted empty payload" });
+    }
 
     try {
-        const payoutRef = db.collection('withdrawals').doc(payoutId);
-        const payoutDoc = await payoutRef.get();
+        let ispId = req.query.ispId || null;
+        let amountToRefund = 0;
 
-        if (!payoutDoc.exists) {
-            return res.json({ ResultCode: 1, ResultDesc: "Payout record not found" });
+        // 1. Fetch record from settlements collection
+        let settlementRef = null;
+        let ispDisbursalRef = null;
+
+        if (settlementId) {
+            settlementRef = db.collection('settlements').doc(settlementId);
+            const settlementDoc = await settlementRef.get();
+
+            if (settlementDoc.exists) {
+                const sData = settlementDoc.data();
+                ispId = ispId || sData.ispId;
+                amountToRefund = parseFloat(sData.amount || 0);
+            }
         }
 
-        const { ispId, amount } = payoutDoc.data();
+        if (ispId && settlementId) {
+            ispDisbursalRef = db.collection('isp_users').doc(ispId).collection('disbursals').doc(settlementId);
+        }
 
-        if (Result.ResultCode === 0) {
-            await payoutRef.update({
-                status: 'completed',
-                mpesaReceipt: Result.ResultParameters.ResultParameter.find(p => p.Key === "TransactionReceipt").Value,
+        const resultCode = result.ResultCode;
+        const resultDesc = result.ResultDesc;
+
+        // 2. DISBURSAL SUCCESSFUL (ResultCode === 0)
+        if (resultCode === 0) {
+            // Safely extract M-Pesa Receipt Number from ResultParameters array
+            const params = result.ResultParameters?.ResultParameter || [];
+            const receiptParam = params.find(p => p.Key === "TransactionReceipt" || p.Key === "TransactionID");
+            const mpesaReceipt = receiptParam ? receiptParam.Value : (result.TransactionID || "SUCCESS");
+
+            const updateData = {
+                status: 'COMPLETED',
+                mpesaReceipt: mpesaReceipt,
+                resultCode: 0,
+                resultDesc: resultDesc,
                 completedAt: new Date().toISOString()
-            });
-        } else {
-            // FIXED: Target 'isp_users' collection to execute the transaction refund properly
-            const ispRef = db.collection('isp_users').doc(ispId);
-            await db.runTransaction(async (transaction) => {
-                const ispDoc = await transaction.get(ispRef);
-                const currentBalance = ispDoc.exists ? (ispDoc.data().walletBalance || 0) : 0;
-                transaction.update(ispRef, { walletBalance: currentBalance + amount });
-                transaction.update(payoutRef, { status: 'failed', errorCode: Result.ResultCode, errorDesc: Result.ResultDesc });
-            });
+            };
+
+            const batch = db.batch();
+            if (settlementRef) batch.set(settlementRef, updateData, { merge: true });
+            if (ispDisbursalRef) batch.set(ispDisbursalRef, updateData, { merge: true });
+            await batch.commit();
+
+            console.log(`Settlement ${settlementId} SUCCESSFUL. Receipt: ${mpesaReceipt}`);
+        } 
+        // 3. DISBURSAL FAILED -> REFUND ISP WALLET
+        else {
+            console.error(`Settlement ${settlementId} FAILED with code ${resultCode}: ${resultDesc}`);
+
+            if (ispId) {
+                const ispUserRef = db.collection('isp_users').doc(ispId);
+
+                await db.runTransaction(async (transaction) => {
+                    const ispDoc = await transaction.get(ispUserRef);
+                    const currentBal = ispDoc.exists ? parseFloat(ispDoc.data().walletBalance || 0) : 0;
+
+                    // Refund balance back to ISP wallet
+                    if (amountToRefund > 0) {
+                        transaction.update(ispUserRef, { 
+                            walletBalance: currentBal + amountToRefund 
+                        });
+                        console.log(`Refunded KSh ${amountToRefund} back to ISP ${ispId}. New balance: KSh ${currentBal + amountToRefund}`);
+                    }
+
+                    const failedData = {
+                        status: 'FAILED',
+                        resultCode: resultCode,
+                        resultDesc: resultDesc,
+                        failedAt: new Date().toISOString()
+                    };
+
+                    if (settlementRef) transaction.set(settlementRef, failedData, { merge: true });
+                    if (ispDisbursalRef) transaction.set(ispDisbursalRef, failedData, { merge: true });
+                });
+            }
         }
 
-        return res.json({ ResultCode: 0, ResultDesc: "Callback received and processed" });
+        // Always acknowledge Safaricom callbacks with 200 HTTP status
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
+
     } catch (error) {
-        console.error("B2C Callback error:", error.message);
-        return res.status(500).json({ error: error.message });
+        console.error("B2C Settlement Callback exception:", error.message);
+        return res.status(200).json({ ResultCode: 0, ResultDesc: "Error logged safely" });
     }
 });
 
