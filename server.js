@@ -3093,7 +3093,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
 });
 
 // ====================================================================
-// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (OPTIMIZED)
+// MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (FULLY UPDATED)
 // ====================================================================
 app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     const { ispId } = req.params;
@@ -3103,11 +3103,12 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
     }
 
     try {
-        // 1. Fetch ISP User Profile & Settings in Parallel
-        const [ispDoc, settingsDoc, routerDocs] = await Promise.all([
+        // 1. Fetch ISP Profile, Settings, Routers, AND Settlements in Parallel
+        const [ispDoc, settingsDoc, routerDocs, settlementsSnap] = await Promise.all([
             db.collection('isp_users').doc(ispId).get(),
             db.collection('settings').doc(ispId).get(),
-            db.collection('routers').where('ispId', '==', ispId).get()
+            db.collection('routers').where('ispId', '==', ispId).get(),
+            db.collection('settlements').where('ispId', '==', ispId).get()
         ]);
 
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
@@ -3125,7 +3126,6 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
         // 3. Query transactions IN PARALLEL across collections using Promise.all
         const rawDocsMap = new Map();
         const collections = ['global_transactions', 'transactions'];
-
         const queryPromises = [];
 
         for (const col of collections) {
@@ -3233,12 +3233,23 @@ app.get('/api/isp/payment-history/:ispId', async (req, res) => {
             normalizedGateway = 'daraja';
         }
 
-        // DYNAMIC WITHDRAWABLE BALANCE RESOLUTION
+        // 5. DYNAMIC WITHDRAWABLE BALANCE CALCULATOR
+        // Deducts all successfully completed or currently pending withdrawal amounts from Gross Revenue
+        let totalWithdrawnOrPending = 0;
+        settlementsSnap.forEach(doc => {
+            const s = doc.data();
+            const sStatus = String(s.status || '').toUpperCase();
+            if (['SUCCESS', 'COMPLETED', 'PENDING'].includes(sStatus)) {
+                totalWithdrawnOrPending += parseFloat(s.amount || 0);
+            }
+        });
+
         let calculatedWithdrawable = 0;
         if (ispData.walletBalance !== undefined && ispData.walletBalance !== null) {
             calculatedWithdrawable = parseFloat(ispData.walletBalance || 0);
         } else {
-            calculatedWithdrawable = grossEarnedAllTime;
+            // Net available balance
+            calculatedWithdrawable = Math.max(0, grossEarnedAllTime - totalWithdrawnOrPending);
         }
 
         return res.status(200).json({
