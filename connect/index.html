@@ -153,16 +153,30 @@
     <div id="modal-redeem" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-[#141622] border border-zinc-800 rounded-2xl max-w-sm w-full p-5 space-y-4">
             <div class="flex justify-between items-center">
-                <h3 class="text-sm font-black text-white flex items-center gap-2"><i class="fa-solid fa-gift text-emerald-400"></i> Redeem Points Pass</h3>
-                <button onclick="closePortalModal('modal-redeem')" class="text-slate-500 hover:text-white transition text-xs"><i class="fa-solid fa-xmark text-sm"></i></button>
+                <h3 class="text-sm font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gift text-emerald-400"></i> Redeem Points Pass
+                </h3>
+                <button onclick="closePortalModal('modal-redeem')" class="text-slate-500 hover:text-white transition text-xs">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
             </div>
-            <p class="text-[11px] text-slate-400">Select an active package tier layout from the catalog to exchange point metrics:</p>
-            
+        
+            <p class="text-[11px] text-slate-400">Select an active package tier and enter your phone number to claim your pass:</p>
+        
+            <!-- Added Phone Input Field inside Modal -->
+            <div class="space-y-1">
+                <label class="text-[9px] font-bold tracking-wider uppercase text-slate-400 block">M-Pesa Phone Number</label>
+                <input type="text" id="redeem-phone-input" placeholder="e.g. 0712345678" class="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-base md:text-xs font-medium focus:outline-none focus:border-emerald-500 transition">
+            </div>
+
+            <!-- Dynamic Tiers List Container -->
             <div id="portal-redeem-options" class="space-y-2 max-h-48 overflow-y-auto pr-1">
                 <p class="text-xs text-slate-500 text-center py-4">Querying reward catalogs...</p>
             </div>
-            
-            <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden">Confirm Exchange</button>
+        
+            <button id="submit-redemption-btn" onclick="executePointsRedeemExchange()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition hidden shadow-lg">
+                Confirm Exchange
+            </button>
         </div>
     </div>
 
@@ -595,6 +609,13 @@ async function loadAndOpenRedeemModal() {
     const ispId = urlParams.get('ispId');
     const optionsWrapper = document.getElementById('portal-redeem-options');
     const actionBtn = document.getElementById('submit-redemption-btn');
+    const redeemPhoneInput = document.getElementById('redeem-phone-input');
+
+    // Auto-populate from main phone field if user already entered it
+    const mainPhone = document.getElementById('buyer-phone')?.value.trim();
+    if (mainPhone && redeemPhoneInput) {
+        redeemPhoneInput.value = mainPhone;
+    }
 
     openPortalModal('modal-redeem');
 
@@ -611,11 +632,11 @@ async function loadAndOpenRedeemModal() {
             return;
         }
 
-        // Render each tier with data attributes for points and target Mikrotik profile
+        // Render each tier with data attributes for points
         optionsWrapper.innerHTML = tiers.map((tier, idx) => `
             <label class="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-zinc-700 transition">
                 <div class="flex items-center gap-2">
-                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" data-points="${tier.pointsRequired || tier.points}" ${idx === 0 ? 'checked' : ''} class="accent-indigo-500">
+                    <input type="radio" name="redeemTier" value="${tier.mikrotikProfile}" data-points="${tier.pointsRequired || tier.points}" ${idx === 0 ? 'checked' : ''} class="accent-emerald-500">
                     <span class="text-xs text-white font-bold">${tier.displayName || 'Reward Pass'}</span>
                 </div>
                 <span class="text-[11px] text-amber-400 font-bold">${tier.pointsRequired || tier.points} Points</span>
@@ -633,22 +654,20 @@ async function loadAndOpenRedeemModal() {
 async function executePointsRedeemExchange() {
     const selectedTierNode = document.querySelector('input[name="redeemTier"]:checked');
     const actionBtn = document.getElementById('submit-redemption-btn');
+    const redeemPhoneInput = document.getElementById('redeem-phone-input');
     const urlParams = new URLSearchParams(window.location.search);
     const ispId = urlParams.get('ispId');
 
-    if (!selectedTierNode) {
-        triggerUINotifier("Please select a pass tier from the options.", "error");
+    const phoneInput = redeemPhoneInput ? redeemPhoneInput.value.trim() : '';
+
+    if (!phoneInput) {
+        triggerUINotifier("Please enter your M-Pesa phone number.", "error");
+        if (redeemPhoneInput) redeemPhoneInput.focus();
         return;
     }
 
-    // Auto-grab phone number if user already entered it in the main field
-    let phoneInput = document.getElementById('buyer-phone').value.trim();
-    if (!phoneInput) {
-        phoneInput = prompt("Enter your registered phone number to redeem points:");
-    }
-
-    if (!phoneInput) {
-        triggerUINotifier("Phone number is required to redeem points.", "error");
+    if (!selectedTierNode) {
+        triggerUINotifier("Please select a pass tier from the options.", "error");
         return;
     }
 
