@@ -136,60 +136,83 @@ app.get('/', (req, res) => {
     res.status(200).send(`AudiSpot Multi-Tenant API Gateway is Live 🚀`);
 });
 
-// POST: /api/settings/mpesa - Saves integration parameters securely inside Firestore settings
+// ====================================================================
+// 1. SAVE M-PESA GATEWAY CONFIGURATIONS
+// ====================================================================
 app.post('/api/settings/mpesa', async (req, res) => {
     const ispId = req.query.ispId || 'default_isp';
     try {
         await db.collection('settings').doc(ispId).set({
-            mpesaIntegrationType: req.body.mpesaIntegrationType,
-            platformPayoutType: req.body.platformPayoutType,
-            platformPrimaryDestination: req.body.platformPrimaryDestination,
-            platformSecondaryDestination: req.body.platformSecondaryDestination,
-            mpesaShortcode: req.body.mpesaShortcode,
-            mpesaConsumerKey: req.body.mpesaConsumerKey,
-            mpesaConsumerSecret: req.body.mpesaConsumerSecret,
-            mpesaPasskey: req.body.mpesaPasskey,
-            mpesaEnv: req.body.mpesaEnv,
+            mpesaIntegrationType: req.body.mpesaIntegrationType || 'platform',
+            platformPayoutType: req.body.platformPayoutType || 'number',
+            platformPrimaryDestination: req.body.platformPrimaryDestination || '',
+            platformSecondaryDestination: req.body.platformSecondaryDestination || '',
+            mpesaShortcode: req.body.mpesaShortcode || '',
+            mpesaConsumerKey: req.body.mpesaConsumerKey || '',
+            mpesaConsumerSecret: req.body.mpesaConsumerSecret || '',
+            mpesaPasskey: req.body.mpesaPasskey || '',
+            mpesaEnv: req.body.mpesaEnv || 'sandbox',
             tillNumber: req.body.tillNumber || ""
         }, { merge: true });
         
         return res.json({ success: true, message: "Payment configurations committed successfully." });
     } catch (err) {
+        console.error("M-Pesa Settings Error:", err);
         return res.status(500).json({ error: err.message });
     }
 });
 
-// POST: /api/settings/mpesa/verify-test - Sandbox Gateway STK Push Verification Routine
+
+// ====================================================================
+// 2. DARAJA GATEWAY VERIFICATION & STK TEST ROUTINE
+// ====================================================================
 app.post('/api/settings/mpesa/verify-test', async (req, res) => {
     const { phone, mpesaShortcode, mpesaConsumerKey, mpesaConsumerSecret, mpesaPasskey, mpesaEnv } = req.body;
     
+    if (!phone || !mpesaConsumerKey || !mpesaConsumerSecret || !mpesaShortcode) {
+        return res.status(400).json({ success: false, message: "Missing required Daraja parameters for testing." });
+    }
+
     try {
-        const authUrl = mpesaEnv === 'live' 
+        // 1. FORMAT PHONE NUMBER TO 254...
+        let cleanPhone = String(phone).replace(/[^0-9]/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.slice(1);
+        if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) cleanPhone = '254' + cleanPhone;
+
+        // 2. OAUTH ACCESS TOKEN GENERATION
+        const authUrl = (mpesaEnv === 'live' || mpesaEnv === 'production')
             ? 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
             : 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
             
-        const authHeader = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString('base64');
+        const authHeader = Buffer.from(`${mpesaConsumerKey.trim()}:${mpesaConsumerSecret.trim()}`).toString('base64');
         const tokenResponse = await axios.get(authUrl, {
             headers: { Authorization: `Basic ${authHeader}` }
         });
         
         const accessToken = tokenResponse.data.access_token;
         const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-        const password = Buffer.from(`${mpesaShortcode}${mpesaPasskey}${timestamp}`).toString('base64');
+        const password = Buffer.from(`${mpesaShortcode.trim()}${mpesaPasskey.trim()}${timestamp}`).toString('base64');
         
-        const processRequestUrl = mpesaEnv === 'live'
+        const processRequestUrl = (mpesaEnv === 'live' || mpesaEnv === 'production')
             ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
             : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 
+        // 3. DYNAMIC TRANSACTION TYPE CHECK (Paybill vs Buy Goods)
+        // Till Numbers (Buy Goods) are usually 6-7 digits. Paybills are 5-6 digits.
+        // In Sandbox, Buy Goods is standard. In Live, default to CustomerPayBillOnline unless specified.
+        const transactionType = (mpesaEnv === 'sandbox')
+            ? 'CustomerBuyGoodsOnline'
+            : (mpesaShortcode.trim().length >= 6 ? 'CustomerBuyGoodsOnline' : 'CustomerPayBillOnline');
+
         const stkPayload = {
-            BusinessShortCode: mpesaShortcode,
+            BusinessShortCode: mpesaShortcode.trim(),
             Password: password,
             Timestamp: timestamp,
-            TransactionType: mpesaEnv === 'live' ? 'CustomerPayBillOnline' : 'CustomerBuyGoodsOnline',
+            TransactionType: transactionType,
             Amount: 1, 
-            PartyA: phone.trim(),
-            PartyB: mpesaShortcode,
-            PhoneNumber: phone.trim(),
+            PartyA: cleanPhone,
+            PartyB: mpesaShortcode.trim(),
+            PhoneNumber: cleanPhone,
             CallBackURL: 'https://audispoty-749056206562.europe-west1.run.app/api/mpesa/callback-test',
             AccountReference: 'AudiSpotVerify',
             TransactionDesc: 'Gateway Test Simulation'
@@ -200,13 +223,14 @@ app.post('/api/settings/mpesa/verify-test', async (req, res) => {
         });
 
         if (pushResponse.data.ResponseCode === "0") {
-            return res.json({ success: true, message: "Push sent successfully." });
+            return res.json({ success: true, message: "Test STK Push dispatched successfully!" });
         } else {
-            return res.status(400).json({ success: false, message: pushResponse.data.ResponseDescription });
+            return res.status(400).json({ success: false, message: pushResponse.data.ResponseDescription || "STK Push declined by gateway." });
         }
     } catch (error) {
+        const errorMsg = error.response?.data?.errorMessage || error.response?.data?.ResponseDescription || error.message;
         console.error("[Daraja Validation Engine Fault]:", error.response ? error.response.data : error.message);
-        return res.status(500).json({ success: false, message: "Gateway connection timed out. Check authorization configuration parameters." });
+        return res.status(500).json({ success: false, message: `Gateway Verification Failed: ${errorMsg}` });
     }
 });
 
@@ -631,6 +655,131 @@ app.get('/api/hotspot/check-payment/:checkoutId', async (req, res) => {
             receipt: data.receipt || data.mpesaReceiptNumber || '' 
         });
     } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ====================================================================
+// DYNAMIC STK PUSH INITIATOR (Supports Custom Daraja & Platform)
+// ====================================================================
+app.post('/api/mpesa/stkpush', async (req, res) => {
+    try {
+        const { phoneNumber, amount, routerId, macAddress, profile } = req.body;
+
+        if (!phoneNumber || !amount) {
+            return res.status(400).json({ success: false, message: "Phone number and amount are required." });
+        }
+
+        // 1. RESOLVE TENANT ISP ID FROM ROUTER
+        let ispId = "default_isp";
+        if (routerId) {
+            const routerDoc = await db.collection('routers').doc(routerId).get();
+            if (routerDoc.exists) {
+                const rData = routerDoc.data();
+                ispId = rData.ispId || rData.userId || routerId;
+            } else {
+                ispId = routerId;
+            }
+        }
+
+        // 2. FETCH GATEWAY SETTINGS FROM FIRESTORE
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+
+        // Check if ISP uses Custom Daraja vs Platform
+        const isCustomDaraja = settings.mpesaIntegrationType === 'daraja' && settings.mpesaConsumerKey;
+
+        // Determine Credentials based on Gateway Type
+        const consumerKey = isCustomDaraja ? settings.mpesaConsumerKey : process.env.PLATFORM_MPESA_KEY;
+        const consumerSecret = isCustomDaraja ? settings.mpesaConsumerSecret : process.env.PLATFORM_MPESA_SECRET;
+        const passkey = isCustomDaraja ? settings.mpesaPasskey : process.env.PLATFORM_MPESA_PASSKEY;
+        const shortcode = isCustomDaraja ? settings.mpesaShortcode : process.env.PLATFORM_MPESA_SHORTCODE;
+        const env = isCustomDaraja ? (settings.mpesaEnv || 'sandbox') : 'production';
+
+        // 3. GENERATE DARAJA ACCESS TOKEN
+        const authUrl = env === 'live' || env === 'production'
+            ? 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+            : 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+
+        const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+        const authRes = await fetch(authUrl, {
+            headers: { Authorization: `Basic ${authHeader}` }
+        });
+        const authData = await authRes.json();
+
+        if (!authRes.ok || !authData.access_token) {
+            return res.status(400).json({ success: false, message: "Failed to authenticate with M-Pesa gateway." });
+        }
+
+        // 4. PREPARE STK PUSH PAYLOAD
+        const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+        // Formats phone number to 254...
+        let formattedPhone = String(phoneNumber).replace(/[^0-9]/g, '');
+        if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
+        if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) formattedPhone = '254' + formattedPhone;
+
+        const callbackUrl = `${process.env.BASE_URL || 'https://your-domain.com'}/api/mpesa/callback?routerId=${encodeURIComponent(routerId || '')}&macAddress=${encodeURIComponent(macAddress || '')}&profile=${encodeURIComponent(profile || '')}`;
+
+        const stkUrl = env === 'live' || env === 'production'
+            ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+            : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+
+        const stkPayload = {
+            BusinessShortCode: shortcode,
+            Password: password,
+            Timestamp: timestamp,
+            TransactionType: 'CustomerPayBillOnline',
+            Amount: Math.round(Number(amount)),
+            PartyA: formattedPhone,
+            PartyB: shortcode,
+            PhoneNumber: formattedPhone,
+            CallBackURL: callbackUrl,
+            AccountReference: `WiFi_${macAddress ? macAddress.slice(-4) : 'Spot'}`,
+            TransactionDesc: 'Internet Package Purchase'
+        };
+
+        // 5. DISPATCH STK PUSH TO SAFARICOM
+        const stkRes = await fetch(stkUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authData.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(stkPayload)
+        });
+
+        const stkData = await stkRes.json();
+
+        if (stkRes.ok && stkData.ResponseCode === '0') {
+            const checkoutId = stkData.CheckoutRequestID;
+
+            // Save pending STK request to Firestore so callback can match it
+            await db.collection('stk_requests').doc(checkoutId).set({
+                status: 'PENDING',
+                phoneNumber: formattedPhone,
+                amount: amount,
+                routerId: routerId || '',
+                macAddress: macAddress || '',
+                ispId: ispId,
+                createdAt: new Date().toISOString()
+            });
+
+            return res.json({
+                success: true,
+                checkoutRequestId: checkoutId,
+                message: "STK Push sent to phone."
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: stkData.errorMessage || stkData.ResponseDescription || "STK Push request failed."
+            });
+        }
+
+    } catch (err) {
+        console.error("STK Push error:", err);
         return res.status(500).json({ success: false, error: err.message });
     }
 });
