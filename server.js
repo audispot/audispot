@@ -183,7 +183,7 @@ async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = ""
             brandName: registrantName ? `${registrantName} Hotspot` : "My Premium Hotspot",
             serverIp: "10.5.5.1",
             supportPhone: "+254700000000",
-            redirectUrl: "https://audispot.audiory.site/login",
+            redirectUrl: "https://audispot.audiory.site",
             defaultPppoePassword: "AudiSpot",
             tillNumber: "",
             accountName: registrantName || "ISP Owner",
@@ -3305,23 +3305,24 @@ async function sendTechnicianWelcomeEmail({ to, technicianName, ispName, loginEm
 }
 
 app.post('/api/technicians', authenticateUser, async (req, res) => {
-    // Ensure the requester is an ISP Admin
-    if (req.user.role !== 'isp_admin' && req.user.role !== 'admin') {
+    // Ensure req.user exists and check role
+    if (!req.user || (req.user.role !== 'isp_admin' && req.user.role !== 'admin')) {
         return res.status(403).json({ error: "Only ISP Account owners can invite technicians." });
     }
 
-    const { name, email, password, permissions = {} } = req.body;
-    const parentIspId = req.user.ispId || req.user.uid; // Parent ISP ID
+    const { name, email, password, permissions = {}, ispId } = req.body;
+    // Prefer authenticated user's ID, fallback to payload ispId if present
+    const parentIspId = req.user.ispId || req.user.uid || ispId;
 
-    if (!name || !email || !password) {
-        return res.status(400).json({ error: "Name, email, and password are required." });
+    if (!name || !email || !password || !parentIspId) {
+        return res.status(400).json({ error: "Missing required technician payload fields." });
     }
 
     try {
         const cleanEmail = email.toLowerCase().trim();
         
         // 1. Check if technician already exists
-        const existingTech = await req.db.collection('users')
+        const existingTech = await req.db.collection('technicians')
             .where('email', '==', cleanEmail)
             .get();
 
@@ -3329,38 +3330,63 @@ app.post('/api/technicians', authenticateUser, async (req, res) => {
             return res.status(400).json({ error: "An account with this email already exists." });
         }
 
-        const techRef = req.db.collection('users').doc();
+        const newTechRef = req.db.collection('technicians').doc();
         
-        // Default permissions if none provided
-        const defaultPermissions = {
+        // Granular permissions with sensible defaults
+        const techPermissions = {
             canManageRouters: permissions.canManageRouters ?? true,
             canViewHotspots: permissions.canViewHotspots ?? true,
             canAccessBilling: permissions.canAccessBilling ?? false
         };
 
         const technicianData = {
-            id: techRef.id,
+            id: newTechRef.id,
             name,
             email: cleanEmail,
-            password: password, // Note: Hash this in production!
+            password: password, // Consider hashing with bcrypt in production
             role: "technician",
-            ispId: parentIspId, // CRITICAL: Binds tech to master ISP environment
-            permissions: defaultPermissions,
+            ispId: parentIspId,
+            permissions: techPermissions,
             status: "active",
             createdAt: new Date().toISOString()
         };
 
         // 2. Save technician to Firestore
-        await techRef.set(technicianData);
+        await newTechRef.set(technicianData);
 
-        // 3. Send credentials email
-        await sendWelcomeEmail({
-            to: cleanEmail,
-            userName: name,
-            accountType: `Field Technician (${req.user.businessName || 'ISP Account'})`,
-            password: password,
-            loginUrl: "https://audispot.audiory.site/login"
-        });
+        // 3. Fetch ISP details for email branding context
+        let ispName = req.user.businessName || "Your ISP Network";
+        try {
+            const ispDoc = await req.db.collection('isp_users').doc(parentIspId).get();
+            if (ispDoc.exists && ispDoc.data().ispName) {
+                ispName = ispDoc.data().ispName;
+            }
+        } catch (e) {
+            console.warn("Could not retrieve ISP details for email header:", e.message);
+        }
+
+        // 4. Dispatch welcome email (supports both helper function variants)
+        try {
+            if (typeof sendWelcomeEmail === 'function') {
+                await sendWelcomeEmail({
+                    to: cleanEmail,
+                    userName: name,
+                    accountType: `Field Technician (${ispName})`,
+                    password: password,
+                    loginUrl: "https://audispot.audiory.site/login"
+                });
+            } else if (typeof sendTechnicianWelcomeEmail === 'function') {
+                await sendTechnicianWelcomeEmail({
+                    to: cleanEmail,
+                    technicianName: name,
+                    ispName: ispName,
+                    loginEmail: cleanEmail,
+                    password: password
+                });
+            }
+        } catch (emailErr) {
+            console.error(`[EMAIL ERROR] Failed to send email:`, emailErr.message || emailErr);
+        }
 
         res.status(201).json({
             message: "Technician added to ISP account successfully.",
@@ -3368,7 +3394,7 @@ app.post('/api/technicians', authenticateUser, async (req, res) => {
         });
     } catch (err) {
         console.error("Error creating technician:", err);
-        res.status(500).json({ error: "Failed to create technician account." });
+        res.status(500).json({ error: err.message || "Failed to create technician account." });
     }
 });
 
