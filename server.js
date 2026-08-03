@@ -2993,6 +2993,114 @@ app.post('/api/settings/toggle-sms', async (req, res) => {
     }
 });
 
+app.post('/api/settings/monitoring/alerts', async (req, res) => {
+    try {
+        const ispId = req.query.ispId || req.body.ispId;
+        const { alertsEnabled, alertEmail } = req.body;
+
+        if (!ispId || ispId === 'null' || ispId === 'undefined') {
+            return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID." });
+        }
+
+        const settingsRef = db.collection('settings').doc(ispId);
+
+        // Update settings in Firestore (Merge keeps existing keys safe)
+        await settingsRef.set({
+            alertsEnabled: Boolean(alertsEnabled),
+            alertEmail: alertEmail || '',
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        return res.status(200).json({
+            success: true,
+            message: "Alert settings updated successfully.",
+            alertsEnabled: Boolean(alertsEnabled),
+            alertEmail: alertEmail || ''
+        });
+
+    } catch (error) {
+        console.error("Error saving alert configuration:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+/**
+ * 2. GET ALERT SETTINGS
+ * Retrieves current monitoring alert configuration for initial frontend load.
+ */
+app.get('/api/settings/monitoring/alerts', async (req, res) => {
+    try {
+        const { ispId } = req.query;
+
+        if (!ispId || ispId === 'null' || ispId === 'undefined') {
+            return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID." });
+        }
+
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+
+        return res.status(200).json({
+            success: true,
+            alertsEnabled: Boolean(settings.alertsEnabled),
+            alertEmail: settings.alertEmail || ''
+        });
+
+    } catch (error) {
+        console.error("Error fetching alert configuration:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+/**
+ * 3. ROUTER NETWORK MONITOR PULSE
+ * Scans tenant routers and returns live online/offline statistics.
+ */
+app.get('/api/monitoring/pulse', async (req, res) => {
+    try {
+        const { ispId } = req.query;
+
+        if (!ispId || ispId === 'null' || ispId === 'undefined') {
+            return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID." });
+        }
+
+        // Fetch routers belonging to this specific tenant
+        const routersSnap = await db.collection('routers')
+            .where('ispId', '==', ispId)
+            .get();
+
+        let onlineCount = 0;
+        let offlineCount = 0;
+        const now = Date.now();
+        // Threshold for declaring a router offline (e.g., last heartbeat > 3 minutes ago)
+        const OFFLINE_THRESHOLD_MS = 3 * 60 * 1000; 
+
+        routersSnap.forEach(doc => {
+            const router = doc.data();
+            const lastPing = router.lastSeen ? new Date(router.lastSeen).getTime() : 0;
+
+            if (lastPing > 0 && (now - lastPing) <= OFFLINE_THRESHOLD_MS) {
+                onlineCount++;
+            } else {
+                offlineCount++;
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            totalNodes: routersSnap.size,
+            onlineCount: onlineCount,
+            offlineCount: offlineCount,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error("Error executing network health pulse:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ==================== TECHNICIAN SECURITY LOGINS ====================
 
 app.post('/api/technicians', async (req, res) => {
