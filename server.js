@@ -2993,6 +2993,124 @@ app.post('/api/settings/toggle-sms', async (req, res) => {
     }
 });
 
+// ====================================================================
+// 1. EMAIL HELPER: ROUTER OFFLINE TEMPLATE
+// ====================================================================
+async function sendRouterOfflineAlertEmail({
+    to,
+    routerName,
+    routerId,
+    location = "N/A",
+    lastSeen = new Date().toLocaleString(),
+    errorMessage = "Heartbeat ping timeout detected."
+}) {
+    const htmlTemplate = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Router Offline Alert</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f9; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f6f9; padding: 40px 0;">
+                <tr>
+                    <td align="center">
+                        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); overflow: hidden;">
+                            
+                            <!-- Header Banner -->
+                            <tr>
+                                <td style="background-color: #dc2626; padding: 32px 40px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">AudioSpot</h1>
+                                    <p style="color: #fecdd3; margin: 6px 0 0 0; font-size: 14px;">ISP Health Monitor</p>
+                                </td>
+                            </tr>
+
+                            <!-- Body Content -->
+                            <tr>
+                                <td style="padding: 40px 40px 32px 40px;">
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+                                        <tr>
+                                            <td style="background-color: #ffe4e6; border: 1px solid #fecdd3; border-radius: 20px; padding: 6px 16px;">
+                                                <span style="color: #e11d48; font-size: 13px; font-weight: 700; text-transform: uppercase;">
+                                                    🚨 Critical Alert: Device Offline
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <h2 style="color: #0f172a; font-size: 18px; font-weight: 600; margin: 0 0 12px 0;">Router Connection Lost</h2>
+                                    <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+                                        Hello, <br><br>
+                                        Our monitoring system has detected that one of your managed network routers has lost connectivity with the AudioSpot cloud control center.
+                                    </p>
+
+                                    <!-- Details Table -->
+                                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 24px 0; overflow: hidden;">
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500; width: 35%;">Router Name:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 700;">${routerName}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500;">Device ID / IP:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-family: monospace; font-weight: 600;">${routerId}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500;">Location / Site:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 500;">${location}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500;">Last Heartbeat:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 500;">${lastSeen}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; font-size: 14px; color: #64748b; font-weight: 500;">Diagnostic Info:</td>
+                                            <td style="padding: 14px 20px; font-size: 13px; color: #e11d48; font-weight: 600;">${errorMessage}</td>
+                                        </tr>
+                                    </table>
+
+                                    <div style="background-color: #fff1f2; border-left: 4px solid #e11d48; border-radius: 4px; padding: 16px; margin: 24px 0;">
+                                        <p style="color: #9f1239; font-size: 13px; font-weight: 600; margin: 0 0 4px 0;">⚡ Recommended Action</p>
+                                        <p style="color: #be123c; font-size: 13px; line-height: 1.5; margin: 0;">
+                                            Please check power supply and fiber/Ethernet uplinks for <strong>${routerName}</strong>.
+                                        </p>
+                                    </div>
+
+                                    <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px 0;">
+                                    <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0;">
+                                        Automated notification from AudioSpot Health Monitor.
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 28px 40px; text-align: center;">
+                                    <p style="color: #94a3b8; font-size: 12px; margin: 0 0 6px 0;">
+                                        &copy; ${new Date().getFullYear()} AudioSpot ISP Portal. All rights reserved.
+                                    </p>
+                                    <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                                        <a href="https://audiory.site" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
+                                        <a href="https://audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    return await sendEmail({
+        to,
+        subject: `🚨 CRITICAL ALERT: Router "${routerName}" is Offline`,
+        text: `ALERT: Router "${routerName}" (${routerId}) went offline at ${lastSeen}. Location: ${location}. Error: ${errorMessage}`,
+        html: htmlTemplate
+    });
+}
+
 app.post('/api/settings/monitoring/alerts', async (req, res) => {
     try {
         const ispId = req.query.ispId || req.body.ispId;
@@ -3098,6 +3216,52 @@ app.get('/api/monitoring/pulse', async (req, res) => {
     } catch (error) {
         console.error("Error executing network health pulse:", error);
         return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ROUTER OFFLINE DISPATCH TRIGGER
+app.post('/api/health/router-offline-alert', async (req, res) => {
+    try {
+        const { routerId, ownerEmail, routerName, location, errorMessage } = req.body || {};
+
+        if (!routerId) return res.status(400).json({ success: false, error: "routerId required." });
+
+        let targetEmail = ownerEmail;
+        let rName = routerName || `Router (${routerId})`;
+        let rLoc = location || "N/A";
+
+        if (!targetEmail) {
+            const routerDoc = await db.collection('routers').doc(routerId).get();
+            if (routerDoc.exists) {
+                const rData = routerDoc.data();
+                rName = rData.name || rName;
+                rLoc = rData.location || rLoc;
+                
+                if (rData.ispId) {
+                    const settingsDoc = await db.collection('settings').doc(rData.ispId).get();
+                    if (settingsDoc.exists && settingsDoc.data().alertsEnabled) {
+                        targetEmail = settingsDoc.data().alertEmail;
+                    }
+                }
+            }
+        }
+
+        if (!targetEmail) {
+            return res.status(400).json({ success: false, error: "No alert email configured for this router." });
+        }
+
+        await sendRouterOfflineAlertEmail({
+            to: targetEmail,
+            routerName: rName,
+            routerId: routerId,
+            location: rLoc,
+            lastSeen: new Date().toLocaleString(),
+            errorMessage: errorMessage || "Heartbeat ping timeout detected."
+        });
+
+        return res.status(200).json({ success: true, message: `Alert sent to ${targetEmail}` });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
