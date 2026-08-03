@@ -3304,71 +3304,71 @@ async function sendTechnicianWelcomeEmail({ to, technicianName, ispName, loginEm
     */
 }
 
-app.post('/api/technicians', async (req, res) => {
-    const { name, email, password, ispId } = req.body;
+app.post('/api/technicians', authenticateUser, async (req, res) => {
+    // Ensure the requester is an ISP Admin
+    if (req.user.role !== 'isp_admin' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Only ISP Account owners can invite technicians." });
+    }
 
-    if (!name || !email || !password || !ispId) {
-        return res.status(400).json({ error: "Missing required technician payload fields." });
+    const { name, email, password, permissions = {} } = req.body;
+    const parentIspId = req.user.ispId || req.user.uid; // Parent ISP ID
+
+    if (!name || !email || !password) {
+        return res.status(400).json({ error: "Name, email, and password are required." });
     }
 
     try {
         const cleanEmail = email.toLowerCase().trim();
-        const newTechRef = req.db.collection('technicians').doc();
         
-        const techUser = {
-            id: newTechRef.id,
+        // 1. Check if technician already exists
+        const existingTech = await req.db.collection('users')
+            .where('email', '==', cleanEmail)
+            .get();
+
+        if (!existingTech.empty) {
+            return res.status(400).json({ error: "An account with this email already exists." });
+        }
+
+        const techRef = req.db.collection('users').doc();
+        
+        // Default permissions if none provided
+        const defaultPermissions = {
+            canManageRouters: permissions.canManageRouters ?? true,
+            canViewHotspots: permissions.canViewHotspots ?? true,
+            canAccessBilling: permissions.canAccessBilling ?? false
+        };
+
+        const technicianData = {
+            id: techRef.id,
             name,
             email: cleanEmail,
-            password, 
-            ispId,
+            password: password, // Note: Hash this in production!
             role: "technician",
+            ispId: parentIspId, // CRITICAL: Binds tech to master ISP environment
+            permissions: defaultPermissions,
+            status: "active",
             createdAt: new Date().toISOString()
         };
 
-        // 1. Save technician to Firestore
-        await newTechRef.set(techUser);
+        // 2. Save technician to Firestore
+        await techRef.set(technicianData);
 
-        // 2. Fetch ISP details for email branding context
-        let ispName = "Your ISP Network";
-        try {
-            const ispDoc = await req.db.collection('isp_users').doc(ispId).get();
-            if (ispDoc.exists && ispDoc.data().ispName) {
-                ispName = ispDoc.data().ispName;
-            }
-        } catch (e) {
-            console.warn("Could not retrieve ISP details for email header:", e.message);
-        }
+        // 3. Send credentials email
+        await sendWelcomeEmail({
+            to: cleanEmail,
+            userName: name,
+            accountType: `Field Technician (${req.user.businessName || 'ISP Account'})`,
+            password: password,
+            loginUrl: "https://audispot.audiory.site/login"
+        });
 
-        // 3. Dispatch welcome onboarding email to technician
-        try {
-            if (typeof sendWelcomeEmail === 'function') {
-                await sendWelcomeEmail({
-                    to: cleanEmail,
-                    userName: name,
-                    accountType: `Field Technician (${ispName})`,
-                    password: password,
-                    loginUrl: "https://audispot.audiory.site/login"
-                });
-                console.log(`[EMAIL SUCCESS] Onboarding email dispatched to: ${cleanEmail}`);
-            } else if (typeof sendTechnicianWelcomeEmail === 'function') {
-                await sendTechnicianWelcomeEmail({
-                    to: cleanEmail,
-                    technicianName: name,
-                    ispName: ispName,
-                    loginEmail: cleanEmail,
-                    password: password
-                });
-                console.log(`[EMAIL SUCCESS] Onboarding email dispatched to: ${cleanEmail}`);
-            } else {
-                console.warn("[EMAIL WARNING] Neither sendWelcomeEmail nor sendTechnicianWelcomeEmail are defined.");
-            }
-        } catch (emailErr) {
-            console.error(`[EMAIL ERROR] Failed to send technician email:`, emailErr.message || emailErr);
-        }
-
-        res.status(201).json(techUser);
+        res.status(201).json({
+            message: "Technician added to ISP account successfully.",
+            technician: technicianData
+        });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Error creating technician:", err);
+        res.status(500).json({ error: "Failed to create technician account." });
     }
 });
 
@@ -4479,6 +4479,76 @@ async function sendWelcomeEmail({
         html: htmlTemplate
     });
 }
+
+/**
+ * Middleware: Enforces ISP multi-tenancy and technician granular permissions.
+ * @param {string} requiredScope - e.g. 'canManageRouters', 'canAccessBilling'
+ */
+function authorizeScope(requiredScope) {
+    return (req, res, next) => {
+        const user = req.user; // Set by your JWT or session authentication middleware
+
+        if (!user) {
+            return res.status(401).json({ error: "Unauthorized access." });
+        }
+
+        // ISP Admins/Owners have full access to their own account resources
+        if (user.role === 'isp_admin' || user.role === 'admin') {
+            req.targetIspId = user.ispId || user.uid;
+            return next();
+        }
+
+        // Technicians: Enforce scope & bound to parent ISP context
+        if (user.role === 'technician') {
+            // Check if user is linked to an ISP
+            if (!user.ispId) {
+                return res.status(403).json({ error: "Technician is not attached to an active ISP account." });
+            }
+
+            // Check specific permission assigned by the ISP owner
+            if (requiredScope && (!user.permissions || !user.permissions[requiredScope])) {
+                return res.status(403).json({ 
+                    error: `Access denied. You do not have permission for '${requiredScope}'. Contact your ISP Administrator.` 
+                });
+            }
+
+            // Bind query context to parent ISP ID so technician accesses ISP's data, not their own
+            req.targetIspId = user.ispId;
+            return next();
+        }
+
+        return res.status(403).json({ error: "Invalid role permissions." });
+    };
+}
+
+// Route: Routers Management (Technician allowed if permitted by ISP)
+app.get('/api/routers', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    try {
+        // Query routers under the parent ISP ID (Works for both ISP owner & Technician)
+        const snapshot = await req.db.collection('routers')
+            .where('ispId', '==', req.targetIspId)
+            .get();
+
+        const routers = snapshot.docs.map(doc => doc.data());
+        res.json({ routers });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Route: Billing Records (Restricted if technician lacks 'canAccessBilling')
+app.get('/api/billing/history', authenticateUser, authorizeScope('canAccessBilling'), async (req, res) => {
+    try {
+        const snapshot = await req.db.collection('payments')
+            .where('ispId', '==', req.targetIspId)
+            .get();
+
+        const payments = snapshot.docs.map(doc => doc.data());
+        res.json({ payments });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
