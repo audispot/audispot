@@ -1017,22 +1017,62 @@
 <div id="modal-add-technician" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
     <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-vunaborder pb-3">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase"><i class="fa-solid fa-user-shield text-indigo-500 mr-1.5"></i> Register New Technician</h3>
-            <button onclick="closeAddTechnicianModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
+                <i class="fa-solid fa-user-shield text-indigo-500 mr-1.5"></i> Register New Technician
+            </h3>
+            <button type="button" onclick="closeAddTechnicianModal()" class="text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
         </div>
+
         <form id="form-register-technician" onsubmit="handleTechnicianRegistration(event)" class="space-y-3 text-xs">
+            <!-- Full Name -->
             <div class="space-y-1">
                 <label class="text-slate-400">Full Name</label>
                 <input type="text" id="tech-name" required class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-medium">
             </div>
+
+            <!-- Email Address -->
             <div class="space-y-1">
                 <label class="text-slate-400">Email Login Address</label>
                 <input type="email" id="tech-email" required class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white font-mono">
             </div>
+
+            <!-- Password -->
             <div class="space-y-1">
                 <label class="text-slate-400">Assign Security Access Password</label>
                 <input type="password" id="tech-password" required minlength="6" placeholder="••••••••" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-white">
             </div>
+
+            <!-- PERMISSIONS & ACCESS SCOPE SECTION -->
+            <div class="pt-2 border-t border-slate-100 dark:border-vunaborder space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Granted Access Permissions</label>
+                    <span class="text-[10px] text-slate-500">ISP Scope Controls</span>
+                </div>
+                
+                <div class="space-y-2 bg-slate-50 dark:bg-vunainput p-3 rounded-lg border border-slate-200 dark:border-vunaborder">
+                    <!-- Router & Hardware Access -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">Manage Routers & MikroTik</span>
+                        <input type="checkbox" id="perm-routers" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+
+                    <!-- Hotspots & Voucher Management -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">View Hotspots & Active Users</span>
+                        <input type="checkbox" id="perm-hotspots" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+
+                    <!-- M-Pesa & Financial Access -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">Access Billing & M-Pesa Records</span>
+                        <input type="checkbox" id="perm-billing" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Form Buttons -->
             <div class="pt-2 flex gap-2 justify-end">
                 <button type="button" onclick="closeAddTechnicianModal()" class="px-4 py-2 bg-slate-100 dark:bg-vunaborder hover:bg-slate-800 text-slate-900 dark:text-white rounded-lg transition font-bold">Cancel</button>
                 <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition font-bold">Save Access Credentials</button>
@@ -5053,27 +5093,65 @@ async function handleTechnicianRegistration(e) {
     e.preventDefault();
     const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+
+    // Safely extract permission choices from checkboxes (defaulting to false if element is missing)
+    const permRoutersEl = document.getElementById('perm-routers');
+    const permHotspotsEl = document.getElementById('perm-hotspots');
+    const permBillingEl = document.getElementById('perm-billing');
+
     const payload = {
         name: document.getElementById('tech-name').value,
         email: document.getElementById('tech-email').value,
         password: document.getElementById('tech-password').value,
-        ispId: targetTenant
+        ispId: targetTenant,
+        permissions: {
+            canManageRouters: permRoutersEl ? permRoutersEl.checked : true,
+            canViewHotspots: permHotspotsEl ? permHotspotsEl.checked : true,
+            canAccessBilling: permBillingEl ? permBillingEl.checked : false
+        }
     };
+
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // Include authorization header if token is present
+        const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
         const res = await fetch(`${baseEndpoint}/api/technicians`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify(payload)
         });
+
         if (res.ok) {
+            // Reset form fields
+            const form = document.getElementById('form-register-technician');
+            if (form) form.reset();
+
             closeAddTechnicianModal();
-            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('New restricted technician user added successfully.');
-            loadTechniciansRegistry();
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay('New restricted technician user added successfully.');
+            }
+            if (typeof loadTechniciansRegistry === 'function') {
+                loadTechniciansRegistry();
+            }
         } else {
-            alert("Could not complete registration.");
+            const errorData = await res.json().catch(() => ({}));
+            const alertMsg = errorData.error || "Could not complete registration.";
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(`Error: ${alertMsg}`, 'error');
+            } else {
+                alert(alertMsg);
+            }
         }
     } catch (err) {
-        console.error(err);
+        console.error("Technician registration error:", err);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay('Network error while adding technician.', 'error');
+        }
     }
 }
 
