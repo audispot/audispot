@@ -4194,11 +4194,14 @@ async function sendWelcomeEmail({
     to,
     userName,
     accountType = "ISP Partner",
-    loginUrl = "https://audispot.audiory.site/login"
+    loginUrl = "https://audiospot.audiory.site/login"
 }) {
+    const displayName = userName ? userName.trim() : "Valued Partner";
+    const currentYear = new Date().getFullYear();
+
     const htmlTemplate = `
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -4212,7 +4215,7 @@ async function sendWelcomeEmail({
                         <!-- Main Container Card -->
                         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); overflow: hidden;">
                             
-                            <!-- Header Banner (Brand Primary Accent) -->
+                            <!-- Header Banner -->
                             <tr>
                                 <td style="background-color: #4f46e5; padding: 32px 40px; text-align: center;">
                                     <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">AudioSpot</h1>
@@ -4229,13 +4232,13 @@ async function sendWelcomeEmail({
                                         <tr>
                                             <td style="background-color: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 20px; padding: 6px 16px;">
                                                 <span style="color: #4338ca; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                                                 Welcome Aboard!
+                                                  Welcome Aboard!
                                                 </span>
                                             </td>
                                         </tr>
                                     </table>
 
-                                    <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">Glad to have you with us, ${userName}!</h2>
+                                    <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">Glad to have you with us, ${displayName}!</h2>
                                     <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
                                         Thank you for creating your account with AudioSpot. Your tenant environment is fully provisioned and ready for network setup, billing management, and router monitoring.
                                     </p>
@@ -4244,7 +4247,7 @@ async function sendWelcomeEmail({
                                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 24px 0; overflow: hidden;">
                                         <tr>
                                             <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500; width: 35%;">Account Name:</td>
-                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 700;">${userName}</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 700;">${displayName}</td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500;">Registered Email:</td>
@@ -4292,22 +4295,22 @@ async function sendWelcomeEmail({
                                         <tr>
                                             <td style="padding: 0 8px;">
                                                 <a href="https://twitter.com" target="_blank" style="text-decoration: none;">
-                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="20" height="20" alt="Twitter" style="display: block; opacity: 0.7;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="20" height="20" alt="Twitter" style="display: block; border: 0; opacity: 0.7;">
                                                 </a>
                                             </td>
                                             <td style="padding: 0 8px;">
                                                 <a href="https://facebook.com" target="_blank" style="text-decoration: none;">
-                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="20" height="20" alt="Facebook" style="display: block; opacity: 0.7;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="20" height="20" alt="Facebook" style="display: block; border: 0; opacity: 0.7;">
                                                 </a>
                                             </td>
                                             <td style="padding: 0 8px;">
                                                 <a href="https://instagram.com" target="_blank" style="text-decoration: none;">
-                                                    <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="20" height="20" alt="Instagram" style="display: block; opacity: 0.7;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="20" height="20" alt="Instagram" style="display: block; border: 0; opacity: 0.7;">
                                                 </a>
                                             </td>
                                             <td style="padding: 0 8px;">
                                                 <a href="https://github.com" target="_blank" style="text-decoration: none;">
-                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733553.png" width="20" height="20" alt="GitHub" style="display: block; opacity: 0.7;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733553.png" width="20" height="20" alt="GitHub" style="display: block; border: 0; opacity: 0.7;">
                                                 </a>
                                             </td>
                                         </tr>
@@ -4315,17 +4318,16 @@ async function sendWelcomeEmail({
 
                                     <!-- Footer Text -->
                                     <p style="color: #94a3b8; font-size: 12px; margin: 0 0 6px 0;">
-                                        &copy; ${new Date().getFullYear()} AudioSpot ISP Portal. All rights reserved.
+                                        &copy; ${currentYear} AudioSpot ISP Portal. All rights reserved.
                                     </p>
                                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                                        <a href="https://audispot.audiory.site/dashboard/" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
-                                        <a href="https://audispot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
+                                        <a href="${loginUrl}" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
+                                        <a href="https://audiospot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
                                     </p>
                                 </td>
                             </tr>
 
                         </table>
-                        <!-- End Container Card -->
 
                     </td>
                 </tr>
@@ -4336,8 +4338,8 @@ async function sendWelcomeEmail({
 
     return await sendEmail({
         to,
-        subject: `Welcome to AudioSpot, ${userName}! 🚀`,
-        text: `Welcome to AudioSpot, ${userName}! Access your portal dashboard here: ${loginUrl}`,
+        subject: `Welcome to AudioSpot, ${displayName}! 🚀`,
+        text: `Welcome to AudioSpot, ${displayName}! Access your portal dashboard here: ${loginUrl}`,
         html: htmlTemplate
     });
 }
