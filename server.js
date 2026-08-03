@@ -3090,8 +3090,8 @@ async function sendRouterOfflineAlertEmail({
                                         &copy; ${new Date().getFullYear()} AudioSpot ISP Portal. All rights reserved.
                                     </p>
                                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                                        <a href="https://audiory.site" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
-                                        <a href="https://audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
+                                        <a href="https://audispot.audiory.site" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
+                                        <a href="https://audispot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
                                     </p>
                                 </td>
                             </tr>
@@ -4180,6 +4180,167 @@ app.post('/api/auth/reset-password', async (req, res) => {
         return res.status(500).json({ success: false, error: "Failed to update password." });
     }
 });
+
+/**
+ * Sends a classic-styled Welcome Email to new users.
+ * 
+ * @param {Object} params
+ * @param {string} params.to - User's email address
+ * @param {string} params.userName - Full name or business name of the user
+ * @param {string} [params.accountType] - E.g., "ISP Administrator", "Hotspot Owner"
+ * @param {string} [params.loginUrl] - Custom login link (defaults to dashboard)
+ */
+async function sendWelcomeEmail({
+    to,
+    userName,
+    accountType = "ISP Partner",
+    loginUrl = "https://audispot.audiory.site/login"
+}) {
+    const htmlTemplate = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Welcome to AudioSpot</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f9; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f6f9; padding: 40px 0;">
+                <tr>
+                    <td align="center">
+                        
+                        <!-- Main Container Card -->
+                        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); overflow: hidden;">
+                            
+                            <!-- Header Banner (Brand Primary Accent) -->
+                            <tr>
+                                <td style="background-color: #4f46e5; padding: 32px 40px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">AudioSpot</h1>
+                                    <p style="color: #c7d2fe; margin: 6px 0 0 0; font-size: 14px; font-weight: 400;">ISP Portal & Cloud Control</p>
+                                </td>
+                            </tr>
+
+                            <!-- Body Content -->
+                            <tr>
+                                <td style="padding: 40px 40px 32px 40px;">
+                                    
+                                    <!-- Welcome Badge -->
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+                                        <tr>
+                                            <td style="background-color: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 20px; padding: 6px 16px;">
+                                                <span style="color: #4338ca; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                                                 Welcome Aboard!
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">Glad to have you with us, ${userName}!</h2>
+                                    <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+                                        Thank you for creating your account with AudioSpot. Your tenant environment is fully provisioned and ready for network setup, billing management, and router monitoring.
+                                    </p>
+
+                                    <!-- Account Details Box -->
+                                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 24px 0; overflow: hidden;">
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500; width: 35%;">Account Name:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 700;">${userName}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-weight: 500;">Registered Email:</td>
+                                            <td style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 600;">${to}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 14px 20px; font-size: 14px; color: #64748b; font-weight: 500;">Account Role:</td>
+                                            <td style="padding: 14px 20px; font-size: 14px; color: #4338ca; font-weight: 600;">${accountType}</td>
+                                        </tr>
+                                    </table>
+
+                                    <!-- Quick Next Steps -->
+                                    <h3 style="color: #0f172a; font-size: 15px; font-weight: 600; margin: 24px 0 12px 0;">Next Steps to get started:</h3>
+                                    <ul style="color: #475569; font-size: 14px; line-height: 1.7; margin: 0 0 28px 0; padding-left: 20px;">
+                                        <li style="margin-bottom: 6px;">Connect your MikroTik or Network Routers.</li>
+                                        <li style="margin-bottom: 6px;">Configure your M-Pesa billing and automated collections.</li>
+                                        <li style="margin-bottom: 6px;">Set up offline health alert notifications for your hardware.</li>
+                                    </ul>
+
+                                    <!-- CTA Button -->
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+                                        <tr>
+                                            <td align="center" style="border-radius: 6px; background-color: #4f46e5;">
+                                                <a href="${loginUrl}" target="_blank" style="font-size: 15px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; border-radius: 6px; padding: 12px 28px; display: inline-block; font-weight: 600;">
+                                                    Access Dashboard &rarr;
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px 0;">
+
+                                    <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0;">
+                                        If you have any questions or need help setting up your network, reach out to our team at any time.
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <!-- Footer Section -->
+                            <tr>
+                                <td style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 28px 40px; text-align: center;">
+                                    
+                                    <!-- Social Icons -->
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin-bottom: 16px;">
+                                        <tr>
+                                            <td style="padding: 0 8px;">
+                                                <a href="https://twitter.com" target="_blank" style="text-decoration: none;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="20" height="20" alt="Twitter" style="display: block; opacity: 0.7;">
+                                                </a>
+                                            </td>
+                                            <td style="padding: 0 8px;">
+                                                <a href="https://facebook.com" target="_blank" style="text-decoration: none;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="20" height="20" alt="Facebook" style="display: block; opacity: 0.7;">
+                                                </a>
+                                            </td>
+                                            <td style="padding: 0 8px;">
+                                                <a href="https://instagram.com" target="_blank" style="text-decoration: none;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="20" height="20" alt="Instagram" style="display: block; opacity: 0.7;">
+                                                </a>
+                                            </td>
+                                            <td style="padding: 0 8px;">
+                                                <a href="https://github.com" target="_blank" style="text-decoration: none;">
+                                                    <img src="https://cdn-icons-png.flaticon.com/512/733/733553.png" width="20" height="20" alt="GitHub" style="display: block; opacity: 0.7;">
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <!-- Footer Text -->
+                                    <p style="color: #94a3b8; font-size: 12px; margin: 0 0 6px 0;">
+                                        &copy; ${new Date().getFullYear()} AudioSpot ISP Portal. All rights reserved.
+                                    </p>
+                                    <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                                        <a href="https://audispot.audiory.site/dashboard/" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
+                                        <a href="https://audispot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
+                                    </p>
+                                </td>
+                            </tr>
+
+                        </table>
+                        <!-- End Container Card -->
+
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    return await sendEmail({
+        to,
+        subject: `Welcome to AudioSpot, ${userName}! 🚀`,
+        text: `Welcome to AudioSpot, ${userName}! Access your portal dashboard here: ${loginUrl}`,
+        html: htmlTemplate
+    });
+}
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
