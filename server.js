@@ -3284,30 +3284,24 @@ app.post('/api/health/router-offline-alert', async (req, res) => {
 
 // ==================== TECHNICIAN SECURITY LOGINS & AUTH ====================
 
+/**
+ * Technician Welcome Email Dispatcher
+ * Leverages your core sendWelcomeEmail helper with custom HTML injection for credentials.
+ */
 async function sendTechnicianWelcomeEmail({ to, technicianName, ispName, loginEmail, password }) {
-    // Replace this logic with your active email provider (Resend, Nodemailer, SendGrid, etc.)
-    const mailPayload = {
-        from: '"ISP Admin System" <no-reply@yourdomain.com>',
+    // 1. Call your existing sendWelcomeEmail function
+    return await sendWelcomeEmail({
         to: to,
-        subject: `Technician Access Credentials - ${ispName}`,
-        html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #333;">
-                <h2>Welcome to the Team, ${technicianName}!</h2>
-                <p>You have been registered as a Technician under <strong>${ispName}</strong>.</p>
-                <p>You can now log in to the portal using the following credentials:</p>
-                <div style="background: #f4f4f5; padding: 15px; border-radius: 8px; font-family: monospace;">
-                    <p style="margin: 0;"><strong>Login Email:</strong> ${loginEmail}</p>
-                    <p style="margin: 5px 0 0 0;"><strong>Password:</strong> ${password}</p>
-                </div>
-                <p style="margin-top: 15px; font-size: 12px; color: #71717a;">
-                    Note: As a technician, your account allows access to manage routers, PPPoE, and Static IP users. Billing and payment controls remain restricted to administrator accounts.
-                </p>
-            </div>
-        `
-    };
+        userName: technicianName,
+        accountType: `Technician (${ispName})`,
+        loginUrl: "https://audispot.audiory.site/login"
+    });
 
-    // Execute send (e.g., await transporter.sendMail(mailPayload))
-    return await transporter.sendMail(mailPayload);
+    /* 
+    * NOTE: If you want to include credentials inside the HTML body, pass them 
+    * via parameters into sendWelcomeEmail or update sendWelcomeEmail to render 
+    * a credentials box when password is present.
+    */
 }
 
 app.post('/api/technicians', async (req, res) => {
@@ -3347,7 +3341,16 @@ app.post('/api/technicians', async (req, res) => {
 
         // 3. Dispatch welcome onboarding email to technician
         try {
-            if (typeof sendTechnicianWelcomeEmail === 'function') {
+            if (typeof sendWelcomeEmail === 'function') {
+                await sendWelcomeEmail({
+                    to: cleanEmail,
+                    userName: name,
+                    accountType: `Field Technician (${ispName})`,
+                    password: password,
+                    loginUrl: "https://audispot.audiory.site/login"
+                });
+                console.log(`[EMAIL SUCCESS] Onboarding email dispatched to: ${cleanEmail}`);
+            } else if (typeof sendTechnicianWelcomeEmail === 'function') {
                 await sendTechnicianWelcomeEmail({
                     to: cleanEmail,
                     technicianName: name,
@@ -3357,7 +3360,7 @@ app.post('/api/technicians', async (req, res) => {
                 });
                 console.log(`[EMAIL SUCCESS] Onboarding email dispatched to: ${cleanEmail}`);
             } else {
-                console.warn("[EMAIL WARNING] sendTechnicianWelcomeEmail function is not defined.");
+                console.warn("[EMAIL WARNING] Neither sendWelcomeEmail nor sendTechnicianWelcomeEmail are defined.");
             }
         } catch (emailErr) {
             console.error(`[EMAIL ERROR] Failed to send technician email:`, emailErr.message || emailErr);
@@ -4293,22 +4296,41 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 /**
- * Sends a classic-styled Welcome Email to new users.
+ * Sends a classic-styled Welcome Email to new users or technicians.
  * 
  * @param {Object} params
  * @param {string} params.to - User's email address
  * @param {string} params.userName - Full name or business name of the user
- * @param {string} [params.accountType] - E.g., "ISP Administrator", "Hotspot Owner"
+ * @param {string} [params.accountType] - E.g., "ISP Administrator", "Field Technician"
+ * @param {string} [params.password] - Temporary password (ONLY provided for Technicians)
  * @param {string} [params.loginUrl] - Custom login link (defaults to dashboard)
  */
 async function sendWelcomeEmail({
     to,
     userName,
     accountType = "ISP Partner",
+    password = null, // Optional credential field
     loginUrl = "https://audispot.audiory.site/login"
 }) {
     const displayName = userName ? userName.trim() : "Valued Partner";
     const currentYear = new Date().getFullYear();
+
+    // Dynamically insert credentials block ONLY if a password is supplied (e.g. Technician accounts)
+    const credentialsHtml = password ? `
+        <!-- Credentials Card (Technician Access) -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 8px; margin: 24px 0 16px 0; overflow: hidden;">
+            <tr>
+                <td style="padding: 16px 20px;">
+                    <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Your Login Credentials</p>
+                    <p style="margin: 0 0 4px 0; font-size: 14px; font-family: monospace; color: #0f172a;"><strong>Email:</strong> ${to}</p>
+                    <p style="margin: 0; font-size: 14px; font-family: monospace; color: #0f172a;"><strong>Password:</strong> ${password}</p>
+                </td>
+            </tr>
+        </table>
+        <p style="color: #64748b; font-size: 12px; line-height: 1.4; margin: 0 0 24px 0;">
+            <em>Note: As a technician, your access enables network and router operations. Administrative and billing controls remain restricted to ISP Admin accounts.</em>
+        </p>
+    ` : '';
 
     const htmlTemplate = `
         <!DOCTYPE html>
@@ -4343,7 +4365,7 @@ async function sendWelcomeEmail({
                                         <tr>
                                             <td style="background-color: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 20px; padding: 6px 16px;">
                                                 <span style="color: #4338ca; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                                                  Welcome Aboard!
+                                                    Welcome Aboard!
                                                 </span>
                                             </td>
                                         </tr>
@@ -4369,6 +4391,9 @@ async function sendWelcomeEmail({
                                             <td style="padding: 14px 20px; font-size: 14px; color: #4338ca; font-weight: 600;">${accountType}</td>
                                         </tr>
                                     </table>
+
+                                    <!-- Insert Credentials Block ONLY if password parameter exists -->
+                                    ${credentialsHtml}
 
                                     <!-- Quick Next Steps -->
                                     <h3 style="color: #0f172a; font-size: 15px; font-weight: 600; margin: 24px 0 12px 0;">Next Steps to get started:</h3>
