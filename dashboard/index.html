@@ -4736,7 +4736,7 @@ async function saveBrandingState(e) {
         brandName: document.getElementById('inp-sett-brand').value.trim(),
         serverIp: document.getElementById('inp-sett-ip').value.trim(),
         supportPhone: document.getElementById('inp-sett-phone').value.trim(),
-        redirectUrl: redirectInput || "https://audispot.audiory.site/login"
+        redirectUrl: redirectInput || "https://audispot.audiory.site/new"
     };
 
     try {
@@ -4975,6 +4975,31 @@ function updateAlertBadgeState(enabled, email) {
         desc.innerText = "Alert emails are currently disabled.";
     }
 }
+
+// Load current alert settings on page load
+async function loadAlertSettingsOnPageLoad() {
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/settings/monitoring/alerts?ispId=${targetTenant}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const checkbox = document.getElementById('chk-alert-toggle');
+        const emailInput = document.getElementById('inp-alert-email');
+
+        if (checkbox) checkbox.checked = data.alertsEnabled;
+        if (emailInput && data.alertEmail) emailInput.value = data.alertEmail;
+
+        updateAlertBadgeState(data.alertsEnabled, data.alertEmail);
+    } catch (err) {
+        console.error("Error initializing alert settings UI:", err);
+    }
+}
+
+// Call on document load
+document.addEventListener('DOMContentLoaded', loadAlertSettingsOnPageLoad);
 
 async function saveAccountDetails(e) {
     e.preventDefault();
