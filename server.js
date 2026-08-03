@@ -388,6 +388,22 @@ app.post('/api/auth/isp-signup', async (req, res) => {
         // Initialize default settings for this ISP on signup
         await getOrCreateSettings(db, ispId);
 
+        // ==========================================
+        // 🚀 TRIGGER WELCOME EMAIL HERE
+        // ==========================================
+        try {
+            console.log(`[EMAIL] Dispatching welcome email to: ${email}`);
+            await sendWelcomeEmail({
+                to: email,
+                userName: ispName,
+                accountType: "ISP Administrator"
+            });
+            console.log(`[EMAIL SUCCESS] Welcome email sent to: ${email}`);
+        } catch (emailErr) {
+            // Log error so server doesn't crash if SMTP fails
+            console.error(`[EMAIL ERROR] Failed to send welcome email to ${email}:`, emailErr.message || emailErr);
+        }
+
         return res.status(201).json({ 
             success: true, 
             message: "Account created successfully!", 
@@ -398,6 +414,7 @@ app.post('/api/auth/isp-signup', async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 });
+
 // 4. Register Router Endpoint
 app.post('/api/hotspot/register-router', async (req, res) => {
     const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
