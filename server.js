@@ -4211,7 +4211,7 @@ async function sendWelcomeEmail({
     to,
     userName,
     accountType = "ISP Partner",
-    loginUrl = "https://audiospot.audiory.site/login"
+    loginUrl = "https://audispot.audiory.site/login"
 }) {
     const displayName = userName ? userName.trim() : "Valued Partner";
     const currentYear = new Date().getFullYear();
@@ -4339,7 +4339,7 @@ async function sendWelcomeEmail({
                                     </p>
                                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
                                         <a href="${loginUrl}" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> &bull; 
-                                        <a href="https://audiospot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
+                                        <a href="https://audispot.audiory.site/support" style="color: #6366f1; text-decoration: none;">Support Desk</a>
                                     </p>
                                 </td>
                             </tr>
