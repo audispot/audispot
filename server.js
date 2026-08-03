@@ -3282,22 +3282,87 @@ app.post('/api/health/router-offline-alert', async (req, res) => {
     }
 });
 
-// ==================== TECHNICIAN SECURITY LOGINS ====================
+// ==================== TECHNICIAN SECURITY LOGINS & AUTH ====================
+
+async function sendTechnicianWelcomeEmail({ to, technicianName, ispName, loginEmail, password }) {
+    // Replace this logic with your active email provider (Resend, Nodemailer, SendGrid, etc.)
+    const mailPayload = {
+        from: '"ISP Admin System" <no-reply@yourdomain.com>',
+        to: to,
+        subject: `Technician Access Credentials - ${ispName}`,
+        html: `
+            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                <h2>Welcome to the Team, ${technicianName}!</h2>
+                <p>You have been registered as a Technician under <strong>${ispName}</strong>.</p>
+                <p>You can now log in to the portal using the following credentials:</p>
+                <div style="background: #f4f4f5; padding: 15px; border-radius: 8px; font-family: monospace;">
+                    <p style="margin: 0;"><strong>Login Email:</strong> ${loginEmail}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>Password:</strong> ${password}</p>
+                </div>
+                <p style="margin-top: 15px; font-size: 12px; color: #71717a;">
+                    Note: As a technician, your account allows access to manage routers, PPPoE, and Static IP users. Billing and payment controls remain restricted to administrator accounts.
+                </p>
+            </div>
+        `
+    };
+
+    // Execute send (e.g., await transporter.sendMail(mailPayload))
+    return await transporter.sendMail(mailPayload);
+}
 
 app.post('/api/technicians', async (req, res) => {
     const { name, email, password, ispId } = req.body;
+
+    if (!name || !email || !password || !ispId) {
+        return res.status(400).json({ error: "Missing required technician payload fields." });
+    }
+
     try {
+        const cleanEmail = email.toLowerCase().trim();
         const newTechRef = req.db.collection('technicians').doc();
+        
         const techUser = {
             id: newTechRef.id,
             name,
-            email,
+            email: cleanEmail,
             password, 
             ispId,
             role: "technician",
             createdAt: new Date().toISOString()
         };
+
+        // 1. Save technician to Firestore
         await newTechRef.set(techUser);
+
+        // 2. Fetch ISP details for email branding context
+        let ispName = "Your ISP Network";
+        try {
+            const ispDoc = await req.db.collection('isp_users').doc(ispId).get();
+            if (ispDoc.exists && ispDoc.data().ispName) {
+                ispName = ispDoc.data().ispName;
+            }
+        } catch (e) {
+            console.warn("Could not retrieve ISP details for email header:", e.message);
+        }
+
+        // 3. Dispatch welcome onboarding email to technician
+        try {
+            if (typeof sendTechnicianWelcomeEmail === 'function') {
+                await sendTechnicianWelcomeEmail({
+                    to: cleanEmail,
+                    technicianName: name,
+                    ispName: ispName,
+                    loginEmail: cleanEmail,
+                    password: password
+                });
+                console.log(`[EMAIL SUCCESS] Onboarding email dispatched to: ${cleanEmail}`);
+            } else {
+                console.warn("[EMAIL WARNING] sendTechnicianWelcomeEmail function is not defined.");
+            }
+        } catch (emailErr) {
+            console.error(`[EMAIL ERROR] Failed to send technician email:`, emailErr.message || emailErr);
+        }
+
         res.status(201).json(techUser);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -3338,44 +3403,73 @@ app.delete('/api/technicians/:id', async (req, res) => {
     }
 });
 
-// ISP Login Endpoint
+
+// Multi-Role Login Endpoint (ISP Admin & Technicians)
 app.post('/api/auth/isp-login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, error: "Email and password are required." });
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     try {
-        const ispId = email.replace(/[^a-zA-Z0-9]/g, "_");
-        const ispDoc = await db.collection('isp_users').doc(ispId).get();
+        // STEP 1: Check primary ISP Admin Users
+        const ispId = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+        const ispDoc = await req.db.collection('isp_users').doc(ispId).get();
 
-        if (!ispDoc.exists) {
-            return res.status(401).json({ success: false, error: "Invalid email or password." });
+        if (ispDoc.exists) {
+            const ispData = ispDoc.data();
+
+            if (ispData.password !== password) {
+                return res.status(401).json({ success: false, error: "Invalid email or password." });
+            }
+
+            const token = Buffer.from(`${ispId}:${Date.now()}`).toString('base64');
+            const createdAt = ispData.createdAt?.toDate ? ispData.createdAt.toDate() : (ispData.createdAt ? new Date(ispData.createdAt) : new Date());
+            const expiryDate = ispData.expiryDate?.toDate ? ispData.expiryDate.toDate() : (ispData.expiryDate ? new Date(ispData.expiryDate) : null);
+
+            return res.status(200).json({
+                success: true,
+                role: "admin",
+                token: token,
+                ispId: ispId,
+                ispName: ispData.ispName,
+                created_at: createdAt.toISOString(),
+                expiry_date: expiryDate ? expiryDate.toISOString() : null
+            });
         }
 
-        const ispData = ispDoc.data();
+        // STEP 2: Fallback - Check Technicians collection
+        const techQuery = await req.db.collection('technicians')
+            .where('email', '==', cleanEmail)
+            .limit(1)
+            .get();
 
-        // Simple password verification
-        if (ispData.password !== password) {
-            return res.status(401).json({ success: false, error: "Invalid email or password." });
+        if (!techQuery.empty) {
+            const techDoc = techQuery.docs[0];
+            const techData = techDoc.data();
+
+            if (techData.password !== password) {
+                return res.status(401).json({ success: false, error: "Invalid email or password." });
+            }
+
+            const token = Buffer.from(`tech_${techData.id}:${Date.now()}`).toString('base64');
+
+            return res.status(200).json({
+                success: true,
+                role: "technician",
+                token: token,
+                techId: techData.id,
+                ispId: techData.ispId,
+                name: techData.name,
+                email: techData.email
+            });
         }
 
-        // Generate token
-        const token = Buffer.from(`${ispId}:${Date.now()}`).toString('base64');
+        // STEP 3: No user found in either collection
+        return res.status(401).json({ success: false, error: "Invalid email or password." });
 
-        // Parse Firestore timestamps cleanly
-        const createdAt = ispData.createdAt?.toDate ? ispData.createdAt.toDate() : (ispData.createdAt ? new Date(ispData.createdAt) : new Date());
-        const expiryDate = ispData.expiryDate?.toDate ? ispData.expiryDate.toDate() : (ispData.expiryDate ? new Date(ispData.expiryDate) : null);
-
-        return res.status(200).json({
-            success: true,
-            token: token,
-            ispId: ispId,
-            ispName: ispData.ispName,
-            // Pass official timestamps to frontend
-            created_at: createdAt.toISOString(),
-            expiry_date: expiryDate ? expiryDate.toISOString() : null
-        });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
