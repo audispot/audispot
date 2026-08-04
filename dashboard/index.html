@@ -127,6 +127,164 @@
                 </div>
             </div>
 
+            <!-- HELP & SUPPORT SECTION -->
+<div id="section-help" class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-vunaborder">
+        <div>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i class="fa-solid fa-circle-question text-indigo-500"></i> Help & System Documentation
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+                Learn how to manage your ISP portal, assign technician permissions, or submit support tickets.
+            </p>
+        </div>
+
+        <!-- Help Navigation Tabs -->
+        <div class="flex items-center gap-1 bg-slate-100 dark:bg-vunainput p-1 rounded-xl border border-slate-200 dark:border-vunaborder text-xs font-semibold">
+            <button onclick="switchHelpTab('kb')" id="btn-help-kb" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white transition">
+                <i class="fa-solid fa-book-open mr-1"></i> Knowledge Base
+            </button>
+            <button onclick="switchHelpTab('roles')" id="btn-help-roles" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-user-shield mr-1"></i> Role Permissions
+            </button>
+            <button onclick="switchHelpTab('ticket')" id="btn-help-ticket" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-headset mr-1"></i> Contact Support
+            </button>
+        </div>
+    </div>
+
+    <!-- TAB 1: KNOWLEDGE BASE / FAQS -->
+    <div id="tab-help-kb" class="space-y-4">
+        <!-- Search FAQs -->
+        <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+            <input type="text" id="help-search-input" onkeyup="filterHelpArticles()" placeholder="Search guide topics (e.g. MikroTik, M-Pesa, Vouchers)..." class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <!-- FAQ Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="help-faq-grid">
+            <div class="faq-card p-4 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl space-y-2">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wifi text-indigo-400"></i> How do I link a MikroTik Router?
+                </h4>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Navigate to the <strong>Routers</strong> tab, click <em>Add Router</em>, enter your router identity and API port details, and assign the tenant target ID.
+                </p>
+            </div>
+
+            <div class="faq-card p-4 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl space-y-2">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-money-bill-wave text-emerald-400"></i> How are M-Pesa payments recorded?
+                </h4>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    STK pushes log real-time callbacks directly into the <code>transactions</code> collection. ISP Admins and permitted Technicians can view them in the Billing tab.
+                </p>
+            </div>
+
+            <div class="faq-card p-4 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl space-y-2">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-ticket text-amber-400"></i> Generating Hotspot Vouchers
+                </h4>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Go to <strong>Packages & Vouchers</strong>, select your bandwidth tier, click <em>Generate Batch</em>, and print or export codes for distribution.
+                </p>
+            </div>
+
+            <div class="faq-card p-4 bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl space-y-2">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-user-lock text-rose-400"></i> Managing Technician Access
+                </h4>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Assign fine-grained permission scopes during registration. Technicians inherit your ISP tenant context without seeing restricted administrative data.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: ROLE PERMISSIONS EXPLANATION -->
+    <div id="tab-help-roles" class="hidden space-y-4">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-4 space-y-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Technician Permission Matrix</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-200 dark:border-vunaborder text-slate-400 text-[10px] uppercase">
+                            <th class="pb-2">Scope Key</th>
+                            <th class="pb-2">Access Granted</th>
+                            <th class="pb-2">Affected Collections</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300">
+                        <tr>
+                            <td class="py-2.5 font-mono text-indigo-400">canManageRouters</td>
+                            <td>Add, view, and configure MikroTik routers</td>
+                            <td class="font-mono text-[10px] text-slate-400">routers, isp_portals</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5 font-mono text-indigo-400">canManagePackages</td>
+                            <td>Create/edit Internet bandwidth packages & vouchers</td>
+                            <td class="font-mono text-[10px] text-slate-400">isp_packages, isp_vouchers</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5 font-mono text-indigo-400">canManageSubscribers</td>
+                            <td>View & edit subscriber profiles</td>
+                            <td class="font-mono text-[10px] text-slate-400">subscribers</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5 font-mono text-indigo-400">canViewTransactions</td>
+                            <td>Access financial history & M-Pesa STK logs</td>
+                            <td class="font-mono text-[10px] text-slate-400">transactions, stk_requests</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5 font-mono text-indigo-400">canManageExpenses</td>
+                            <td>Record operational costs & payout logs</td>
+                            <td class="font-mono text-[10px] text-slate-400">isp_expenses, withdrawals</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: SUPPORT TICKET FORM -->
+    <div id="tab-help-ticket" class="hidden">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl p-5 max-w-xl mx-auto space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Submit a Support Inquiry</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Send a ticket directly to system engineers for system assistance.</p>
+            </div>
+
+            <form id="form-help-ticket" onsubmit="handleSupportTicketSubmit(event)" class="space-y-3 text-xs">
+                <div class="space-y-1">
+                    <label class="text-slate-400 font-medium">Issue Category</label>
+                    <select id="ticket-category" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white focus:outline-none">
+                        <option value="mikrotik">MikroTik Router Integration</option>
+                        <option value="mpesa">M-Pesa STK Callback Failure</option>
+                        <option value="technicians">Technician Permissions & Access</option>
+                        <option value="billing">Billing & Financial Statements</option>
+                        <option value="other">Other Inquiry</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-slate-400 font-medium">Subject</label>
+                    <input type="text" id="ticket-subject" required placeholder="Brief summary of issue" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white focus:outline-none">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-slate-400 font-medium">Detailed Description</label>
+                    <textarea id="ticket-message" required rows="4" placeholder="Describe the error or request in detail..." class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white focus:outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> Submit Support Ticket
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
             <!-- Account Metadata Identity Node Footer -->
 <div class="p-3 border-t border-slate-200 dark:border-vunaborder bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between gap-2">
     <div class="flex items-center gap-3 overflow-hidden min-w-0">
@@ -5520,6 +5678,88 @@ function checkSubscriptionTrial() {
         banner.className = "p-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl mb-6 text-sm flex items-center justify-between";
         if (bannerText) {
             bannerText.innerHTML = `<strong>Trial Expired:</strong> Your free trial has reached its limit. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-rose-300 ml-1">Activate subscription nodes</button> to preserve routing controls.`;
+        }
+    }
+}
+
+// Tab Switching Handler
+function switchHelpTab(tabName) {
+    const tabs = ['kb', 'roles', 'ticket'];
+    
+    tabs.forEach(t => {
+        const elTab = document.getElementById(`tab-help-${t}`);
+        const elBtn = document.getElementById(`btn-help-${t}`);
+        
+        if (t === tabName) {
+            if (elTab) elTab.classList.remove('hidden');
+            if (elBtn) {
+                elBtn.className = "px-3 py-1.5 rounded-lg bg-indigo-600 text-white transition";
+            }
+        } else {
+            if (elTab) elTab.classList.add('hidden');
+            if (elBtn) {
+                elBtn.className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition";
+            }
+        }
+    });
+}
+
+// Live Knowledge Base Search
+function filterHelpArticles() {
+    const query = document.getElementById('help-search-input').value.toLowerCase();
+    const cards = document.querySelectorAll('#help-faq-grid .faq-card');
+
+    cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        if (text.includes(query)) {
+            card.classList.remove('hidden');
+        } else {
+            card.classList.add('hidden');
+        }
+    });
+}
+
+// Support Ticket Handler
+async function handleSupportTicketSubmit(e) {
+    e.preventDefault();
+    const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+
+    const payload = {
+        ispId: targetTenant,
+        category: document.getElementById('ticket-category').value,
+        subject: document.getElementById('ticket-subject').value,
+        message: document.getElementById('ticket-message').value,
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        const res = await fetch(`${baseEndpoint}/api/help/tickets`, {
+            method: 'POST',
+            headers: typeof getAuthHeaders === 'function' ? getAuthHeaders() : {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            document.getElementById('form-help-ticket').reset();
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay('Support ticket submitted successfully. Our team will contact you.');
+            }
+            switchHelpTab('kb');
+        } else {
+            const errorData = await res.json().catch(() => ({}));
+            const msg = errorData.error || 'Failed to submit support ticket.';
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(`Error: ${msg}`, 'error');
+            }
+        }
+    } catch (err) {
+        console.error("Support ticket error:", err);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay('Network error sending ticket.', 'error');
         }
     }
 }
