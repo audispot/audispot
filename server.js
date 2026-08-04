@@ -33,6 +33,80 @@ app.use((req, res, next) => {
     next();
 });
 
+// 1. Authentication Middleware (Who is calling?)
+const authenticateUser = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: "Authentication token required." });
+        }
+
+        const decodedString = Buffer.from(token, 'base64').toString('utf-8');
+        const email = decodedString.split(':')[0];
+
+        if (!email) {
+            return res.status(403).json({ error: "Invalid token format." });
+        }
+
+        // Fetch user context from Firestore
+        const userQuery = await req.db.collection('users')
+            .where('email', '==', email.toLowerCase().trim())
+            .get();
+
+        if (userQuery.empty) {
+            return res.status(401).json({ error: "User account not found." });
+        }
+
+        const userData = userQuery.docs[0].data();
+        req.user = {
+            uid: userData.id || userQuery.docs[0].id,
+            ispId: userData.ispId || userData.id,
+            role: userData.role || 'isp_admin',
+            permissions: userData.permissions || {},
+            ...userData
+        };
+
+        next();
+    } catch (err) {
+        return res.status(401).json({ error: "Authentication process failed." });
+    }
+};
+
+// 2. Authorization Middleware (What are they allowed to do?)
+function authorizeScope(requiredScope) {
+    return (req, res, next) => {
+        const user = req.user;
+
+        if (!user) {
+            return res.status(401).json({ error: "Unauthorized access." });
+        }
+
+        if (user.role === 'isp_admin' || user.role === 'admin') {
+            req.targetIspId = user.ispId || user.uid;
+            return next();
+        }
+
+        if (user.role === 'technician') {
+            if (!user.ispId) {
+                return res.status(403).json({ error: "Technician is not attached to an active ISP account." });
+            }
+
+            if (requiredScope && (!user.permissions || !user.permissions[requiredScope])) {
+                return res.status(403).json({ 
+                    error: `Access denied. You do not have permission for '${requiredScope}'. Contact your ISP Administrator.` 
+                });
+            }
+
+            req.targetIspId = user.ispId;
+            return next();
+        }
+
+        return res.status(403).json({ error: "Invalid role permissions." });
+    };
+}
+
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
     ? 'https://api.safaricom.co.ke' 
     : 'https://sandbox.safaricom.co.ke';
@@ -4504,47 +4578,6 @@ async function sendWelcomeEmail({
         text: `Welcome to AudioSpot, ${displayName}! Access your portal dashboard here: ${loginUrl}`,
         html: htmlTemplate
     });
-}
-
-/**
- * Middleware: Enforces ISP multi-tenancy and technician granular permissions.
- * @param {string} requiredScope - e.g. 'canManageRouters', 'canAccessBilling'
- */
-function authorizeScope(requiredScope) {
-    return (req, res, next) => {
-        const user = req.user; // Set by your JWT or session authentication middleware
-
-        if (!user) {
-            return res.status(401).json({ error: "Unauthorized access." });
-        }
-
-        // ISP Admins/Owners have full access to their own account resources
-        if (user.role === 'isp_admin' || user.role === 'admin') {
-            req.targetIspId = user.ispId || user.uid;
-            return next();
-        }
-
-        // Technicians: Enforce scope & bound to parent ISP context
-        if (user.role === 'technician') {
-            // Check if user is linked to an ISP
-            if (!user.ispId) {
-                return res.status(403).json({ error: "Technician is not attached to an active ISP account." });
-            }
-
-            // Check specific permission assigned by the ISP owner
-            if (requiredScope && (!user.permissions || !user.permissions[requiredScope])) {
-                return res.status(403).json({ 
-                    error: `Access denied. You do not have permission for '${requiredScope}'. Contact your ISP Administrator.` 
-                });
-            }
-
-            // Bind query context to parent ISP ID so technician accesses ISP's data, not their own
-            req.targetIspId = user.ispId;
-            return next();
-        }
-
-        return res.status(403).json({ error: "Invalid role permissions." });
-    };
 }
 
 // Route: Routers Management (Technician allowed if permitted by ISP)
