@@ -33,43 +33,80 @@ app.use((req, res, next) => {
     next();
 });
 
-// 1. Authentication Middleware (Who is calling?)
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
+        const token = authHeader && authHeader.split(' ')[1]; // Extract token from "Bearer <token>"
 
         if (!token) {
             return res.status(401).json({ error: "Authentication token required." });
         }
 
+        // Decode Base64 token (e.g. "officialbigi254@gmail.com:timestamp")
         const decodedString = Buffer.from(token, 'base64').toString('utf-8');
-        const email = decodedString.split(':')[0];
+        const email = decodedString.split(':')[0].toLowerCase().trim();
 
         if (!email) {
             return res.status(403).json({ error: "Invalid token format." });
         }
 
-        // Fetch user context from Firestore
-        const userQuery = await req.db.collection('users')
-            .where('email', '==', email.toLowerCase().trim())
+        const db = req.db;
+
+        // 1. Check `isp_users` collection (ISP Owners / Admins)
+        let userSnap = await db.collection('isp_users')
+            .where('email', '==', email)
+            .limit(1)
             .get();
 
-        if (userQuery.empty) {
+        let userData = null;
+        let userId = null;
+
+        if (!userSnap.empty) {
+            userId = userSnap.docs[0].id;
+            userData = userSnap.docs[0].data();
+            // Default role for ISP owners if not specified in doc
+            if (!userData.role) userData.role = 'isp_admin'; 
+        } else {
+            // 2. Fallback: Check direct document ID lookup in `isp_users` (formatted as email string)
+            const docId = email.replace(/[@.]/g, '_');
+            const docRef = await db.collection('isp_users').doc(docId).get();
+            
+            if (docRef.exists) {
+                userId = docRef.id;
+                userData = docRef.data();
+                if (!userData.role) userData.role = 'isp_admin';
+            } else {
+                // 3. Check `technicians` collection (Technician accounts)
+                const techSnap = await db.collection('technicians')
+                    .where('email', '==', email)
+                    .limit(1)
+                    .get();
+
+                if (!techSnap.empty) {
+                    userId = techSnap.docs[0].id;
+                    userData = techSnap.docs[0].data();
+                    userData.role = 'technician';
+                }
+            }
+        }
+
+        // If user wasn't found in any of your user collections:
+        if (!userData) {
             return res.status(401).json({ error: "User account not found." });
         }
 
-        const userData = userQuery.docs[0].data();
+        // Attach user context to request object
         req.user = {
-            uid: userData.id || userQuery.docs[0].id,
-            ispId: userData.ispId || userData.id,
-            role: userData.role || 'isp_admin',
+            uid: userId,
+            ispId: userData.ispId || userId,
+            role: userData.role,
             permissions: userData.permissions || {},
             ...userData
         };
 
         next();
     } catch (err) {
+        console.error("Auth Middleware Error:", err);
         return res.status(401).json({ error: "Authentication process failed." });
     }
 };
