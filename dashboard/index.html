@@ -3045,6 +3045,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         if (typeof loadPaymentHistoryView === "function") {
             loadPaymentHistoryView();
         }
+
+    } else if (activeTab === 'help') {
+        if (typeof switchHelpTab === "function") {
+            switchHelpTab('kb');
+        }
     
     } else if (activeTab === 'pppoe') {
         if (typeof fetchPPPoESubscriberBase === "function") {
