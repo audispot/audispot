@@ -1050,24 +1050,42 @@
                     <label class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Granted Access Permissions</label>
                     <span class="text-[10px] text-slate-500">ISP Scope Controls</span>
                 </div>
-                
-                <div class="space-y-2 bg-slate-50 dark:bg-vunainput p-3 rounded-lg border border-slate-200 dark:border-vunaborder">
-                    <!-- Router & Hardware Access -->
+    
+                <div class="space-y-2 bg-slate-50 dark:bg-vunainput p-3 rounded-lg border border-slate-200 dark:border-vunaborder max-h-48 overflow-y-auto">
+                    <!-- 1. Routers & Hardware -->
                     <label class="flex items-center justify-between cursor-pointer">
-                        <span class="text-slate-300 font-medium">Manage Routers & MikroTik</span>
+                        <span class="text-slate-300 font-medium">Manage Routers (`routers`)</span>
                         <input type="checkbox" id="perm-routers" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
                     </label>
 
-                    <!-- Hotspots & Voucher Management -->
+                    <!-- 2. Packages & Vouchers -->
                     <label class="flex items-center justify-between cursor-pointer">
-                        <span class="text-slate-300 font-medium">View Hotspots & Active Users</span>
-                        <input type="checkbox" id="perm-hotspots" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                        <span class="text-slate-300 font-medium">Manage Packages & Vouchers (`isp_packages`, `isp_vouchers`)</span>
+                        <input type="checkbox" id="perm-packages" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
                     </label>
 
-                    <!-- M-Pesa & Financial Access -->
+                    <!-- 3. Subscribers -->
                     <label class="flex items-center justify-between cursor-pointer">
-                        <span class="text-slate-300 font-medium">Access Billing & M-Pesa Records</span>
-                        <input type="checkbox" id="perm-billing" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                        <span class="text-slate-300 font-medium">Manage Subscribers (`subscribers`)</span>
+                        <input type="checkbox" id="perm-subscribers" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+
+                    <!-- 4. Transactions & M-Pesa -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">View Payment Transactions (`transactions`, `stk_requests`)</span>
+                        <input type="checkbox" id="perm-transactions" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+
+                    <!-- 5. Expenses & Withdrawals -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">View Expenses & Withdrawals (`isp_expenses`, `withdrawals`)</span>
+                        <input type="checkbox" id="perm-expenses" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </label>
+
+                    <!-- 6. Settings -->
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 font-medium">Modify ISP Settings (`settings`)</span>
+                        <input type="checkbox" id="perm-settings" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
                     </label>
                 </div>
             </div>
@@ -5091,13 +5109,14 @@ function closeAddTechnicianModal() {
 // Technician management routines
 async function handleTechnicianRegistration(e) {
     e.preventDefault();
-    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
 
-    // Safely extract permission choices from checkboxes (defaulting to false if element is missing)
-    const permRoutersEl = document.getElementById('perm-routers');
-    const permHotspotsEl = document.getElementById('perm-hotspots');
-    const permBillingEl = document.getElementById('perm-billing');
+    // Safely extract permission choices from all checkboxes
+    const getPerm = (id, defaultVal = false) => {
+        const el = document.getElementById(id);
+        return el ? el.checked : defaultVal;
+    };
 
     const payload = {
         name: document.getElementById('tech-name').value,
@@ -5105,17 +5124,20 @@ async function handleTechnicianRegistration(e) {
         password: document.getElementById('tech-password').value,
         ispId: targetTenant,
         permissions: {
-            canManageRouters: permRoutersEl ? permRoutersEl.checked : true,
-            canViewHotspots: permHotspotsEl ? permHotspotsEl.checked : true,
-            canAccessBilling: permBillingEl ? permBillingEl.checked : false
+            canManageRouters: getPerm('perm-routers', true),
+            canManagePackages: getPerm('perm-packages', true),
+            canManageSubscribers: getPerm('perm-subscribers', true),
+            canViewTransactions: getPerm('perm-transactions', false),
+            canManageExpenses: getPerm('perm-expenses', false),
+            canModifySettings: getPerm('perm-settings', false)
         }
     };
 
     try {
         const headers = { 'Content-Type': 'application/json' };
         
-        // Include authorization header if token is present
-        const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+        // Grab token matching your devtools: `auth_token`
+        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
         if (authToken) {
             headers['Authorization'] = `Bearer ${authToken}`;
         }
@@ -5127,13 +5149,12 @@ async function handleTechnicianRegistration(e) {
         });
 
         if (res.ok) {
-            // Reset form fields
             const form = document.getElementById('form-register-technician');
             if (form) form.reset();
 
             closeAddTechnicianModal();
             if (typeof triggerToastDisplay === 'function') {
-                triggerToastDisplay('New restricted technician user added successfully.');
+                triggerToastDisplay('Technician registered with custom permission scope.');
             }
             if (typeof loadTechniciansRegistry === 'function') {
                 loadTechniciansRegistry();
