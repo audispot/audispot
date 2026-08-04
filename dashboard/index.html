@@ -5099,11 +5099,26 @@ async function toggleSmsSystem() {
 
 // Technician modal control handlers
 function openAddTechnicianModal() {
-    document.getElementById('modal-add-technician').classList.remove('hidden');
+    const modal = document.getElementById('modal-add-technician');
+    if (modal) modal.classList.remove('hidden');
 }
+
 function closeAddTechnicianModal() {
-    document.getElementById('modal-add-technician').classList.add('hidden');
-    document.getElementById('form-register-technician').reset();
+    const modal = document.getElementById('modal-add-technician');
+    if (modal) modal.classList.add('hidden');
+    
+    const form = document.getElementById('form-register-technician');
+    if (form) form.reset();
+}
+
+// Helper to reliably construct Auth Headers
+function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    return headers;
 }
 
 // Technician management routines
@@ -5134,24 +5149,13 @@ async function handleTechnicianRegistration(e) {
     };
 
     try {
-        const headers = { 'Content-Type': 'application/json' };
-        
-        // Grab token matching your devtools: `auth_token`
-        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
-        if (authToken) {
-            headers['Authorization'] = `Bearer ${authToken}`;
-        }
-
         const res = await fetch(`${baseEndpoint}/api/technicians`, {
             method: 'POST',
-            headers: headers,
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
 
         if (res.ok) {
-            const form = document.getElementById('form-register-technician');
-            if (form) form.reset();
-
             closeAddTechnicianModal();
             if (typeof triggerToastDisplay === 'function') {
                 triggerToastDisplay('Technician registered with custom permission scope.');
@@ -5164,8 +5168,6 @@ async function handleTechnicianRegistration(e) {
             const alertMsg = errorData.error || "Could not complete registration.";
             if (typeof triggerToastDisplay === 'function') {
                 triggerToastDisplay(`Error: ${alertMsg}`, 'error');
-            } else {
-                alert(alertMsg);
             }
         }
     } catch (err) {
@@ -5177,60 +5179,119 @@ async function handleTechnicianRegistration(e) {
 }
 
 async function loadTechniciansRegistry() {
-    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const container = document.getElementById('tech-list-container');
     const emptyState = document.getElementById('tech-empty-state');
     const countLabel = document.getElementById('lbl-tech-count');
+
+    if (!container) return;
+
     try {
-        const res = await fetch(`${baseEndpoint}/api/technicians?ispId=${targetTenant}`);
-        if (!res.ok) return;
-        const technicians = await res.json();
-        countLabel.innerText = `Technicians (${technicians.length})`;
-        // Remove old dynamic technician items (excluding the base template empty state)
-        const activeItems = container.querySelectorAll('.tech-active-item');
-        activeItems.forEach(item => item.remove());
-        if (technicians.length === 0) {
-            emptyState.classList.remove('hidden');
+        const res = await fetch(`${baseEndpoint}/api/technicians?ispId=${targetTenant}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (!res.ok) {
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay('Failed to fetch technicians list.', 'error');
+            }
             return;
         }
-        emptyState.classList.add('hidden');
+
+        const technicians = await res.json();
+        
+        if (countLabel) {
+            countLabel.innerText = `Technicians (${technicians.length})`;
+        }
+
+        // Remove old dynamic technician items
+        const activeItems = container.querySelectorAll('.tech-active-item');
+        activeItems.forEach(item => item.remove());
+
+        if (!technicians || technicians.length === 0) {
+            if (emptyState) emptyState.classList.remove('hidden');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('hidden');
+
         technicians.forEach(tech => {
+            const initials = tech.name ? tech.name.substring(0, 2).toUpperCase() : 'TC';
             const row = document.createElement('div');
-            row.className = "tech-active-item flex items-center justify-between p-3 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-xs";
+            row.id = `tech-row-${tech.id}`;
+            row.className = "tech-active-item flex items-center justify-between p-3 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-xs transition-all";
             row.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-indigo-600/10 text-indigo-500 flex items-center justify-center font-bold font-mono">
-                        ${tech.name.substring(0,2).toUpperCase()}
+                        ${initials}
                     </div>
                     <div>
                         <span class="font-bold text-slate-900 dark:text-white block">${tech.name}</span>
                         <span class="text-slate-400 font-mono text-[10px] block mt-0.5">${tech.email}</span>
                     </div>
                 </div>
-                <button onclick="removeTechnician('${tech.id}')" class="text-rose-400 hover:text-rose-500 p-1 font-semibold transition hover:scale-110">
-                    <i class="fa-solid fa-trash-can text-sm"></i>
-                </button>
+                
+                <!-- Action Container with Inline Delete Confirmation -->
+                <div id="tech-action-${tech.id}" class="flex items-center gap-2">
+                    <button onclick="promptRemoveTechnician('${tech.id}')" title="Revoke access" class="text-rose-400 hover:text-rose-500 p-1 font-semibold transition hover:scale-110">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                </div>
             `;
             container.appendChild(row);
         });
     } catch (err) {
         console.error("Failed loading technicians registry:", err);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay('Error loading technicians list.', 'error');
+        }
     }
 }
 
-async function removeTechnician(techId) {
-    if (!confirm("Are you sure you want to terminate this technician's administrative rights?")) return;
+// In-place UI confirmation instead of browser prompt / confirm dialogs
+function promptRemoveTechnician(techId) {
+    const actionContainer = document.getElementById(`tech-action-${techId}`);
+    if (!actionContainer) return;
+
+    actionContainer.innerHTML = `
+        <span class="text-[10px] text-rose-400 font-bold mr-1">Revoke?</span>
+        <button onclick="confirmRemoveTechnician('${techId}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-bold transition">
+            Yes
+        </button>
+        <button onclick="loadTechniciansRegistry()" class="px-2 py-1 bg-slate-200 dark:bg-vunaborder text-slate-700 dark:text-slate-300 rounded text-[10px] font-bold transition">
+            No
+        </button>
+    `;
+}
+
+async function confirmRemoveTechnician(techId) {
     const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
+    const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : (localStorage.getItem('isp_id') || 'default_isp');
+
     try {
-        const res = await fetch(`${baseEndpoint}/api/technicians/${techId}?ispId=${targetTenant}`, { method: 'DELETE' });
+        const res = await fetch(`${baseEndpoint}/api/technicians/${techId}?ispId=${targetTenant}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
         if (res.ok) {
-            if (typeof triggerToastDisplay === 'function') triggerToastDisplay('Technician terminated.');
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay('Technician access revoked successfully.');
+            }
             loadTechniciansRegistry();
+        } else {
+            const errorData = await res.json().catch(() => ({}));
+            const alertMsg = errorData.error || "Failed to terminate technician.";
+            if (typeof triggerToastDisplay === 'function') {
+                triggerToastDisplay(`Error: ${alertMsg}`, 'error');
+            }
         }
     } catch (err) {
-        console.error(err);
+        console.error("Error revoking technician:", err);
+        if (typeof triggerToastDisplay === 'function') {
+            triggerToastDisplay('Network error while revoking access.', 'error');
+        }
     }
 }
 
