@@ -4580,30 +4580,43 @@ async function sendWelcomeEmail({
     });
 }
 
-// Route: Routers Management (Technician allowed if permitted by ISP)
-app.get('/api/routers', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+// 1. Transactions & M-Pesa Records (Uses `transactions` collection)
+app.get('/api/billing/history', authenticateUser, authorizeScope('canViewTransactions'), async (req, res) => {
     try {
-        // Query routers under the parent ISP ID (Works for both ISP owner & Technician)
-        const snapshot = await req.db.collection('routers')
+        const snapshot = await req.db.collection('transactions')
             .where('ispId', '==', req.targetIspId)
             .get();
 
-        const routers = snapshot.docs.map(doc => doc.data());
-        res.json({ routers });
+        const payments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json({ payments });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Route: Billing Records (Restricted if technician lacks 'canAccessBilling')
-app.get('/api/billing/history', authenticateUser, authorizeScope('canAccessBilling'), async (req, res) => {
+// 2. Expenses & Payouts (Uses `isp_expenses` & `withdrawals` collections)
+app.get('/api/expenses', authenticateUser, authorizeScope('canManageExpenses'), async (req, res) => {
     try {
-        const snapshot = await req.db.collection('payments')
+        const expensesSnap = await req.db.collection('isp_expenses')
             .where('ispId', '==', req.targetIspId)
             .get();
 
-        const payments = snapshot.docs.map(doc => doc.data());
-        res.json({ payments });
+        const expenses = expensesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json({ expenses });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Subscribers (Uses `subscribers` collection)
+app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribers'), async (req, res) => {
+    try {
+        const snapshot = await req.db.collection('subscribers')
+            .where('ispId', '==', req.targetIspId)
+            .get();
+
+        const subscribers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json({ subscribers });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
