@@ -4461,7 +4461,7 @@ async function fetchAndRenderDashboard() {
         // 1. RENDERING PROFILE METADATA
         // ==========================================
         const ispName = stats.ispName || "AudiSpot Partner";
-        const email = stats.email || `${CURRENT_ISP_ID.replace(/_/g, '.')}@audispot.com`;
+        const email = stats.email || "";
 
         const initials = ispName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         if (document.getElementById("lbl-side-initials")) document.getElementById("lbl-side-initials").innerText = initials || "AS";
