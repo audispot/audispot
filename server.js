@@ -4659,5 +4659,51 @@ app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribe
     }
 });
 
+// Submit Support Ticket (Saved under `help_tickets` collection)
+app.post('/api/help/tickets', authenticateUser, async (req, res) => {
+    try {
+        const { category, subject, message } = req.body;
+
+        if (!subject || !message) {
+            return res.status(400).json({ error: "Subject and detailed message are required." });
+        }
+
+        const ticketDoc = {
+            ispId: req.targetIspId || req.user.ispId,
+            userEmail: req.user.email || 'unknown',
+            userRole: req.user.role || 'isp_admin',
+            category: category || 'general',
+            subject: subject.trim(),
+            message: message.trim(),
+            status: 'OPEN',
+            createdAt: new Date().toISOString()
+        };
+
+        const docRef = await req.db.collection('help_tickets').add(ticketDoc);
+
+        res.status(201).json({
+            message: "Support ticket logged successfully.",
+            ticketId: docRef.id
+        });
+    } catch (err) {
+        console.error("Error saving support ticket:", err);
+        res.status(500).json({ error: "Could not log support ticket." });
+    }
+});
+
+// Fetch Tickets Logged by Current Tenant
+app.get('/api/help/tickets', authenticateUser, async (req, res) => {
+    try {
+        const snapshot = await req.db.collection('help_tickets')
+            .where('ispId', '==', req.targetIspId || req.user.ispId)
+            .get();
+
+        const tickets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json({ tickets });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
