@@ -4705,5 +4705,116 @@ app.get('/api/help/tickets', authenticateUser, async (req, res) => {
     }
 });
 
+// ====================================================================
+// TALKSASA SMS INTEGRATION SUBSYSTEM
+// ====================================================================
+
+// 1. Send SMS via TalkSasa API
+app.post('/api/sms/send', async (req, res) => {
+    const { ispId, recipient, message } = req.body;
+
+    if (!recipient || !message) {
+        return res.status(400).json({ success: false, error: "Recipient phone and message are required." });
+    }
+
+    // Format phone to 254...
+    let cleanPhone = String(recipient).replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.slice(1);
+    if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) cleanPhone = '254' + cleanPhone;
+
+    const apiKey = process.env.TALKSASA_API_KEY;
+    const senderId = process.env.TALKSASA_SENDER_ID || "TALKSASA";
+
+    try {
+        let status = 'SUCCESS';
+        let apiResponseData = {};
+
+        if (apiKey) {
+            // Direct API Integration with TalkSasa
+            const talkSasaRes = await axios.post('https://api.talksasa.com/v1/sms/send', {
+                api_key: apiKey,
+                sender_id: senderId,
+                recipient: cleanPhone,
+                message: message
+            });
+            apiResponseData = talkSasaRes.data;
+        } else {
+            console.log(`[SMS SIMULATION - TALKSASA] Sent to ${cleanPhone}: "${message}"`);
+        }
+
+        // Audit SMS Log in Firestore
+        const logRef = db.collection('sms_logs').doc();
+        await logRef.set({
+            ispId: ispId || 'default_isp',
+            recipient: cleanPhone,
+            message: message,
+            status: status,
+            apiResponse: apiResponseData,
+            timestamp: new Date().toISOString()
+        });
+
+        // Deduct SMS credit from settings document
+        if (ispId) {
+            await db.collection('settings').doc(ispId).set({
+                smsCredits: Firestore.FieldValue.increment(-1)
+            }, { merge: true });
+        }
+
+        return res.status(200).json({ success: true, message: "SMS dispatched successfully." });
+
+    } catch (error) {
+        console.error("TalkSasa SMS Error:", error.response ? error.response.data : error.message);
+
+        // Record Failure Log
+        await db.collection('sms_logs').add({
+            ispId: ispId || 'default_isp',
+            recipient: cleanPhone,
+            message: message,
+            status: 'FAILED',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+
+        return res.status(500).json({ 
+            success: false, 
+            error: error.response?.data?.message || error.message || "Failed to dispatch SMS via TalkSasa gateway." 
+        });
+    }
+});
+
+// 2. Fetch SMS Balance / Credits
+app.get('/api/sms/credits', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const settingsDoc = await db.collection('settings').doc(ispId).get();
+        const credits = settingsDoc.exists ? (settingsDoc.data().smsCredits || 0) : 0;
+        return res.status(200).json({ success: true, credits: credits });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 3. Fetch Communication Logs
+app.get('/api/sms/logs', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
+    try {
+        const snapshot = await db.collection('sms_logs')
+            .where('ispId', '==', ispId)
+            .get();
+
+        const logs = [];
+        snapshot.forEach(doc => {
+            logs.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Sort by newest first
+        logs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
+        return res.status(200).json(logs);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
