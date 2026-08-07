@@ -3183,7 +3183,8 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             'settings': 'System Settings Console',
             'expenses': 'Operation Expense Tracking',
             'analytics': 'Financial Performance Engine',
-            'help': 'Help & Support Documentation'
+            'help': 'Help & Support Documentation',
+            'communication': 'payment reminders, and bulk announcements'
         };
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
@@ -3224,6 +3225,12 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'help') {
         if (typeof switchHelpTab === "function") {
             switchHelpTab('kb');
+        }
+
+    } else if (activeTab === 'communication') {
+        if (typeof loadCommunicationLogs === "function") {
+            loadCommunicationLogs();
+            fetchSmsCredits();
         }
     
     } else if (activeTab === 'pppoe') {
