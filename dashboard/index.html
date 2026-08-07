@@ -3054,6 +3054,20 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     // Prevent errors if an empty or invalid parameter is passed
     const activeTab = targetTab || 'dashboard';
 
+    // ==================== CLOSE MOBILE SIDEBAR ====================
+    const sidebar = document.getElementById('sidebar-navigation-panel');
+    const icon = document.getElementById('hamburger-icon-node');
+
+    if (sidebar) {
+        sidebar.classList.add('hidden');
+        sidebar.classList.add('-translate-x-full');
+    }
+
+    if (icon) {
+        icon.classList.remove('fa-xmark');
+        icon.classList.add('fa-bars');
+    }
+
     // 1. Hide all view panels
     const viewframes = document.querySelectorAll('.viewframe');
     viewframes.forEach(frame => {
