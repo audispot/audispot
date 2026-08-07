@@ -3121,9 +3121,17 @@ async function syncDashboardFleetTable() {
     }
 }
 
+// Global ISP ID tracker (Fallback to localStorage or logged-in user context)
+let currentIspId = localStorage.getItem('ispId') || 'default_isp';
+
 function changeActiveLayoutTab(targetTab = 'dashboard') {
     // Prevent errors if an empty or invalid parameter is passed
     const activeTab = targetTab || 'dashboard';
+
+    // Ensure currentIspId is initialized
+    if (!currentIspId) {
+        currentIspId = localStorage.getItem('ispId') || 'default_isp';
+    }
 
     // ==================== CLOSE MOBILE SIDEBAR ====================
     const sidebar = document.getElementById('sidebar-navigation-panel');
@@ -3189,57 +3197,31 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
 
-   // ==================== LIVE DATA HOOK TRIGGERS ====================
+    // ==================== LIVE DATA HOOK TRIGGERS ====================
     if (activeTab === 'expenses') {
-        if (typeof fetchAndRenderExpenses === "function") {
-            fetchAndRenderExpenses();
-        }
+        if (typeof fetchAndRenderExpenses === "function") fetchAndRenderExpenses();
     } else if (activeTab === 'analytics') {
-        if (typeof fetchAndRenderAnalytics === "function") {
-            fetchAndRenderAnalytics();
-        }
+        if (typeof fetchAndRenderAnalytics === "function") fetchAndRenderAnalytics();
     } else if (activeTab === 'vouchers') { 
-        if (typeof fetchSystemVoucherRegistry === "function") {
-            fetchSystemVoucherRegistry();
-        }
+        if (typeof fetchSystemVoucherRegistry === "function") fetchSystemVoucherRegistry();
     } else if (activeTab === 'settings') { 
-        if (typeof fetchAndRenderSystemSettings === "function") {
-            fetchAndRenderSystemSettings();
-        }
-
+        if (typeof fetchAndRenderSystemSettings === "function") fetchAndRenderSystemSettings();
     } else if (activeTab === 'static-ip') {
-        if (typeof fetchStaticDHCPLeases === "function") {
-            fetchStaticDHCPLeases();
-        }
-
+        if (typeof fetchStaticDHCPLeases === "function") fetchStaticDHCPLeases();
     } else if (activeTab === 'sessions') {
-        if (typeof loadSessionsRoutersDropdown === "function") {
-            loadSessionsRoutersDropdown();
-        }
-
+        if (typeof loadSessionsRoutersDropdown === "function") loadSessionsRoutersDropdown();
     } else if (activeTab === 'earnings') {
-        if (typeof loadPaymentHistoryView === "function") {
-            loadPaymentHistoryView();
-        }
-
+        if (typeof loadPaymentHistoryView === "function") loadPaymentHistoryView();
     } else if (activeTab === 'help') {
-        if (typeof switchHelpTab === "function") {
-            switchHelpTab('kb');
-        }
-
+        if (typeof switchHelpTab === "function") switchHelpTab('kb');
     } else if (activeTab === 'communication') {
-        if (typeof loadCommunicationLogs === "function") {
-            loadCommunicationLogs();
-            fetchSmsCredits();
-        }
-    
+        if (typeof loadCommunicationLogs === "function") loadCommunicationLogs();
+        if (typeof fetchSmsCredits === "function") fetchSmsCredits();
     } else if (activeTab === 'pppoe') {
-        if (typeof fetchPPPoESubscriberBase === "function") {
-            fetchPPPoESubscriberBase();
-        }
+        if (typeof fetchPPPoESubscriberBase === "function") fetchPPPoESubscriberBase();
     }
 }
-
+        
 // SMOOTH MODAL REPLACEMENT TOAST NOTIFIER
         function triggerToastDisplay(textMessage, isWarningMessage = false) {
             const toastFrame = document.getElementById('inline-toast');
