@@ -102,6 +102,7 @@
                     <button onclick="changeActiveLayoutTab('sessions')" id="tablink-sessions" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-users text-sm w-4"></i> Sessions</button>
                     <button onclick="changeActiveLayoutTab('pppoe')" id="tablink-pppoe" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-network-wired text-sm w-4"></i> PPPoE</button>
                     <button onclick="changeActiveLayoutTab('static-ip')" id="tablink-static-ip" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-microchip text-sm w-4"></i> Static IP</button>
+                    <button onclick="changeActiveLayoutTab('communication')" id="tablink-communication" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-comments text-sm w-4"></i> Communication</button>
                 </div>
 
                 <!-- CATEGORY: NETWORK Infrastructure -->
@@ -523,6 +524,71 @@
             </div>
         </form>
     </div>
+</div>
+
+<div id="viewframe-communication" class="space-y-6 hidden viewframe">
+    <!-- Header Control Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-comments text-indigo-500"></i> Customer Communications & SMS Broadcast
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Send targeted notifications, payment reminders, and bulk announcements.</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <button onclick="openSMSModal()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition flex items-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-paper-plane"></i> New Broadcast
+            </button>
+        </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">SMS Balance</p>
+            <h3 class="text-2xl font-bold text-indigo-500 mt-1" id="comm-sms-credits">0 <span class="text-xs font-normal text-slate-400">credits</span></h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Messages Sent Today</p>
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mt-1" id="comm-metric-sent">0</h3>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Delivery Rate</p>
+            <h3 class="text-2xl font-bold text-emerald-500 mt-1" id="comm-delivery-rate">100%</h3>
+        </div>
+    </div>
+
+    <!-- Communication Logs Table -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder flex justify-between items-center">
+            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Outbound Message Audit Log</h4>
+            <button onclick="loadCommunicationLogs()" class="text-xs text-indigo-500 hover:underline flex items-center gap-1">
+                <i class="fa-solid fa-rotate"></i> Refresh Logs
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">Recipient</th>
+                        <th class="p-3">Message Snippet</th>
+                        <th class="p-3">Type</th>
+                        <th class="p-3">Timestamp</th>
+                        <th class="p-3 text-right">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="comm-table-body">
+                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">Loading message logs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Inline Custom Toast Notification Banner (No Browser Popups) -->
+<div id="comm-toast" class="fixed bottom-5 right-5 hidden z-50 px-4 py-3 rounded-xl text-xs font-bold text-white shadow-lg flex items-center gap-2 transition-all duration-300">
+    <i id="comm-toast-icon" class="fa-solid fa-circle-check"></i>
+    <span id="comm-toast-msg">Operation successful</span>
 </div>
 
 <!-- VIEW FRAME: HELP & SUPPORT -->
@@ -5791,6 +5857,99 @@ function checkSubscriptionTrial() {
         if (bannerText) {
             bannerText.innerHTML = `<strong>Trial Expired:</strong> Your free trial has reached its limit. <button onclick="toggleSubscriptionModal(true)" class="underline font-bold hover:text-rose-300 ml-1">Activate subscription nodes</button> to preserve routing controls.`;
         }
+    }
+}
+
+function showToast(message, isError = false) {
+    const toast = document.getElementById('comm-toast');
+    const toastMsg = document.getElementById('comm-toast-msg');
+    const toastIcon = document.getElementById('comm-toast-icon');
+
+    if (!toast) return;
+
+    toastMsg.innerText = message;
+    if (isError) {
+        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-xs font-bold text-white shadow-lg flex items-center gap-2 bg-rose-600 transition-all duration-300';
+        toastIcon.className = 'fa-solid fa-triangle-exclamation';
+    } else {
+        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-xs font-bold text-white shadow-lg flex items-center gap-2 bg-emerald-600 transition-all duration-300';
+        toastIcon.className = 'fa-solid fa-circle-check';
+    }
+
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 4000);
+}
+
+/**
+ * Fetch SMS Credit Metrics from ISP Dashboard Endpoint
+ */
+async function fetchSmsCredits() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/isp/dashboard-stats/${currentIspId}`);
+        const data = await response.json();
+        
+        if (response.ok && data) {
+            const smsCreditsEl = document.getElementById('comm-sms-credits');
+            if (smsCreditsEl) {
+                smsCreditsEl.innerHTML = `${data.smsCredits || 0} <span class="text-xs font-normal text-slate-400">credits</span>`;
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load SMS credit info:", err);
+    }
+}
+
+/**
+ * Fetch Outbound Communication Logs
+ */
+async function loadCommunicationLogs() {
+    const tableBody = document.getElementById('comm-table-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans"><i class="fa-solid fa-rotate animate-spin mr-2"></i>Fetching latest broadcast history...</td></tr>`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hotspot/logs?ispId=${currentIspId}`);
+        const logs = await response.json();
+
+        if (!response.ok || !Array.isArray(logs) || logs.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No communication logs recorded yet.</td></tr>`;
+            return;
+        }
+
+        let renderedRows = '';
+        let sentCount = 0;
+
+        logs.forEach(log => {
+            if (log.type === 'sms' || log.phoneNumber) {
+                sentCount++;
+                const statusBadge = log.status === 'completed' || log.status === 'PAID'
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">DELIVERED</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">PENDING</span>`;
+
+                renderedRows += `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <td class="p-3 font-sans font-semibold text-slate-900 dark:text-white">${log.phoneNumber || log.customerPhone || 'N/A'}</td>
+                        <td class="p-3 font-sans text-slate-400 max-w-xs truncate">${log.message || log.receipt || 'WiFi Voucher Notification'}</td>
+                        <td class="p-3 uppercase text-[10px] tracking-wide text-indigo-400">${log.type || 'SMS'}</td>
+                        <td class="p-3 font-sans text-slate-400">${new Date(log.createdAt || log.timestamp || Date.now()).toLocaleString()}</td>
+                        <td class="p-3 text-right">${statusBadge}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        tableBody.innerHTML = renderedRows || `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No outgoing SMS records found.</td></tr>`;
+        
+        const metricSent = document.getElementById('comm-metric-sent');
+        if (metricSent) metricSent.innerText = sentCount;
+
+    } catch (error) {
+        console.error("Communication Log Error:", error);
+        tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center font-sans text-rose-500">Failed to pull communications data.</td></tr>`;
+        showToast("Network error while pulling log records", true);
     }
 }
 
