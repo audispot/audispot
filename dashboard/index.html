@@ -3184,7 +3184,7 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             'expenses': 'Operation Expense Tracking',
             'analytics': 'Financial Performance Engine',
             'help': 'Help & Support Documentation',
-            'communication': 'payment reminders, and bulk announcements'
+            'communication': 'Payment Reminders & Bulk Announcements'
         };
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
@@ -5867,96 +5867,139 @@ function checkSubscriptionTrial() {
     }
 }
 
-function showToast(message, isError = false) {
-    const toast = document.getElementById('comm-toast');
-    const toastMsg = document.getElementById('comm-toast-msg');
-    const toastIcon = document.getElementById('comm-toast-icon');
+// ==================== SMS & COMMUNICATION FRONTEND ENGINE ====================
 
-    if (!toast) return;
-
-    toastMsg.innerText = message;
-    if (isError) {
-        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-xs font-bold text-white shadow-lg flex items-center gap-2 bg-rose-600 transition-all duration-300';
-        toastIcon.className = 'fa-solid fa-triangle-exclamation';
-    } else {
-        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-xs font-bold text-white shadow-lg flex items-center gap-2 bg-emerald-600 transition-all duration-300';
-        toastIcon.className = 'fa-solid fa-circle-check';
+// Helper for UI Notification (Replaces native browser alert popups)
+function showToastNotification(message, type = 'info') {
+    let toast = document.getElementById('global-toast-notification');
+    
+    // Fallback: Dynamically inject toast container if missing from HTML
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'global-toast-notification';
+        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all transform duration-300 translate-y-10 opacity-0 pointer-events-none';
+        document.body.appendChild(toast);
     }
 
-    toast.classList.remove('hidden');
+    const typeStyles = {
+        success: 'bg-emerald-600 dark:bg-emerald-500',
+        error: 'bg-rose-600 dark:bg-rose-500',
+        warning: 'bg-amber-600 dark:bg-amber-500',
+        info: 'bg-indigo-600 dark:bg-indigo-500'
+    };
+
+    toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all transform duration-300 ${typeStyles[type] || typeStyles.info}`;
+    toast.innerText = message;
+
+    // Animate in
+    toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+
+    // Hide automatically after 3.5s
     setTimeout(() => {
-        toast.classList.add('hidden');
-    }, 4000);
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+    }, 3500);
 }
 
-/**
- * Fetch SMS Credit Metrics from ISP Dashboard Endpoint
- */
+function openSMSModal(recipientPhone = '', defaultMessage = '') {
+    const modal = document.getElementById('sms-modal-container');
+    const phoneInput = document.getElementById('sms-recipient-input');
+    const messageInput = document.getElementById('sms-message-input');
+
+    if (phoneInput) phoneInput.value = recipientPhone;
+    if (messageInput) messageInput.value = defaultMessage;
+
+    if (modal) {
+        modal.classList.remove('hidden');
+    } else {
+        showToastNotification(`Modal container not found. Target: ${recipientPhone || 'Subscriber'}`, 'warning');
+    }
+}
+
+function closeSMSModal() {
+    const modal = document.getElementById('sms-modal-container');
+    if (modal) modal.classList.add('hidden');
+}
+
 async function fetchSmsCredits() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/isp/dashboard-stats/${currentIspId}`);
+        const ispId = currentIspId || localStorage.getItem('ispId') || 'default_isp';
+        const response = await fetch(`/api/sms/credits?ispId=${encodeURIComponent(ispId)}`);
         const data = await response.json();
-        
-        if (response.ok && data) {
-            const smsCreditsEl = document.getElementById('comm-sms-credits');
-            if (smsCreditsEl) {
-                smsCreditsEl.innerHTML = `${data.smsCredits || 0} <span class="text-xs font-normal text-slate-400">credits</span>`;
-            }
+
+        const badge = document.getElementById('lbl-sms-credits-count');
+        if (badge && data.success) {
+            badge.innerText = `${data.credits} SMS Credits`;
         }
     } catch (err) {
         console.error("Failed to load SMS credit info:", err);
     }
 }
 
-/**
- * Fetch Outbound Communication Logs
- */
 async function loadCommunicationLogs() {
-    const tableBody = document.getElementById('comm-table-body');
-    if (!tableBody) return;
-
-    tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans"><i class="fa-solid fa-rotate animate-spin mr-2"></i>Fetching latest broadcast history...</td></tr>`;
-
     try {
-        const response = await fetch(`${API_BASE_URL}/api/hotspot/logs?ispId=${currentIspId}`);
+        const ispId = currentIspId || localStorage.getItem('ispId') || 'default_isp';
+        const response = await fetch(`/api/sms/logs?ispId=${encodeURIComponent(ispId)}`);
         const logs = await response.json();
 
-        if (!response.ok || !Array.isArray(logs) || logs.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No communication logs recorded yet.</td></tr>`;
+        const tableBody = document.getElementById('tbl-communication-logs-body');
+        if (!tableBody) return;
+
+        if (!Array.isArray(logs) || logs.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">No communication logs recorded yet.</td></tr>`;
             return;
         }
 
-        let renderedRows = '';
-        let sentCount = 0;
+        tableBody.innerHTML = logs.map(log => `
+            <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <td class="py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">${log.recipient || 'N/A'}</td>
+                <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">${log.message || ''}</td>
+                <td class="py-3 px-4 text-sm">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                        ${log.status || 'PENDING'}
+                    </span>
+                </td>
+                <td class="py-3 px-4 text-sm text-slate-500">${new Date(log.timestamp || Date.now()).toLocaleString()}</td>
+            </tr>
+        `).join('');
 
-        logs.forEach(log => {
-            if (log.type === 'sms' || log.phoneNumber) {
-                sentCount++;
-                const statusBadge = log.status === 'completed' || log.status === 'PAID'
-                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">DELIVERED</span>`
-                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">PENDING</span>`;
+    } catch (err) {
+        console.error("Communication Log Error:", err);
+    }
+}
 
-                renderedRows += `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                        <td class="p-3 font-sans font-semibold text-slate-900 dark:text-white">${log.phoneNumber || log.customerPhone || 'N/A'}</td>
-                        <td class="p-3 font-sans text-slate-400 max-w-xs truncate">${log.message || log.receipt || 'WiFi Voucher Notification'}</td>
-                        <td class="p-3 uppercase text-[10px] tracking-wide text-indigo-400">${log.type || 'SMS'}</td>
-                        <td class="p-3 font-sans text-slate-400">${new Date(log.createdAt || log.timestamp || Date.now()).toLocaleString()}</td>
-                        <td class="p-3 text-right">${statusBadge}</td>
-                    </tr>
-                `;
-            }
+async function sendSmsSubmit() {
+    const phoneInput = document.getElementById('sms-recipient-input');
+    const messageInput = document.getElementById('sms-message-input');
+
+    if (!phoneInput || !phoneInput.value.trim() || !messageInput || !messageInput.value.trim()) {
+        showToastNotification("Please provide both phone number and message text.", "warning");
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/sms/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ispId: currentIspId || localStorage.getItem('ispId') || 'default_isp',
+                recipient: phoneInput.value.trim(),
+                message: messageInput.value.trim()
+            })
         });
 
-        tableBody.innerHTML = renderedRows || `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No outgoing SMS records found.</td></tr>`;
-        
-        const metricSent = document.getElementById('comm-metric-sent');
-        if (metricSent) metricSent.innerText = sentCount;
-
-    } catch (error) {
-        console.error("Communication Log Error:", error);
-        tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center font-sans text-rose-500">Failed to pull communications data.</td></tr>`;
-        showToast("Network error while pulling log records", true);
+        const resData = await response.json();
+        if (resData.success) {
+            showToastNotification("SMS dispatched successfully via TalkSasa!", "success");
+            closeSMSModal();
+            fetchSmsCredits();
+            loadCommunicationLogs();
+        } else {
+            showToastNotification("Failed to send SMS: " + resData.error, "error");
+        }
+    } catch (err) {
+        showToastNotification("Error sending SMS: " + err.message, "error");
     }
 }
 
