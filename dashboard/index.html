@@ -5867,81 +5867,18 @@ function checkSubscriptionTrial() {
     }
 }
 
-// ==================== SMS & COMMUNICATION FRONTEND ENGINE ====================
-
-// Helper for UI Notification (Replaces native browser alert popups)
-function showToastNotification(message, type = 'info') {
-    let toast = document.getElementById('global-toast-notification');
-    
-    // Fallback: Dynamically inject toast container if missing from HTML
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'global-toast-notification';
-        toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all transform duration-300 translate-y-10 opacity-0 pointer-events-none';
-        document.body.appendChild(toast);
-    }
-
-    const typeStyles = {
-        success: 'bg-emerald-600 dark:bg-emerald-500',
-        error: 'bg-rose-600 dark:bg-rose-500',
-        warning: 'bg-amber-600 dark:bg-amber-500',
-        info: 'bg-indigo-600 dark:bg-indigo-500'
-    };
-
-    toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all transform duration-300 ${typeStyles[type] || typeStyles.info}`;
-    toast.innerText = message;
-
-    // Animate in
-    toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
-    toast.classList.add('translate-y-0', 'opacity-100');
-
-    // Hide automatically after 3.5s
-    setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
-    }, 3500);
-}
-
-// Global Helper to get active logged-in ISP tenant safely across modules
-function getActiveTenantId() {
-    if (typeof CURRENT_ISP_ID !== 'undefined' && CURRENT_ISP_ID) {
-        return CURRENT_ISP_ID;
-    }
-    return localStorage.getItem('ispId') || localStorage.getItem('userEmail') || 'officialbigi254_gmail_com';
-}
-
-function openSMSModal(recipientPhone = '', defaultMessage = '') {
-    const modal = document.getElementById('sms-modal-container');
-    const phoneInput = document.getElementById('sms-recipient-input');
-    const messageInput = document.getElementById('sms-message-input');
-
-    if (phoneInput) phoneInput.value = recipientPhone;
-    if (messageInput) messageInput.value = defaultMessage;
-
-    if (modal) {
-        modal.classList.remove('hidden');
-    } else {
-        showToastNotification(`Modal container not found. Target: ${recipientPhone || 'Subscriber'}`, 'warning');
-    }
-}
-
-function closeSMSModal() {
-    const modal = document.getElementById('sms-modal-container');
-    if (modal) modal.classList.add('hidden');
-}
-
 async function fetchSmsCredits() {
     try {
         const activeIsp = getActiveTenantId();
+        if (!activeIsp) {
+            console.warn("SMS Credits skipped: No active user session detected.");
+            return;
+        }
+
         const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
         const response = await fetch(`${baseUrl}/api/sms/credits?ispId=${encodeURIComponent(activeIsp)}`);
         
-        // Guard against HTML 404/deployment error responses
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-            console.warn("SMS credits endpoint returned non-JSON/404 response.");
-            return;
-        }
+        if (!response.ok) return;
 
         const data = await response.json();
         const badge = document.getElementById('lbl-sms-credits-count');
@@ -5949,62 +5886,26 @@ async function fetchSmsCredits() {
             badge.innerText = `${data.credits} SMS Credits`;
         }
     } catch (err) {
-        console.error("Failed to load SMS credit info:", err);
-    }
-}
-
-async function loadCommunicationLogs() {
-    try {
-        const activeIsp = getActiveTenantId();
-        const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-        const response = await fetch(`${baseUrl}/api/sms/logs?ispId=${encodeURIComponent(activeIsp)}`);
-
-        // Guard against HTML 404/deployment error responses
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-            console.warn("SMS logs endpoint returned non-JSON/404 response.");
-            return;
-        }
-
-        const logs = await response.json();
-
-        const tableBody = document.getElementById('tbl-communication-logs-body');
-        if (!tableBody) return;
-
-        if (!Array.isArray(logs) || logs.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">No communication logs recorded yet.</td></tr>`;
-            return;
-        }
-
-        tableBody.innerHTML = logs.map(log => `
-            <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                <td class="py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">${log.recipient || 'N/A'}</td>
-                <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">${log.message || ''}</td>
-                <td class="py-3 px-4 text-sm">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
-                        ${log.status || 'PENDING'}
-                    </span>
-                </td>
-                <td class="py-3 px-4 text-sm text-slate-500">${new Date(log.timestamp || Date.now()).toLocaleString()}</td>
-            </tr>
-        `).join('');
-
-    } catch (err) {
-        console.error("Communication Log Error:", err);
+        console.error("Failed to load SMS credits:", err);
     }
 }
 
 async function sendSmsSubmit() {
     const phoneInput = document.getElementById('sms-recipient-input');
     const messageInput = document.getElementById('sms-message-input');
+    const activeIsp = getActiveTenantId();
 
-    if (!phoneInput || !phoneInput.value.trim() || !messageInput || !messageInput.value.trim()) {
-        showToastNotification("Please provide both phone number and message text.", "warning");
+    if (!activeIsp) {
+        showToastNotification("Session expired. Please log in again.", "error");
+        return;
+    }
+
+    if (!phoneInput?.value.trim() || !messageInput?.value.trim()) {
+        showToastNotification("Please provide both phone number and message.", "warning");
         return;
     }
 
     try {
-        const activeIsp = getActiveTenantId();
         const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
         const response = await fetch(`${baseUrl}/api/sms/send`, {
             method: 'POST',
@@ -6018,12 +5919,12 @@ async function sendSmsSubmit() {
 
         const resData = await response.json();
         if (resData.success) {
-            showToastNotification("SMS dispatched successfully via TalkSasa!", "success");
+            showToastNotification("SMS dispatched successfully!", "success");
             closeSMSModal();
             fetchSmsCredits();
             loadCommunicationLogs();
         } else {
-            showToastNotification("Failed to send SMS: " + resData.error, "error");
+            showToastNotification("Failed: " + resData.error, "error");
         }
     } catch (err) {
         showToastNotification("Error sending SMS: " + err.message, "error");
