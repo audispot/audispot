@@ -4744,7 +4744,7 @@ app.post('/api/sms/send', async (req, res) => {
         let apiResponseData = {};
 
         if (apiKey) {
-            const talkSasaRes = await axios.post('https://api.talksasa.com/v1/sms/send', {
+            const talkSasaRes = await axios.post('https://talksasa.com/api/v1/sms/send', {
                 api_key: apiKey,
                 sender_id: senderId,
                 recipient: cleanPhone,
