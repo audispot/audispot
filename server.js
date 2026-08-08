@@ -4714,7 +4714,10 @@ app.get('/api/help/tickets', authenticateUser, async (req, res) => {
     }
 });
 
-// 1. Send SMS via TalkSasa API
+// ====================================================================
+// TALKSASA SMS INTEGRATION ROUTE (FIXED ENDPOINT & PAYLOAD)
+// ====================================================================
+
 app.post('/api/sms/send', async (req, res) => {
     const targetTenant = getResolvedTenantId(req);
     
@@ -4731,7 +4734,7 @@ app.post('/api/sms/send', async (req, res) => {
         return res.status(400).json({ success: false, error: "Recipient phone and message are required." });
     }
 
-    // Format phone to 254...
+    // Format phone to international format 254...
     let cleanPhone = String(recipient).replace(/[^0-9]/g, '');
     if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.slice(1);
     if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) cleanPhone = '254' + cleanPhone;
@@ -4744,18 +4747,25 @@ app.post('/api/sms/send', async (req, res) => {
         let apiResponseData = {};
 
         if (apiKey) {
-            const talkSasaRes = await axios.post('https://talksasa.com/api/v1/sms/send', {
-                api_key: apiKey,
+            // Updated TalkSasa API v1 endpoint & headers
+            const talkSasaRes = await axios.post('https://talksasa.com/api/v1/send', {
                 sender_id: senderId,
                 recipient: cleanPhone,
                 message: message
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
             });
+            
             apiResponseData = talkSasaRes.data;
         } else {
-            console.log(`[SMS SIMULATION - TALKSASA] Tenant: ${targetTenant} | Sent to ${cleanPhone}: "${message}"`);
+            console.log(`[SMS SIMULATION] Tenant: ${targetTenant} | Sent to ${cleanPhone}: "${message}"`);
         }
 
-        // Audit SMS Log under specific tenant
+        // Audit SMS Log in Firestore
         const logRef = db.collection('sms_logs').doc();
         await logRef.set({
             ispId: targetTenant,
@@ -4766,7 +4776,7 @@ app.post('/api/sms/send', async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        // Deduct credit from this specific ISP's document
+        // Deduct SMS credit
         const incrementField = (typeof admin !== 'undefined' && admin.firestore)
             ? admin.firestore.FieldValue.increment(-1)
             : (typeof Firestore !== 'undefined' ? Firestore.FieldValue.increment(-1) : -1);
@@ -4778,14 +4788,16 @@ app.post('/api/sms/send', async (req, res) => {
         return res.status(200).json({ success: true, message: "SMS dispatched successfully." });
 
     } catch (error) {
-        console.error(`TalkSasa SMS Error [Tenant: ${targetTenant}]:`, error.response ? error.response.data : error.message);
+        const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error(`TalkSasa API Error [Tenant: ${targetTenant}]:`, errorDetails);
 
+        // Record Failure Log
         await db.collection('sms_logs').add({
             ispId: targetTenant,
             recipient: cleanPhone,
             message: message,
             status: 'FAILED',
-            error: error.message,
+            error: errorDetails,
             timestamp: new Date().toISOString()
         });
 
