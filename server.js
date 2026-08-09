@@ -5043,7 +5043,7 @@ app.get('/api/network/monitoring', async (req, res) => {
 });
 
 // ====================================================================
-// REAL-TIME FIRESTORE BANDWIDTH ANALYTICS (NO COMPOSITE INDEX REQUIRED)
+// REAL-TIME FIRESTORE BANDWIDTH ANALYTICS (FULLY DYNAMIC METRICS)
 // ====================================================================
 
 app.get('/api/network/usage-analytics', async (req, res) => {
@@ -5058,7 +5058,6 @@ app.get('/api/network/usage-analytics', async (req, res) => {
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-        // 1. Fetch collections without compound index requirements
         const [activeSnap, pppoeSnap, logsSnap] = await Promise.all([
             db.collection('active_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
             db.collection('pppoe_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
@@ -5070,11 +5069,13 @@ app.get('/api/network/usage-analytics', async (req, res) => {
         let monthRxBytes = 0;
         let monthTxBytes = 0;
 
+        let globalTotalUptimeSeconds = 0;
+        let globalTotalSessionsCount = 0;
+
         const customerMap = new Map();
         const packageUsageMap = new Map();
         const hourBucketMap = new Array(24).fill(0);
 
-        // Helper: Convert any Firestore timestamp field into JS milliseconds
         const parseMillis = (rawDate) => {
             if (!rawDate) return now.getTime();
             if (typeof rawDate.toDate === 'function') return rawDate.toDate().getTime();
@@ -5083,7 +5084,6 @@ app.get('/api/network/usage-analytics', async (req, res) => {
             return isNaN(parsed) ? now.getTime() : parsed;
         };
 
-        // Helper: Process and aggregate document data
         const processDoc = (doc, isLiveSession = false) => {
             const data = doc.data ? doc.data() : doc;
             const username = data.username || data.mac || data.phone || data.user || "Unknown Subscriber";
@@ -5096,13 +5096,31 @@ app.get('/api/network/usage-analytics', async (req, res) => {
             const docTime = parseMillis(data.timestamp || data.createdAt || data.updatedAt);
             const docHour = new Date(docTime).getHours();
 
-            // Track time distribution
-            hourBucketMap[docHour] += totalBytes;
+            // Track hourly byte volume
+            if (totalBytes > 0) {
+                hourBucketMap[docHour] += totalBytes;
+            }
 
             // Track package usage
-            packageUsageMap.set(plan, (packageUsageMap.get(plan) || 0) + totalBytes);
+            if (totalBytes > 0) {
+                packageUsageMap.set(plan, (packageUsageMap.get(plan) || 0) + totalBytes);
+            }
 
-            // Fetch or create user record
+            // Extract session uptime (supports MikroTik uptime strings like "02:15:30" or integer seconds)
+            let sessionUptimeSecs = 0;
+            if (data.uptimeSeconds) {
+                sessionUptimeSecs = parseInt(data.uptimeSeconds, 10);
+            } else if (typeof data.uptime === 'string') {
+                const parts = data.uptime.split(':').map(p => parseInt(p, 10));
+                if (parts.length === 3) sessionUptimeSecs = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+                else if (parts.length === 2) sessionUptimeSecs = (parts[0] * 60) + parts[1];
+            }
+
+            if (sessionUptimeSecs > 0) {
+                globalTotalUptimeSeconds += sessionUptimeSecs;
+                globalTotalSessionsCount += 1;
+            }
+
             if (!customerMap.has(username)) {
                 customerMap.set(username, {
                     customerName: username,
@@ -5118,7 +5136,6 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 
             const user = customerMap.get(username);
 
-            // Today vs Month filtering
             if (docTime >= startOfMonth || isLiveSession) {
                 monthRxBytes += rx;
                 monthTxBytes += tx;
@@ -5133,18 +5150,17 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                 user.todayTx += tx;
             }
 
-            if (data.uptime || data.uptimeSeconds) {
-                user.uptimeSecs += parseInt(data.uptimeSeconds || 0, 10);
+            if (sessionUptimeSecs > 0) {
+                user.uptimeSecs += sessionUptimeSecs;
                 user.sessions += 1;
             }
         };
 
-        // Execute aggregation safely
         if (activeSnap.forEach) activeSnap.forEach(doc => processDoc(doc, true));
         if (pppoeSnap.forEach) pppoeSnap.forEach(doc => processDoc(doc, true));
         if (logsSnap.forEach) logsSnap.forEach(doc => processDoc(doc, false));
 
-        // Format Byte Metrics
+        // Format Byte Totals
         const toGB = (bytes) => (bytes / (1024 ** 3)).toFixed(2);
         const todayRxGb = toGB(todayRxBytes);
         const todayTxGb = toGB(todayTxBytes);
@@ -5154,8 +5170,8 @@ app.get('/api/network/usage-analytics', async (req, res) => {
         const monthTxGb = toGB(monthTxBytes);
         const monthTotalGb = (parseFloat(monthRxGb) + parseFloat(monthTxGb)).toFixed(2);
 
-        // Peak Hours Calculation
-        let peakStart = 18;
+        // Dynamic Peak Hours Calculation
+        let peakStart = -1;
         let maxVolume = 0;
         for (let i = 0; i < 24; i++) {
             const vol = hourBucketMap[i] + hourBucketMap[(i + 1) % 24] + hourBucketMap[(i + 2) % 24];
@@ -5164,8 +5180,22 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                 peakStart = i;
             }
         }
+
         const fmtH = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
-        const peakHoursStr = `${fmtH(peakStart)} - ${fmtH((peakStart + 3) % 24)}`;
+        const peakHoursStr = (maxVolume > 0 && peakStart !== -1)
+            ? `${fmtH(peakStart)} - ${fmtH((peakStart + 3) % 24)}`
+            : "N/A";
+
+        // Dynamic Average Session Duration Calculation
+        let avgSessionStr = "0m";
+        if (globalTotalSessionsCount > 0) {
+            const avgSecs = Math.round(globalTotalUptimeSeconds / globalTotalSessionsCount);
+            const hrs = Math.floor(avgSecs / 3600);
+            const mins = Math.floor((avgSecs % 3600) / 60);
+            avgSessionStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+        } else {
+            avgSessionStr = "N/A";
+        }
 
         // 24-Hour Load Distributions
         const morning = hourBucketMap.slice(6, 12).reduce((a, b) => a + b, 0);
@@ -5187,6 +5217,7 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 
         // Top Users
         const topUsers = Array.from(customerMap.values())
+            .filter(u => (u.monthRx + u.monthTx) > 0)
             .sort((a, b) => (b.monthRx + b.monthTx) - (a.monthRx + a.monthTx))
             .slice(0, 10)
             .map(u => {
@@ -5201,7 +5232,7 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                     todayUploadGb: toGB(u.todayTx),
                     monthDownloadGb: toGB(u.monthRx),
                     monthUploadGb: toGB(u.monthTx),
-                    avgSession: `${h}h ${m}m`
+                    avgSession: h > 0 ? `${h}h ${m}m` : `${m}m`
                 };
             });
 
@@ -5215,17 +5246,17 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                 monthRxGb,
                 monthTxGb,
                 peakHours: peakHoursStr,
-                avgSessionDuration: "1h 30m"
+                avgSessionDuration: avgSessionStr
             },
             timeDistribution: {
                 morningGb: toGB(morning),
-                morningPct: Math.round((morning / grandTotal) * 100),
+                morningPct: grandTotal > 1 ? Math.round((morning / grandTotal) * 100) : 0,
                 afternoonGb: toGB(afternoon),
-                afternoonPct: Math.round((afternoon / grandTotal) * 100),
+                afternoonPct: grandTotal > 1 ? Math.round((afternoon / grandTotal) * 100) : 0,
                 eveningGb: toGB(evening),
-                eveningPct: Math.round((evening / grandTotal) * 100),
+                eveningPct: grandTotal > 1 ? Math.round((evening / grandTotal) * 100) : 0,
                 nightGb: toGB(night),
-                nightPct: Math.round((night / grandTotal) * 100)
+                nightPct: grandTotal > 1 ? Math.round((night / grandTotal) * 100) : 0
             },
             topPackages,
             topUsers
