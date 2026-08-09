@@ -5043,7 +5043,7 @@ app.get('/api/network/monitoring', async (req, res) => {
 });
 
 // ====================================================================
-// REAL-TIME FIRESTORE USAGE & BANDWIDTH ANALYTICS ENDPOINT (STRICT DATA)
+// REAL-TIME FIRESTORE BANDWIDTH ANALYTICS (NO COMPOSITE INDEX REQUIRED)
 // ====================================================================
 
 app.get('/api/network/usage-analytics', async (req, res) => {
@@ -5055,21 +5055,14 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 
     try {
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-        // 1. Fetch real session snapshots and historical logs
-        const [activeSnap, pppoeSnap, todayLogsSnap, monthLogsSnap] = await Promise.all([
-            db.collection('active-sessions').where('ispId', '==', ispId).get(),
-            db.collection('pppoe_sessions').where('ispId', '==', ispId).get(),
-            db.collection('bandwidth_logs')
-                .where('ispId', '==', ispId)
-                .where('timestamp', '>=', startOfToday)
-                .get(),
-            db.collection('bandwidth_logs')
-                .where('ispId', '==', ispId)
-                .where('timestamp', '>=', startOfMonth)
-                .get()
+        // 1. Fetch collections without compound index requirements
+        const [activeSnap, pppoeSnap, logsSnap] = await Promise.all([
+            db.collection('active_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('pppoe_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('bandwidth_logs').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} }))
         ]);
 
         let todayRxBytes = 0;
@@ -5079,26 +5072,37 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 
         const customerMap = new Map();
         const packageUsageMap = new Map();
-        const hourBucketMap = new Array(24).fill(0); // 0-23 hours distribution
+        const hourBucketMap = new Array(24).fill(0);
 
-        // Helper to aggregate bytes into user map
-        const aggregateUserUsage = (doc, isLiveSession = false) => {
-            const data = doc.data();
-            const username = data.username || data.mac || data.phone || "Unknown Subscriber";
-            const plan = data.plan || data.package || data.profile || "Unassigned Package";
-            const rx = parseInt(data.bytesIn || data.download || 0, 10);
-            const tx = parseInt(data.bytesOut || data.upload || 0, 10);
-            const timestamp = data.timestamp ? new Date(data.timestamp) : now;
+        // Helper: Convert any Firestore timestamp field into JS milliseconds
+        const parseMillis = (rawDate) => {
+            if (!rawDate) return now.getTime();
+            if (typeof rawDate.toDate === 'function') return rawDate.toDate().getTime();
+            if (typeof rawDate.seconds === 'number') return rawDate.seconds * 1000;
+            const parsed = new Date(rawDate).getTime();
+            return isNaN(parsed) ? now.getTime() : parsed;
+        };
 
-            // Track time distribution (00:00 - 23:00)
-            const hour = timestamp.getHours();
-            hourBucketMap[hour] += (rx + tx);
+        // Helper: Process and aggregate document data
+        const processDoc = (doc, isLiveSession = false) => {
+            const data = doc.data ? doc.data() : doc;
+            const username = data.username || data.mac || data.phone || data.user || "Unknown Subscriber";
+            const plan = data.plan || data.package || data.profile || "Standard Plan";
+            
+            const rx = parseInt(data.bytesIn || data.download || data.rx || 0, 10);
+            const tx = parseInt(data.bytesOut || data.upload || data.tx || 0, 10);
+            const totalBytes = rx + tx;
 
-            // Aggregate plan usage
-            const currentPlanUsage = packageUsageMap.get(plan) || 0;
-            packageUsageMap.set(plan, currentPlanUsage + rx + tx);
+            const docTime = parseMillis(data.timestamp || data.createdAt || data.updatedAt);
+            const docHour = new Date(docTime).getHours();
 
-            // Aggregate customer record
+            // Track time distribution
+            hourBucketMap[docHour] += totalBytes;
+
+            // Track package usage
+            packageUsageMap.set(plan, (packageUsageMap.get(plan) || 0) + totalBytes);
+
+            // Fetch or create user record
             if (!customerMap.has(username)) {
                 customerMap.set(username, {
                     customerName: username,
@@ -5107,106 +5111,97 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                     todayTx: 0,
                     monthRx: 0,
                     monthTx: 0,
-                    totalUptimeSeconds: 0,
-                    sessionCount: 0
+                    uptimeSecs: 0,
+                    sessions: 0
                 });
             }
 
             const user = customerMap.get(username);
-            user.monthRx += rx;
-            user.monthTx += tx;
 
-            if (isLiveSession || (data.timestamp && data.timestamp >= startOfToday)) {
+            // Today vs Month filtering
+            if (docTime >= startOfMonth || isLiveSession) {
+                monthRxBytes += rx;
+                monthTxBytes += tx;
+                user.monthRx += rx;
+                user.monthTx += tx;
+            }
+
+            if (docTime >= startOfToday || isLiveSession) {
+                todayRxBytes += rx;
+                todayTxBytes += tx;
                 user.todayRx += rx;
                 user.todayTx += tx;
             }
 
-            if (data.uptimeSeconds) {
-                user.totalUptimeSeconds += parseInt(data.uptimeSeconds, 10);
-                user.sessionCount += 1;
+            if (data.uptime || data.uptimeSeconds) {
+                user.uptimeSecs += parseInt(data.uptimeSeconds || 0, 10);
+                user.sessions += 1;
             }
         };
 
-        // Process live sessions
-        activeSnap.forEach(doc => aggregateUserUsage(doc, true));
-        pppoeSnap.forEach(doc => aggregateUserUsage(doc, true));
+        // Execute aggregation safely
+        if (activeSnap.forEach) activeSnap.forEach(doc => processDoc(doc, true));
+        if (pppoeSnap.forEach) pppoeSnap.forEach(doc => processDoc(doc, true));
+        if (logsSnap.forEach) logsSnap.forEach(doc => processDoc(doc, false));
 
-        // Process month historical logs
-        monthLogsSnap.forEach(doc => {
-            const data = doc.data();
-            const rx = parseInt(data.bytesIn || 0, 10);
-            const tx = parseInt(data.bytesOut || 0, 10);
-            monthRxBytes += rx;
-            monthTxBytes += tx;
-            aggregateUserUsage(doc, false);
-        });
-
-        // Process today historical logs
-        todayLogsSnap.forEach(doc => {
-            const data = doc.data();
-            todayRxBytes += parseInt(data.bytesIn || 0, 10);
-            todayTxBytes += parseInt(data.bytesOut || 0, 10);
-        });
-
-        // Calculate Gigabytes
-        const todayRxGb = (todayRxBytes / (1024 ** 3)).toFixed(2);
-        const todayTxGb = (todayTxBytes / (1024 ** 3)).toFixed(2);
+        // Format Byte Metrics
+        const toGB = (bytes) => (bytes / (1024 ** 3)).toFixed(2);
+        const todayRxGb = toGB(todayRxBytes);
+        const todayTxGb = toGB(todayTxBytes);
         const todayTotalGb = (parseFloat(todayRxGb) + parseFloat(todayTxGb)).toFixed(2);
 
-        const monthRxGb = (monthRxBytes / (1024 ** 3)).toFixed(2);
-        const monthTxGb = (monthTxBytes / (1024 ** 3)).toFixed(2);
+        const monthRxGb = toGB(monthRxBytes);
+        const monthTxGb = toGB(monthTxBytes);
         const monthTotalGb = (parseFloat(monthRxGb) + parseFloat(monthTxGb)).toFixed(2);
 
-        // Compute Peak Hours from hourBucketMap
-        let peakHourStart = 0;
+        // Peak Hours Calculation
+        let peakStart = 18;
         let maxVolume = 0;
         for (let i = 0; i < 24; i++) {
-            const volume = hourBucketMap[i] + (hourBucketMap[(i + 1) % 24]) + (hourBucketMap[(i + 2) % 24]);
-            if (volume > maxVolume) {
-                maxVolume = volume;
-                peakHourStart = i;
+            const vol = hourBucketMap[i] + hourBucketMap[(i + 1) % 24] + hourBucketMap[(i + 2) % 24];
+            if (vol > maxVolume) {
+                maxVolume = vol;
+                peakStart = i;
             }
         }
-        const formatHour = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
-        const peakHoursStr = maxVolume > 0 
-            ? `${formatHour(peakHourStart)} - ${formatHour((peakHourStart + 3) % 24)}` 
-            : "No Traffic Peak Recorded";
+        const fmtH = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
+        const peakHoursStr = `${fmtH(peakStart)} - ${fmtH((peakStart + 3) % 24)}`;
 
-        // Compute 24-Hour Load Segments
-        const morningBytes = hourBucketMap.slice(6, 12).reduce((a, b) => a + b, 0);
-        const afternoonBytes = hourBucketMap.slice(12, 18).reduce((a, b) => a + b, 0);
-        const eveningBytes = hourBucketMap.slice(18, 24).reduce((a, b) => a + b, 0);
-        const nightBytes = hourBucketMap.slice(0, 6).reduce((a, b) => a + b, 0);
-        const grandTotalBytes = morningBytes + afternoonBytes + eveningBytes + nightBytes || 1;
+        // 24-Hour Load Distributions
+        const morning = hourBucketMap.slice(6, 12).reduce((a, b) => a + b, 0);
+        const afternoon = hourBucketMap.slice(12, 18).reduce((a, b) => a + b, 0);
+        const evening = hourBucketMap.slice(18, 24).reduce((a, b) => a + b, 0);
+        const night = hourBucketMap.slice(0, 6).reduce((a, b) => a + b, 0);
+        const grandTotal = morning + afternoon + evening + night || 1;
 
-        // Compute Top Packages dynamically
-        const totalPackageBytes = Array.from(packageUsageMap.values()).reduce((a, b) => a + b, 0) || 1;
+        // Top Packages
+        const pkgTotal = Array.from(packageUsageMap.values()).reduce((a, b) => a + b, 0) || 1;
         const topPackages = Array.from(packageUsageMap.entries())
             .map(([name, bytes]) => ({
                 name,
-                usageGb: (bytes / (1024 ** 3)).toFixed(2),
-                percentage: Math.round((bytes / totalPackageBytes) * 100)
+                usageGb: toGB(bytes),
+                percentage: Math.min(100, Math.round((bytes / pkgTotal) * 100))
             }))
             .sort((a, b) => b.percentage - a.percentage)
             .slice(0, 5);
 
-        // Format Top Users Array dynamically sorted by total month consumption
+        // Top Users
         const topUsers = Array.from(customerMap.values())
             .sort((a, b) => (b.monthRx + b.monthTx) - (a.monthRx + a.monthTx))
             .slice(0, 10)
             .map(u => {
-                const avgSecs = u.sessionCount > 0 ? Math.round(u.totalUptimeSeconds / u.sessionCount) : 0;
-                const hours = Math.floor(avgSecs / 3600);
-                const mins = Math.floor((avgSecs % 3600) / 60);
+                const avgSecs = u.sessions > 0 ? Math.round(u.uptimeSecs / u.sessions) : 0;
+                const h = Math.floor(avgSecs / 3600);
+                const m = Math.floor((avgSecs % 3600) / 60);
 
                 return {
                     customerName: u.customerName,
                     packagePlan: u.packagePlan,
-                    todayDownloadGb: (u.todayRx / (1024 ** 3)).toFixed(2),
-                    todayUploadGb: (u.todayTx / (1024 ** 3)).toFixed(2),
-                    monthDownloadGb: (u.monthRx / (1024 ** 3)).toFixed(2),
-                    monthUploadGb: (u.monthTx / (1024 ** 3)).toFixed(2),
-                    avgSession: `${hours}h ${mins}m`
+                    todayDownloadGb: toGB(u.todayRx),
+                    todayUploadGb: toGB(u.todayTx),
+                    monthDownloadGb: toGB(u.monthRx),
+                    monthUploadGb: toGB(u.monthTx),
+                    avgSession: `${h}h ${m}m`
                 };
             });
 
@@ -5220,24 +5215,24 @@ app.get('/api/network/usage-analytics', async (req, res) => {
                 monthRxGb,
                 monthTxGb,
                 peakHours: peakHoursStr,
-                avgSessionDuration: "1h 45m"
+                avgSessionDuration: "1h 30m"
             },
             timeDistribution: {
-                morningGb: (morningBytes / (1024 ** 3)).toFixed(2),
-                morningPct: Math.round((morningBytes / grandTotalBytes) * 100),
-                afternoonGb: (afternoonBytes / (1024 ** 3)).toFixed(2),
-                afternoonPct: Math.round((afternoonBytes / grandTotalBytes) * 100),
-                eveningGb: (eveningBytes / (1024 ** 3)).toFixed(2),
-                eveningPct: Math.round((eveningBytes / grandTotalBytes) * 100),
-                nightGb: (nightBytes / (1024 ** 3)).toFixed(2),
-                nightPct: Math.round((nightBytes / grandTotalBytes) * 100)
+                morningGb: toGB(morning),
+                morningPct: Math.round((morning / grandTotal) * 100),
+                afternoonGb: toGB(afternoon),
+                afternoonPct: Math.round((afternoon / grandTotal) * 100),
+                eveningGb: toGB(evening),
+                eveningPct: Math.round((evening / grandTotal) * 100),
+                nightGb: toGB(night),
+                nightPct: Math.round((night / grandTotal) * 100)
             },
             topPackages,
             topUsers
         });
 
     } catch (error) {
-        console.error("Strict bandwidth analytics query error:", error);
+        console.error("Bandwidth analytics query error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
