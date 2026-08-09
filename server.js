@@ -4720,78 +4720,116 @@ app.get('/api/help/tickets', authenticateUser, async (req, res) => {
 
 app.post('/api/sms/send', async (req, res) => {
     const targetTenant = getResolvedTenantId(req);
-    
+
     if (!targetTenant) {
-        return res.status(401).json({ 
-            success: false, 
-            error: "Unauthorized: Missing valid ISP tenant identification." 
+        return res.status(401).json({
+            success: false,
+            error: "Unauthorized: Missing valid ISP tenant identification."
         });
     }
 
     const { recipient, message } = req.body;
 
     if (!recipient || !message) {
-        return res.status(400).json({ success: false, error: "Recipient phone and message are required." });
+        return res.status(400).json({
+            success: false,
+            error: "Recipient phone and message are required."
+        });
     }
 
-    // Format phone to international format 254...
+    // Format phone number
     let cleanPhone = String(recipient).replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.slice(1);
-    if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) cleanPhone = '254' + cleanPhone;
+
+    if (cleanPhone.startsWith('0')) {
+        cleanPhone = '254' + cleanPhone.slice(1);
+    }
+
+    if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) {
+        cleanPhone = '254' + cleanPhone;
+    }
 
     const apiKey = process.env.TALKSASA_API_KEY;
     const senderId = process.env.TALKSASA_SENDER_ID || "TALKSASA";
 
     try {
-        let status = 'SUCCESS';
-        let apiResponseData = {};
+        if (!apiKey) {
+            console.error("TALKSASA_API_KEY is missing.");
 
-        if (apiKey) {
-            // Updated TalkSasa API v1 endpoint & headers
-            const talkSasaRes = await axios.post('https://talksasa.com/api/v1/send', {
-                sender_id: senderId,
+            return res.status(500).json({
+                success: false,
+                error: "SMS gateway is not configured."
+            });
+        }
+
+        // ==============================
+        // SEND SMS THROUGH TALKSASA
+        // ==============================
+
+        const talkSasaRes = await axios.post(
+            'https://bulksms.talksasa.com/api/v3/sms/send',
+            {
                 recipient: cleanPhone,
+                sender_id: senderId,
+                type: 'plain',
                 message: message
-            }, {
+            },
+            {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 }
-            });
-            
-            apiResponseData = talkSasaRes.data;
-        } else {
-            console.log(`[SMS SIMULATION] Tenant: ${targetTenant} | Sent to ${cleanPhone}: "${message}"`);
-        }
+            }
+        );
 
-        // Audit SMS Log in Firestore
-        const logRef = db.collection('sms_logs').doc();
-        await logRef.set({
+        console.log(
+            'TalkSasa SMS response:',
+            talkSasaRes.status,
+            talkSasaRes.data
+        );
+
+        // ==============================
+        // SAVE SUCCESSFUL SMS LOG
+        // ==============================
+
+        await db.collection('sms_logs').add({
             ispId: targetTenant,
             recipient: cleanPhone,
             message: message,
-            status: status,
-            apiResponse: apiResponseData,
+            status: 'SUCCESS',
+            apiResponse: talkSasaRes.data,
             timestamp: new Date().toISOString()
         });
 
-        // Deduct SMS credit
-        const incrementField = (typeof admin !== 'undefined' && admin.firestore)
-            ? admin.firestore.FieldValue.increment(-1)
-            : (typeof Firestore !== 'undefined' ? Firestore.FieldValue.increment(-1) : -1);
+        // ==============================
+        // DEDUCT ONE SMS CREDIT
+        // ==============================
 
         await db.collection('settings').doc(targetTenant).set({
-            smsCredits: incrementField
+            smsCredits: admin.firestore.FieldValue.increment(-1)
         }, { merge: true });
 
-        return res.status(200).json({ success: true, message: "SMS dispatched successfully." });
+        return res.status(200).json({
+            success: true,
+            message: "SMS dispatched successfully.",
+            providerResponse: talkSasaRes.data
+        });
 
     } catch (error) {
-        const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
-        console.error(`TalkSasa API Error [Tenant: ${targetTenant}]:`, errorDetails);
 
-        // Record Failure Log
+        const errorDetails = error.response
+            ? JSON.stringify(error.response.data)
+            : error.message;
+
+        console.error(
+            `TalkSasa API Error [Tenant: ${targetTenant}]:`,
+            errorDetails
+        );
+
+        // ==============================
+        // SAVE FAILED SMS LOG
+        // ==============================
+
         await db.collection('sms_logs').add({
             ispId: targetTenant,
             recipient: cleanPhone,
@@ -4801,9 +4839,12 @@ app.post('/api/sms/send', async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        return res.status(500).json({ 
-            success: false, 
-            error: error.response?.data?.message || error.message || "Failed to dispatch SMS via TalkSasa gateway." 
+        return res.status(500).json({
+            success: false,
+            error: error.response?.data?.message ||
+                   error.response?.data?.error ||
+                   error.message ||
+                   "Failed to dispatch SMS via TalkSasa gateway."
         });
     }
 });
