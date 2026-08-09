@@ -110,6 +110,7 @@
                     <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">Network</div>
                     <button onclick="changeActiveLayoutTab('routers')" id="tablink-routers" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-server text-sm w-4"></i> Routers</button>
                     <button onclick="changeActiveLayoutTab('network-monitoring')" id="tablink-network-monitoring" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-tower-broadcast text-sm w-4"></i> Network Monitoring</button>
+                    <button onclick="changeActiveLayoutTab('usage-bandwidth')" id="tablink-usage-bandwidth" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-chart-pie text-sm w-4"></i> Usage & Bandwidth</button>
                 </div>
 
                 <!-- CATEGORY: SALES & MONEY -->
@@ -663,6 +664,129 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="netmon-interfaces-body">
                     <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">Polling hardware interfaces...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="viewframe-usage-bandwidth" class="space-y-6 hidden viewframe">
+    <!-- Header Control Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-chart-pie text-indigo-500"></i> Subscriber Bandwidth & Data Analytics
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Track data consumption, peak usage hours, and top bandwidth consumers.</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <button onclick="syncUsageBandwidthData()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition flex items-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-rotate"></i> Refresh Analytics
+            </button>
+        </div>
+    </div>
+
+    <!-- Analytics Summary Metrics Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Today's Data Consumed</p>
+            <h3 class="text-xl font-bold text-indigo-500 mt-1" id="usage-metric-today-data">0.0 GB</h3>
+            <p class="text-[10px] text-slate-500 mt-1" id="usage-metric-today-breakdown">Rx: 0 GB | Tx: 0 GB</p>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Monthly Consumption</p>
+            <h3 class="text-xl font-bold text-emerald-500 mt-1" id="usage-metric-month-data">0.0 GB</h3>
+            <p class="text-[10px] text-slate-500 mt-1" id="usage-metric-month-breakdown">Rx: 0 GB | Tx: 0 GB</p>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Network Peak Hours</p>
+            <h3 class="text-xl font-bold text-amber-400 mt-1" id="usage-metric-peak-hours">7 PM - 10 PM</h3>
+            <p class="text-[10px] text-slate-500 mt-1">Highest Traffic Window</p>
+        </div>
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Avg Session Duration</p>
+            <h3 class="text-xl font-bold text-purple-400 mt-1" id="usage-metric-avg-session">0h 0m</h3>
+            <p class="text-[10px] text-slate-500 mt-1">Per Active Subscriber</p>
+        </div>
+    </div>
+
+    <!-- Middle Distribution Cards: Top Packages & Peak Traffic Hours -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Top Subscription Packages by Traffic -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-3">
+            <div class="border-b border-slate-100 dark:border-vunaborder pb-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Top Packages by Usage</span>
+            </div>
+            <div id="usage-top-packages-list" class="space-y-3">
+                <p class="text-xs text-slate-500 text-center py-4 font-mono">Loading package metrics...</p>
+            </div>
+        </div>
+
+        <!-- Network Peak Traffic Distribution -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-3">
+            <div class="border-b border-slate-100 dark:border-vunaborder pb-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">24-Hour Network Load Distribution</span>
+            </div>
+            <div class="space-y-2 font-mono text-xs">
+                <div>
+                    <div class="flex justify-between text-[11px] mb-1 text-slate-400">
+                        <span>Morning (06:00 - 12:00)</span>
+                        <span id="usage-load-morning-val">0 GB</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="usage-load-morning-bar" class="bg-indigo-500 h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[11px] mb-1 text-slate-400">
+                        <span>Afternoon (12:00 - 18:00)</span>
+                        <span id="usage-load-afternoon-val">0 GB</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="usage-load-afternoon-bar" class="bg-blue-500 h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[11px] mb-1 text-slate-400">
+                        <span>Evening Peak (18:00 - 00:00)</span>
+                        <span id="usage-load-evening-val">0 GB</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="usage-load-evening-bar" class="bg-amber-500 h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[11px] mb-1 text-slate-400">
+                        <span>Night (00:00 - 06:00)</span>
+                        <span id="usage-load-night-val">0 GB</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="usage-load-night-bar" class="bg-purple-500 h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Consumers Usage Table -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder flex justify-between items-center">
+            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Top Subscriber Data Consumption</h4>
+            <span class="text-[10px] font-mono text-slate-400">Active Lease Audit</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">Customer</th>
+                        <th class="p-3">Assigned Package</th>
+                        <th class="p-3">Today Usage (Rx / Tx)</th>
+                        <th class="p-3">Month Usage (Rx / Tx)</th>
+                        <th class="p-3 text-right">Avg Duration</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="usage-table-body">
+                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">Calculating subscriber bandwidth usage...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -3358,7 +3482,8 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             'analytics': 'Financial Performance Engine',
             'help': 'Help & Support Documentation',
             'communication': 'Payment Reminders & Bulk Announcements',
-            'network-monitoring': 'Network Monitoring'
+            'network-monitoring': 'Network Monitoring',
+            'usage-bandwidth': 'Customer Usage'
         };
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
@@ -3399,6 +3524,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'network-monitoring') {
         if (typeof syncNetworkMonitoring === "function") {
             syncNetworkMonitoring();
+        }
+
+    } else if (activeTab === 'usage-bandwidth') {
+        if (typeof syncUsageBandwidthData === "function") {
+            syncUsageBandwidthData();
         }
 
     } else if (activeTab === 'help') {
@@ -6349,6 +6479,92 @@ async function syncNetworkMonitoring() {
 
     } catch (err) {
         console.error("Network telemetry sync failed:", err);
+    }
+}
+
+// ====================================================================
+// USAGE & BANDWIDTH ANALYTICS MODULE
+// ====================================================================
+
+async function syncUsageBandwidthData() {
+    const activeIsp = typeof getActiveTenantId === 'function' ? getActiveTenantId() : localStorage.getItem('ispId');
+    if (!activeIsp) return;
+
+    const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+
+    try {
+        const response = await fetch(`${baseUrl}/api/network/usage-analytics?ispId=${encodeURIComponent(activeIsp)}`);
+        if (!response.ok) throw new Error("Failed to load bandwidth analytics.");
+        
+        const data = await response.json();
+        if (!data.success) return;
+
+        // 1. Metric Cards
+        document.getElementById('usage-metric-today-data').innerText = `${data.metrics.todayTotalGb} GB`;
+        document.getElementById('usage-metric-today-breakdown').innerText = `Rx: ${data.metrics.todayRxGb} GB | Tx: ${data.metrics.todayTxGb} GB`;
+
+        document.getElementById('usage-metric-month-data').innerText = `${data.metrics.monthTotalGb} GB`;
+        document.getElementById('usage-metric-month-breakdown').innerText = `Rx: ${data.metrics.monthRxGb} GB | Tx: ${data.metrics.monthTxGb} GB`;
+
+        document.getElementById('usage-metric-peak-hours').innerText = data.metrics.peakHours;
+        document.getElementById('usage-metric-avg-session').innerText = data.metrics.avgSessionDuration;
+
+        // 2. Top Packages Render
+        const packagesContainer = document.getElementById('usage-top-packages-list');
+        if (packagesContainer && data.topPackages) {
+            if (data.topPackages.length === 0) {
+                packagesContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-2 font-mono">No package usage recorded.</p>`;
+            } else {
+                packagesContainer.innerHTML = data.topPackages.map(pkg => `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1 font-mono">
+                            <span class="font-bold text-slate-800 dark:text-slate-200">${pkg.name}</span>
+                            <span class="text-indigo-400 font-bold">${pkg.usageGb} GB</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-indigo-500 h-full" style="width: ${pkg.percentage}%"></div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // 3. 24-Hour Load Distribution
+        const load = data.timeDistribution;
+        if (load) {
+            document.getElementById('usage-load-morning-val').innerText = `${load.morningGb} GB`;
+            document.getElementById('usage-load-morning-bar').style.width = `${load.morningPct}%`;
+
+            document.getElementById('usage-load-afternoon-val').innerText = `${load.afternoonGb} GB`;
+            document.getElementById('usage-load-afternoon-bar').style.width = `${load.afternoonPct}%`;
+
+            document.getElementById('usage-load-evening-val').innerText = `${load.eveningGb} GB`;
+            document.getElementById('usage-load-evening-bar').style.width = `${load.eveningPct}%`;
+
+            document.getElementById('usage-load-night-val').innerText = `${load.nightGb} GB`;
+            document.getElementById('usage-load-night-bar').style.width = `${load.nightPct}%`;
+        }
+
+        // 4. Top Customers Table
+        const tableBody = document.getElementById('usage-table-body');
+        if (tableBody && data.topUsers) {
+            if (data.topUsers.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">No subscriber usage records found.</td></tr>`;
+            } else {
+                tableBody.innerHTML = data.topUsers.map(user => `
+                    <tr class="border-b border-slate-100 dark:border-vunaborder hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td class="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">${user.customerName}</td>
+                        <td class="py-3 px-4 text-slate-400">${user.packagePlan}</td>
+                        <td class="py-3 px-4 font-bold text-indigo-400">${user.todayDownloadGb} GB <span class="text-slate-500 font-normal">/ ${user.todayUploadGb} GB</span></td>
+                        <td class="py-3 px-4 font-bold text-emerald-400">${user.monthDownloadGb} GB <span class="text-slate-500 font-normal">/ ${user.monthUploadGb} GB</span></td>
+                        <td class="py-3 px-4 text-right text-slate-300">${user.avgSession}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+    } catch (err) {
+        console.error("Failed to sync bandwidth analytics:", err);
     }
 }
         
