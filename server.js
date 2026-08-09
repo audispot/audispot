@@ -4893,7 +4893,7 @@ app.get('/api/sms/logs', async (req, res) => {
 });
 
 // ====================================================================
-// NETWORK MONITORING TELEMETRY API
+// REAL-TIME FIRESTORE & MIKROTIK ROUTEROS TELEMETRY ENDPOINT
 // ====================================================================
 
 app.get('/api/network/monitoring', async (req, res) => {
@@ -4904,72 +4904,140 @@ app.get('/api/network/monitoring', async (req, res) => {
     }
 
     try {
-        // Retrieve registered router nodes for this specific ISP tenant
-        const routersSnapshot = await db.collection('routers')
-            .where('ispId', '==', ispId)
-            .get();
+        // 1. Fetch Routers configured for this ISP from Firestore
+        let routersQuery = db.collection('routers').where('ispId', '==', ispId);
+        
+        if (routerId && routerId !== 'ALL') {
+            routersQuery = db.collection('routers').where('ispId', '==', ispId);
+        }
 
-        const routersList = [];
-        routersSnapshot.forEach(doc => {
-            routersList.push({ id: doc.id, ...doc.data() });
+        const routersSnap = await routersQuery.get();
+        let routersList = [];
+        
+        routersSnap.forEach(doc => {
+            const data = doc.data();
+            if (routerId === 'ALL' || !routerId || doc.id === routerId) {
+                routersList.push({ id: doc.id, ...data });
+            }
         });
 
-        // Structure node status listing
-        const nodes = routersList.map(r => {
-            const isOnline = r.status !== 'OFFLINE';
-            return {
-                id: r.id,
-                name: r.ispName || r.routerId || `MikroTik Node (${r.id.slice(0, 6)})`,
-                status: isOnline ? 'ONLINE' : 'OFFLINE',
-                lastSeen: r.updatedAt ? new Date(r.updatedAt).toLocaleTimeString() : 'Unknown'
-            };
-        });
-
-        // Compute real-time aggregated session counts from Firestore collections
+        // 2. Query Live Subscriber Totals directly from Firestore Collections
         const [hotspotSnap, pppoeSnap, staticSnap] = await Promise.all([
             db.collection('active_sessions').where('ispId', '==', ispId).get(),
             db.collection('pppoe_sessions').where('ispId', '==', ispId).get(),
             db.collection('static_clients').where('ispId', '==', ispId).get()
         ]);
 
-        const hotspotUsers = hotspotSnap.size;
-        const pppoeUsers = pppoeSnap.size;
-        const staticUsers = staticSnap.size;
+        const userMetrics = {
+            hotspot: hotspotSnap.size,
+            pppoe: pppoeSnap.size,
+            static: staticSnap.size,
+            total: hotspotSnap.size + pppoeSnap.size + staticSnap.size
+        };
 
-        // Telemetry payload response
+        if (routersList.length === 0) {
+            return res.status(200).json({
+                success: true,
+                routers: [],
+                nodes: [],
+                metrics: { downloadMbps: 0, uploadMbps: 0 },
+                users: userMetrics,
+                health: { cpu: 0, ram: 0, latencyMs: 0, packetLoss: 0, uptime: '0d 0h 0m' },
+                interfaces: []
+            });
+        }
+
+        // Target the primary/selected router for RouterOS polling
+        const targetRouter = routersList[0];
+        let liveHealth = { cpu: 0, ram: 0, latencyMs: 0, packetLoss: 0, uptime: '0d 0h 0m' };
+        let liveInterfaces = [];
+        let totalRxBps = 0;
+        let totalTxBps = 0;
+        let isOnline = false;
+
+        // 3. Connect to Live RouterOS via API if Credentials exist in Firestore
+        if (targetRouter.routerIp && targetRouter.routerUser && targetRouter.routerPassword) {
+            const startTime = Date.now();
+            const client = new RouterOSClient({
+                host: targetRouter.routerIp,
+                user: targetRouter.routerUser,
+                password: targetRouter.routerPassword,
+                port: targetRouter.routerPort || 8728,
+                timeout: 4000
+            });
+
+            try {
+                const api = await client.connect();
+                isOnline = true;
+                liveHealth.latencyMs = Date.now() - startTime;
+
+                // Query System Resources (CPU, Memory, Uptime)
+                const resourceData = await api.write('/system/resource/print');
+                if (resourceData && resourceData[0]) {
+                    const res = resourceData[0];
+                    liveHealth.cpu = parseInt(res['cpu-load'] || 0, 10);
+                    
+                    const freeMem = parseInt(res['free-memory'] || 0, 10);
+                    const totalMem = parseInt(res['total-memory'] || 1, 10);
+                    liveHealth.ram = Math.round(((totalMem - freeMem) / totalMem) * 100);
+                    liveHealth.uptime = res.uptime || 'Online';
+                }
+
+                // Query Interface Bandwidth & States
+                const ifaceData = await api.write('/interface/print');
+                if (Array.isArray(ifaceData)) {
+                    liveInterfaces = ifaceData.map(iface => {
+                        const rxByteRate = parseInt(iface['rx-byte'] || 0, 10);
+                        const txByteRate = parseInt(iface['tx-byte'] || 0, 10);
+
+                        totalRxBps += rxByteRate;
+                        totalTxBps += txByteRate;
+
+                        return {
+                            name: iface.name,
+                            type: iface.type || 'Ethernet',
+                            rxMbps: (rxByteRate / 1000000).toFixed(1),
+                            txMbps: (txByteRate / 1000000).toFixed(1),
+                            running: iface.running === 'true' || iface.disabled === 'false'
+                        };
+                    });
+                }
+
+                await client.close();
+            } catch (rosError) {
+                console.error(`RouterOS API Connection Error (${targetRouter.routerIp}):`, rosError.message);
+                isOnline = false;
+                liveHealth.packetLoss = 100;
+            }
+        }
+
+        // Build status list for all routers registered in Firestore
+        const nodes = routersList.map(r => ({
+            id: r.id,
+            name: r.ispName || r.routerId || r.id,
+            status: isOnline ? 'ONLINE' : 'OFFLINE',
+            lastSeen: r.updatedAt ? new Date(r.updatedAt).toLocaleTimeString() : 'N/A'
+        }));
+
+        // Total calculated Mbps
+        const downloadMbps = (totalRxBps / 1000000).toFixed(0);
+        const uploadMbps = (totalTxBps / 1000000).toFixed(0);
+
         return res.status(200).json({
             success: true,
-            routers: routersList.map(r => ({ id: r.id, name: r.routerId || r.id })),
-            nodes: nodes.length > 0 ? nodes : [
-                { id: 'core', name: 'Core Gateway', status: 'ONLINE', lastSeen: 'Now' }
-            ],
+            routers: routersList.map(r => ({ id: r.id, name: r.ispName || r.routerId || r.id })),
+            nodes: nodes,
             metrics: {
-                downloadMbps: Math.floor(Math.random() * 200) + 250, // Simulated or pulled directly from MikroTik API
-                uploadMbps: Math.floor(Math.random() * 50) + 40
+                downloadMbps: parseInt(downloadMbps, 10),
+                uploadMbps: parseInt(uploadMbps, 10)
             },
-            users: {
-                hotspot: hotspotUsers,
-                pppoe: pppoeUsers,
-                static: staticUsers,
-                total: hotspotUsers + pppoeUsers + staticUsers
-            },
-            health: {
-                cpu: Math.floor(Math.random() * 25) + 12,
-                ram: Math.floor(Math.random() * 20) + 35,
-                latencyMs: Math.floor(Math.random() * 8) + 2,
-                packetLoss: 0,
-                uptime: '14d 08h 32m'
-            },
-            interfaces: [
-                { name: 'ether1-WAN', type: 'SFP+', rxMbps: 428, txMbps: 82, running: true },
-                { name: 'ether2-HOTSPOT', type: 'Ethernet', rxMbps: 180, txMbps: 45, running: true },
-                { name: 'ether3-PPPOE', type: 'Ethernet', rxMbps: 195, txMbps: 30, running: true },
-                { name: 'ether4-STATIC', type: 'Ethernet', rxMbps: 53, txMbps: 7, running: true }
-            ]
+            users: userMetrics,
+            health: liveHealth,
+            interfaces: liveInterfaces
         });
 
     } catch (error) {
-        console.error("Network monitoring query error:", error);
+        console.error("Firestore Network telemetry error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
