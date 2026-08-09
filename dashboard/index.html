@@ -109,6 +109,7 @@
                 <div class="space-y-1">
                     <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">Network</div>
                     <button onclick="changeActiveLayoutTab('routers')" id="tablink-routers" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-server text-sm w-4"></i> Routers</button>
+                    <button onclick="changeActiveLayoutTab('network-monitoring')" id="tablink-network-monitoring" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-tower-broadcast text-sm w-4"></i> Network Monitoring</button>
                 </div>
 
                 <!-- CATEGORY: SALES & MONEY -->
@@ -127,7 +128,6 @@
                 <div class="space-y-1">
                     <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">System</div>
                     <button onclick="changeActiveLayoutTab('settings')" id="tablink-settings" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-gear text-sm w-4"></i> Settings</button>
-                    <button onclick="changeActiveLayoutTab('network-monitoring')" id="tablink-network-monitoring" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-chart-line text-sm w-4"></i> Network Monitoring</button>
                     <button onclick="changeActiveLayoutTab('portal-designer')" id="tablink-portal-designer" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-palette text-sm w-4"></i> Portal Designer</button>
                     <button onclick="changeActiveLayoutTab('help')" id="tablink-help" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-circle-question text-sm w-4"></i> Help & Support</button>
                 </div>
@@ -524,6 +524,148 @@
                 <button type="submit" class="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition shadow-md">Generate Batch</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="viewframe-network-monitoring" class="space-y-6 hidden viewframe">
+    <!-- Header Control Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-indigo-500"></i> Network Monitoring & Telemetry
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Real-time gateway performance, hardware metrics, and subscriber load distribution.</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <select id="netmon-router-select" onchange="syncNetworkMonitoring()" class="bg-slate-900 border border-slate-700 text-white text-xs font-semibold rounded-lg px-3 py-2 w-full sm:w-auto cursor-pointer focus:outline-none focus:border-indigo-500">
+                <option value="ALL">All Core Gateways</option>
+            </select>
+            <button onclick="syncNetworkMonitoring()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition flex items-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Banner (Displays offline hardware or gateway degradation) -->
+    <div id="netmon-alert-container" class="space-y-2"></div>
+
+    <!-- Overview Status Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Card 1: Router Nodes Status -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-3">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-vunaborder pb-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Network Status</span>
+                <span class="text-xs font-mono font-bold text-indigo-500" id="netmon-active-nodes-count">0/0 Online</span>
+            </div>
+            <div id="netmon-nodes-list" class="space-y-2 max-h-40 overflow-y-auto font-mono text-xs pr-1">
+                <p class="text-slate-500 text-center py-2">Loading node states...</p>
+            </div>
+        </div>
+
+        <!-- Card 2: Internet Bandwidth Throughput -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-3">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-vunaborder pb-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Internet Throughput</span>
+                <span class="text-[10px] uppercase font-bold text-emerald-500" id="netmon-wan-status">WAN CONNECTED</span>
+            </div>
+            <div class="space-y-2 font-mono">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400"><i class="fa-solid fa-arrow-down text-indigo-400 mr-1"></i> Download</span>
+                    <span class="text-base font-bold text-slate-900 dark:text-white" id="netmon-bandwidth-rx">0 Mbps</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="netmon-rx-bar" class="bg-indigo-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-xs text-slate-400"><i class="fa-solid fa-arrow-up text-emerald-400 mr-1"></i> Upload</span>
+                    <span class="text-base font-bold text-slate-900 dark:text-white" id="netmon-bandwidth-tx">0 Mbps</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="netmon-tx-bar" class="bg-emerald-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Connected Subscriber Breakdown -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl space-y-3">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-vunaborder pb-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Connected Users</span>
+                <span class="text-xs font-mono font-bold text-indigo-400" id="netmon-total-users">0 Active</span>
+            </div>
+            <div class="space-y-2 font-mono text-xs">
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400"><i class="fa-solid fa-wifi text-amber-500 mr-1.5"></i> Hotspot</span>
+                    <span class="font-bold text-slate-800 dark:text-slate-200" id="netmon-users-hotspot">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400"><i class="fa-solid fa-cable-car text-indigo-400 mr-1.5"></i> PPPoE</span>
+                    <span class="font-bold text-slate-800 dark:text-slate-200" id="netmon-users-pppoe">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400"><i class="fa-solid fa-server text-emerald-400 mr-1.5"></i> Static IP</span>
+                    <span class="font-bold text-slate-800 dark:text-slate-200" id="netmon-users-static">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hardware Health Telemetry Grid -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <!-- CPU Usage -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Router CPU Load</p>
+            <h3 class="text-xl font-bold text-slate-900 dark:text-white mt-1" id="netmon-cpu-val">0%</h3>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
+                <div id="netmon-cpu-bar" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- RAM Usage -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Memory Allocation</p>
+            <h3 class="text-xl font-bold text-slate-900 dark:text-white mt-1" id="netmon-ram-val">0%</h3>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
+                <div id="netmon-ram-bar" class="bg-purple-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- Latency -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gateway Latency</p>
+            <h3 class="text-xl font-bold text-emerald-400 mt-1" id="netmon-latency-val">0 ms</h3>
+            <p class="text-[10px] text-slate-500 mt-1" id="netmon-packetloss-val">0% Packet Loss</p>
+        </div>
+
+        <!-- Router Uptime -->
+        <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder p-4 rounded-xl">
+            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">System Uptime</p>
+            <h3 class="text-xl font-bold text-indigo-400 mt-1" id="netmon-uptime-val">0d 0h 0m</h3>
+            <p class="text-[10px] text-slate-500 mt-1">Stable Operation</p>
+        </div>
+    </div>
+
+    <!-- Active Interface Traffic Table -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-slate-200 dark:border-vunaborder flex justify-between items-center">
+            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Router Interface Bandwidth Utilization</h4>
+            <span class="text-[10px] font-mono text-slate-400">Live Traffic Polling</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">Interface Name</th>
+                        <th class="p-3">Type</th>
+                        <th class="p-3">Download (Rx)</th>
+                        <th class="p-3">Upload (Tx)</th>
+                        <th class="p-3 text-right">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="netmon-interfaces-body">
+                    <tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">Polling hardware interfaces...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -3215,7 +3357,8 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
             'expenses': 'Operation Expense Tracking',
             'analytics': 'Financial Performance Engine',
             'help': 'Help & Support Documentation',
-            'communication': 'Payment Reminders & Bulk Announcements'
+            'communication': 'Payment Reminders & Bulk Announcements',
+            'network-monitoring': 'Network Monitoring'
         };
         headerTitle.innerText = titleMap[activeTab] || "AudiSpot Network Control Center";
     }
@@ -3251,6 +3394,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'earnings') {
         if (typeof loadPaymentHistoryView === "function") {
             loadPaymentHistoryView();
+        }
+
+    } else if (activeTab === 'network-monitoring') {
+        if (typeof syncNetworkMonitoring === "function") {
+            syncNetworkMonitoring();
         }
 
     } else if (activeTab === 'help') {
@@ -6087,6 +6235,120 @@ async function sendSmsSubmit() {
         }
     } catch (err) {
         showToastNotification("Error sending SMS: " + err.message, "error");
+    }
+}
+
+// ====================================================================
+// NETWORK MONITORING & TELEMETRY MODULE
+// ====================================================================
+
+async function syncNetworkMonitoring() {
+    const activeIsp = typeof getActiveTenantId === 'function' ? getActiveTenantId() : localStorage.getItem('ispId');
+    if (!activeIsp) return;
+
+    const routerSelect = document.getElementById('netmon-router-select');
+    const selectedRouterId = routerSelect ? routerSelect.value : 'ALL';
+    const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+
+    try {
+        const response = await fetch(`${baseUrl}/api/network/monitoring?ispId=${encodeURIComponent(activeIsp)}&routerId=${encodeURIComponent(selectedRouterId)}`);
+        
+        if (!response.ok) throw new Error("Failed to load telemetry.");
+        const data = await response.json();
+
+        if (!data.success) return;
+
+        // 1. Populate Router Select Options
+        if (routerSelect && data.routers && routerSelect.options.length <= 1) {
+            routerSelect.innerHTML = '<option value="ALL">All Core Gateways</option>';
+            data.routers.forEach(r => {
+                routerSelect.innerHTML += `<option value="${r.id}">${r.name || r.id}</option>`;
+            });
+            routerSelect.value = selectedRouterId;
+        }
+
+        // 2. Render Node Status List
+        const nodesList = document.getElementById('netmon-nodes-list');
+        const activeNodesCount = document.getElementById('netmon-active-nodes-count');
+        
+        if (nodesList && data.nodes) {
+            const onlineCount = data.nodes.filter(n => n.status === 'ONLINE').length;
+            if (activeNodesCount) activeNodesCount.innerText = `${onlineCount}/${data.nodes.length} Online`;
+
+            nodesList.innerHTML = data.nodes.map(node => `
+                <div class="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800/50 last:border-0">
+                    <span class="truncate text-slate-700 dark:text-slate-300">
+                        <span class="inline-block w-2 h-2 rounded-full mr-1.5 ${node.status === 'ONLINE' ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
+                        ${node.name}
+                    </span>
+                    <span class="font-bold text-[10px] ${node.status === 'ONLINE' ? 'text-emerald-400' : 'text-rose-400'}">${node.status}</span>
+                </div>
+            `).join('');
+        }
+
+        // 3. Render Offline Alerts
+        const alertContainer = document.getElementById('netmon-alert-container');
+        if (alertContainer) {
+            const offlineNodes = (data.nodes || []).filter(n => n.status === 'OFFLINE');
+            if (offlineNodes.length > 0) {
+                alertContainer.innerHTML = offlineNodes.map(node => `
+                    <div class="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-2.5 rounded-lg text-xs flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <strong>HARDWARE ALARM:</strong> Node <b>${node.name}</b> is unreachable.
+                        </span>
+                        <span class="font-mono text-[10px]">${node.lastSeen || 'Just Now'}</span>
+                    </div>
+                `).join('');
+            } else {
+                alertContainer.innerHTML = '';
+            }
+        }
+
+        // 4. Update Bandwidth Throughput
+        document.getElementById('netmon-bandwidth-rx').innerText = `${data.metrics.downloadMbps} Mbps`;
+        document.getElementById('netmon-bandwidth-tx').innerText = `${data.metrics.uploadMbps} Mbps`;
+        
+        const rxPercent = Math.min(100, (data.metrics.downloadMbps / 1000) * 100);
+        const txPercent = Math.min(100, (data.metrics.uploadMbps / 1000) * 100);
+        document.getElementById('netmon-rx-bar').style.width = `${rxPercent}%`;
+        document.getElementById('netmon-tx-bar').style.width = `${txPercent}%`;
+
+        // 5. Connected Users Breakdown
+        document.getElementById('netmon-total-users').innerText = `${data.users.total} Active`;
+        document.getElementById('netmon-users-hotspot').innerText = data.users.hotspot;
+        document.getElementById('netmon-users-pppoe').innerText = data.users.pppoe;
+        document.getElementById('netmon-users-static').innerText = data.users.static;
+
+        // 6. Hardware Health Telemetry
+        document.getElementById('netmon-cpu-val').innerText = `${data.health.cpu}%`;
+        document.getElementById('netmon-cpu-bar').style.width = `${data.health.cpu}%`;
+        document.getElementById('netmon-ram-val').innerText = `${data.health.ram}%`;
+        document.getElementById('netmon-ram-bar').style.width = `${data.health.ram}%`;
+        document.getElementById('netmon-latency-val').innerText = `${data.health.latencyMs} ms`;
+        document.getElementById('netmon-packetloss-val').innerText = `${data.health.packetLoss}% Packet Loss`;
+        document.getElementById('netmon-uptime-val').innerText = data.health.uptime;
+
+        // 7. Render Interfaces Table
+        const ifaceBody = document.getElementById('netmon-interfaces-body');
+        if (ifaceBody && data.interfaces) {
+            ifaceBody.innerHTML = data.interfaces.map(iface => `
+                <tr class="border-b border-slate-100 dark:border-vunaborder hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td class="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">${iface.name}</td>
+                    <td class="py-3 px-4 text-slate-400">${iface.type}</td>
+                    <td class="py-3 px-4 text-indigo-400 font-bold">${iface.rxMbps} Mbps</td>
+                    <td class="py-3 px-4 text-emerald-400 font-bold">${iface.txMbps} Mbps</td>
+                    <td class="py-3 px-4 text-right">
+                        <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${iface.running ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-700 text-slate-400'}">
+                            ${iface.running ? 'UP' : 'DOWN'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+    } catch (err) {
+        console.error("Network telemetry sync failed:", err);
     }
 }
         
