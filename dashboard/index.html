@@ -103,6 +103,7 @@
                     <button onclick="changeActiveLayoutTab('pppoe')" id="tablink-pppoe" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-network-wired text-sm w-4"></i> PPPoE</button>
                     <button onclick="changeActiveLayoutTab('static-ip')" id="tablink-static-ip" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-microchip text-sm w-4"></i> Static IP</button>
                     <button onclick="changeActiveLayoutTab('communication')" id="tablink-communication" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-comments text-sm w-4"></i> Communication</button>
+                    <button onclick="changeActiveLayoutTab('subscribers')" id="tablink-subscribers" class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-vunahover transition text-left"><i class="fa-solid fa-users text-sm w-4"></i> Subscribers</button>
                 </div>
 
                 <!-- CATEGORY: NETWORK Infrastructure -->
@@ -525,6 +526,81 @@
                 <button type="submit" class="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition shadow-md">Generate Batch</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- VIEWFRAME: SUBSCRIBERS / CUSTOMERS -->
+<div id="viewframe-subscribers" class="space-y-6 hidden viewframe">
+    <!-- Header Control Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-4 border border-slate-200 dark:border-vunaborder rounded-xl">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-users text-indigo-500"></i> Subscribers & Customers Directory
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Manage subscriber accounts, connection profiles, balances, and service lifecycles.</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <input type="text" id="subscriber-search-input" onkeyup="filterSubscriberTable()" placeholder="Search name, phone, ID, or IP..." class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full sm:w-64 font-mono" />
+            <button onclick="fetchSubscribersList()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg transition flex items-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Subscribers Main Data Table -->
+    <div class="bg-white dark:bg-vunacard border border-slate-200 dark:border-vunaborder rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 border-b border-slate-200 dark:border-vunaborder font-sans uppercase text-[10px]">
+                    <tr>
+                        <th class="p-3">Customer ID / Name</th>
+                        <th class="p-3">Phone & Email</th>
+                        <th class="p-3">Connection Type</th>
+                        <th class="p-3">Package / Service</th>
+                        <th class="p-3">Status</th>
+                        <th class="p-3">Balance</th>
+                        <th class="p-3">Last Payment</th>
+                        <th class="p-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-vunaborder text-slate-300" id="subscribers-table-body">
+                    <tr><td colspan="8" class="p-6 text-center text-slate-500 font-sans">Fetching subscriber database from Firestore...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: CUSTOMER PROFILE 360 DEGREE VIEW -->
+<div id="customer-profile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- Modal Header -->
+        <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/80">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-indigo-600/20 text-indigo-400 font-bold flex items-center justify-center text-sm border border-indigo-500/30" id="modal-cust-avatar">
+                    --
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2" id="modal-cust-name">Customer Name</h3>
+                    <p class="text-[11px] font-mono text-slate-400" id="modal-cust-id">ID: --</p>
+                </div>
+            </div>
+            <button onclick="closeCustomerModal()" class="text-slate-400 hover:text-white text-lg px-2 py-1"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Tab Controls Navigation -->
+        <div class="flex overflow-x-auto border-b border-slate-800 bg-slate-950/50 px-4 text-xs font-semibold text-slate-400 gap-2">
+            <button onclick="switchCustomerTab('overview')" id="cust-tab-overview" class="px-3 py-2.5 border-b-2 border-indigo-500 text-indigo-400 shrink-0">Overview</button>
+            <button onclick="switchCustomerTab('internet')" id="cust-tab-internet" class="px-3 py-2.5 border-b-2 border-transparent hover:text-white shrink-0">Internet Service</button>
+            <button onclick="switchCustomerTab('payments')" id="cust-tab-payments" class="px-3 py-2.5 border-b-2 border-transparent hover:text-white shrink-0">Payments</button>
+            <button onclick="switchCustomerTab('sessions')" id="cust-tab-sessions" class="px-3 py-2.5 border-b-2 border-transparent hover:text-white shrink-0">Sessions & Usage</button>
+            <button onclick="switchCustomerTab('activity')" id="cust-tab-activity" class="px-3 py-2.5 border-b-2 border-transparent hover:text-white shrink-0">Activity Log</button>
+        </div>
+
+        <!-- Modal Dynamic Body Content -->
+        <div class="p-6 overflow-y-auto space-y-4 font-mono text-xs flex-1" id="customer-modal-tab-content">
+            <!-- Tabs render dynamically via JavaScript -->
+        </div>
     </div>
 </div>
 
@@ -3509,6 +3585,11 @@ function changeActiveLayoutTab(targetTab = 'dashboard') {
     } else if (activeTab === 'static-ip') {
         if (typeof fetchStaticDHCPLeases === "function") {
             fetchStaticDHCPLeases();
+        }
+
+    } else if (activeTab === 'subscribers') {
+        if (typeof fetchSubscribersList === "function") {
+            fetchSubscribersList();
         }
 
     } else if (activeTab === 'sessions') {
@@ -6720,6 +6801,195 @@ async function handleSupportTicketSubmit(e) {
         }
     } catch (err) {
         console.error("Support ticket submit error:", err);
+    }
+}
+
+// ====================================================================
+// SUBSCRIBERS / CUSTOMERS DIRECTORY MODULE
+// ====================================================================
+
+let globalSubscribersCache = [];
+let activeSelectedSubscriber = null;
+
+async function fetchSubscribersList() {
+    const activeIsp = typeof getActiveTenantId === 'function' ? getActiveTenantId() : localStorage.getItem('ispId');
+    if (!activeIsp) return;
+
+    const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+    const tableBody = document.getElementById('subscribers-table-body');
+
+    try {
+        const response = await fetch(`${baseUrl}/api/subscribers?ispId=${encodeURIComponent(activeIsp)}`);
+        const data = await response.json();
+
+        if (!data.success) throw new Error(data.error || "Failed to load subscribers.");
+
+        globalSubscribersCache = data.subscribers || [];
+        renderSubscribersTable(globalSubscribersCache);
+
+    } catch (err) {
+        console.error("Subscribers load error:", err);
+        tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500 font-sans">Error loading subscribers: ${err.message}</td></tr>`;
+    }
+}
+
+function renderSubscribersTable(subscribers) {
+    const tableBody = document.getElementById('subscribers-table-body');
+    if (!subscribers || subscribers.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500 font-sans">No subscribers found in database.</td></tr>`;
+        return;
+    }
+
+    tableBody.innerHTML = subscribers.map(sub => {
+        const isOnline = sub.isOnline;
+        const statusClass = isOnline 
+            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+            : 'bg-slate-800 text-slate-400 border-slate-700';
+
+        const connBadge = sub.connectionType === 'Hotspot' 
+            ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' 
+            : (sub.connectionType === 'PPPoE' ? 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20' : 'text-blue-400 bg-blue-400/10 border-blue-400/20');
+
+        return `
+            <tr class="border-b border-slate-100 dark:border-vunaborder hover:bg-slate-800/40 cursor-pointer transition" onclick="openCustomerProfile('${sub.id}')">
+                <td class="py-3 px-3">
+                    <div class="font-bold text-slate-200">${sub.name || 'Unnamed Subscriber'}</div>
+                    <div class="text-[10px] text-slate-500">${sub.id}</div>
+                </td>
+                <td class="py-3 px-3">
+                    <div class="text-slate-300">${sub.phoneNumber || 'N/A'}</div>
+                    <div class="text-[10px] text-slate-500">${sub.email || 'No email registered'}</div>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 border text-[10px] rounded-md font-bold ${connBadge}">${sub.connectionType}</span>
+                </td>
+                <td class="py-3 px-3 text-slate-300 font-bold">${sub.packagePlan || 'Unassigned'}</td>
+                <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 border text-[10px] rounded-full uppercase font-bold ${statusClass}">
+                        ${isOnline ? 'Online' : 'Offline'}
+                    </span>
+                </td>
+                <td class="py-3 px-3 font-bold ${sub.balance >= 0 ? 'text-slate-200' : 'text-rose-400'}">
+                    KES ${sub.balance}
+                </td>
+                <td class="py-3 px-3 text-slate-400 text-[11px]">${sub.lastPaymentDate}</td>
+                <td class="py-3 px-3 text-right">
+                    <button onclick="event.stopPropagation(); openCustomerProfile('${sub.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white rounded border border-slate-700 text-[11px] transition">
+                        View Profile
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterSubscriberTable() {
+    const query = document.getElementById('subscriber-search-input').value.toLowerCase();
+    const filtered = globalSubscribersCache.filter(sub => 
+        (sub.name && sub.name.toLowerCase().includes(query)) ||
+        (sub.phoneNumber && sub.phoneNumber.includes(query)) ||
+        (sub.id && sub.id.toLowerCase().includes(query)) ||
+        (sub.packagePlan && sub.packagePlan.toLowerCase().includes(query))
+    );
+    renderSubscribersTable(filtered);
+}
+
+function openCustomerProfile(subId) {
+    const sub = globalSubscribersCache.find(s => s.id === subId);
+    if (!sub) return;
+
+    activeSelectedSubscriber = sub;
+    document.getElementById('modal-cust-name').innerText = sub.name || "Subscriber Profile";
+    document.getElementById('modal-cust-id').innerText = `ID: ${sub.id}`;
+    document.getElementById('modal-cust-avatar').innerText = (sub.name || "S").charAt(0).toUpperCase();
+
+    document.getElementById('customer-profile-modal').classList.remove('hidden');
+    switchCustomerTab('overview');
+}
+
+function closeCustomerModal() {
+    document.getElementById('customer-profile-modal').classList.add('hidden');
+    activeSelectedSubscriber = null;
+}
+
+function switchCustomerTab(tabName) {
+    if (!activeSelectedSubscriber) return;
+    const sub = activeSelectedSubscriber;
+
+    // Reset button tab highlights
+    ['overview', 'internet', 'payments', 'sessions', 'activity'].forEach(t => {
+        const btn = document.getElementById(`cust-tab-${t}`);
+        if (btn) {
+            btn.className = (t === tabName) 
+                ? "px-3 py-2.5 border-b-2 border-indigo-500 text-indigo-400 shrink-0" 
+                : "px-3 py-2.5 border-b-2 border-transparent hover:text-white shrink-0";
+        }
+    });
+
+    const contentBox = document.getElementById('customer-modal-tab-content');
+
+    if (tabName === 'overview') {
+        contentBox.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2">
+                    <p class="text-slate-500 text-[10px] uppercase font-bold">Contact Details</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Phone:</span> ${sub.phoneNumber || 'N/A'}</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Email:</span> ${sub.email || 'N/A'}</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Location:</span> ${sub.location || 'Default Gateway Zone'}</p>
+                </div>
+                <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2">
+                    <p class="text-slate-500 text-[10px] uppercase font-bold">Account Billing</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Balance:</span> KES ${sub.balance}</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Account Status:</span> <span class="text-emerald-400 font-bold">${sub.accountStatus || 'ACTIVE'}</span></p>
+                    <p class="text-slate-300"><span class="text-slate-500">Loyalty Points:</span> ${sub.loyaltyPoints || 0}</p>
+                </div>
+                <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2">
+                    <p class="text-slate-500 text-[10px] uppercase font-bold">Provisioning info</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Router ID:</span> ${sub.routerId || 'Unassigned'}</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Install Date:</span> ${sub.installationDate}</p>
+                    <p class="text-slate-300"><span class="text-slate-500">Last Seen:</span> ${sub.lastActiveTimestamp}</p>
+                </div>
+            </div>
+        `;
+    } else if (tabName === 'internet') {
+        contentBox.innerHTML = `
+            <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-slate-400 font-bold">Active Internet Profile</span>
+                    <span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded">${sub.connectionType}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-slate-300">
+                    <div><span class="text-slate-500">Assigned Package:</span> ${sub.packagePlan}</div>
+                    <div><span class="text-slate-500">Username/MAC:</span> ${sub.username || sub.phoneNumber}</div>
+                    <div><span class="text-slate-500">Download Consumed:</span> ${sub.totalRxGb} GB</div>
+                    <div><span class="text-slate-500">Upload Consumed:</span> ${sub.totalTxGb} GB</div>
+                </div>
+            </div>
+        `;
+    } else if (tabName === 'payments') {
+        contentBox.innerHTML = `
+            <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2">
+                <div class="flex justify-between text-slate-400 border-b border-slate-800 pb-2">
+                    <span>Last Transaction</span>
+                    <span>${sub.lastPaymentDate}</span>
+                </div>
+                <p class="text-slate-300">Amount Paid: <span class="text-emerald-400 font-bold">KES ${sub.lastPaymentAmount || 0}</span></p>
+            </div>
+        `;
+    } else if (tabName === 'sessions') {
+        contentBox.innerHTML = `
+            <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2">
+                <p class="text-slate-400">Current Session State: <span class="font-bold ${sub.isOnline ? 'text-emerald-400' : 'text-slate-500'}">${sub.isOnline ? 'ONLINE' : 'OFFLINE'}</span></p>
+                <p class="text-slate-300">Uptime Duration: ${sub.uptime || '0m'}</p>
+            </div>
+        `;
+    } else if (tabName === 'activity') {
+        contentBox.innerHTML = `
+            <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-2 text-slate-400">
+                <p>• [${sub.lastActiveTimestamp}] Customer status updated to ${sub.isOnline ? 'ONLINE' : 'OFFLINE'}.</p>
+                <p>• [${sub.installationDate}] Account provisioned under ISP target.</p>
+            </div>
+        `;
     }
 }
 
