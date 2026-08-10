@@ -5273,14 +5273,14 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 // ====================================================================
 
 app.get('/api/subscribers', async (req, res) => {
-    const { ispId } = req.query;
+    // Extract tenant ID from query param or attached auth token user
+    const ispId = req.query.ispId || (req.user && req.user.ispId);
 
     if (!ispId || ispId === 'undefined' || ispId === 'null') {
         return res.status(401).json({ success: false, error: "Unauthorized: Missing valid tenant identification." });
     }
 
     try {
-        // 1. Fetch Subscriber master records and active sessions simultaneously
         const [subscribersSnap, activeSnap, pppoeSnap, staticSnap, transactionsSnap] = await Promise.all([
             db.collection('subscribers').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
             db.collection('active_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
@@ -5289,7 +5289,6 @@ app.get('/api/subscribers', async (req, res) => {
             db.collection('transactions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} }))
         ]);
 
-        // Map online active sessions by phone, username, or MAC
         const liveSessionsMap = new Map();
         const registerSession = (doc, connType) => {
             const data = doc.data();
@@ -5307,7 +5306,6 @@ app.get('/api/subscribers', async (req, res) => {
         if (pppoeSnap.forEach) pppoeSnap.forEach(doc => registerSession(doc, 'PPPoE'));
         if (staticSnap.forEach) staticSnap.forEach(doc => registerSession(doc, 'Static IP'));
 
-        // Map transactions for last payment tracking
         const lastPaymentMap = new Map();
         if (transactionsSnap.forEach) {
             transactionsSnap.forEach(doc => {
@@ -5327,7 +5325,6 @@ app.get('/api/subscribers', async (req, res) => {
             });
         }
 
-        // Construct final subscriber list
         const subscribersList = [];
         if (subscribersSnap.forEach) {
             subscribersSnap.forEach(doc => {
@@ -5335,7 +5332,6 @@ app.get('/api/subscribers', async (req, res) => {
                 const subId = doc.id;
                 const phone = sub.phoneNumber || '';
                 
-                // Match live session info
                 const session = liveSessionsMap.get(phone) || liveSessionsMap.get(subId) || {
                     isOnline: false,
                     connectionType: sub.connectionType || 'Hotspot',
@@ -5344,7 +5340,6 @@ app.get('/api/subscribers', async (req, res) => {
                     uptime: 'Offline'
                 };
 
-                // Match payment info
                 const payment = lastPaymentMap.get(phone) || lastPaymentMap.get(subId) || {
                     dateStr: sub.lastPaymentDate || 'No payments recorded',
                     amount: 0
