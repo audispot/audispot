@@ -6813,13 +6813,26 @@ let activeSelectedSubscriber = null;
 
 async function fetchSubscribersList() {
     const activeIsp = typeof getActiveTenantId === 'function' ? getActiveTenantId() : localStorage.getItem('ispId');
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken') || sessionStorage.getItem('token');
+
     if (!activeIsp) return;
 
     const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const tableBody = document.getElementById('subscribers-table-body');
 
     try {
-        const response = await fetch(`${baseUrl}/api/subscribers?ispId=${encodeURIComponent(activeIsp)}`);
+        const response = await fetch(`${baseUrl}/api/subscribers?ispId=${encodeURIComponent(activeIsp)}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            }
+        });
+
+        if (response.status === 401) {
+            throw new Error("Unauthorized: Session token missing or expired. Please log in again.");
+        }
+
         const data = await response.json();
 
         if (!data.success) throw new Error(data.error || "Failed to load subscribers.");
@@ -6829,10 +6842,12 @@ async function fetchSubscribersList() {
 
     } catch (err) {
         console.error("Subscribers load error:", err);
-        tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500 font-sans">Error loading subscribers: ${err.message}</td></tr>`;
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500 font-sans">Error loading subscribers: ${err.message}</td></tr>`;
+        }
     }
 }
-
+        
 function renderSubscribersTable(subscribers) {
     const tableBody = document.getElementById('subscribers-table-body');
     if (!subscribers || subscribers.length === 0) {
