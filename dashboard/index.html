@@ -6812,30 +6812,40 @@ let globalSubscribersCache = [];
 let activeSelectedSubscriber = null;
 
 async function fetchSubscribersList() {
-    const activeIsp = typeof getActiveTenantId === 'function' ? getActiveTenantId() : localStorage.getItem('ispId');
-    const token = localStorage.getItem('token') || localStorage.getItem('authToken') || sessionStorage.getItem('token');
+    // 1. Extract values matching your Local Storage keys exactly
+    const activeIsp = localStorage.getItem('isp_id') || (typeof getActiveTenantId === 'function' ? getActiveTenantId() : null);
+    const authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
 
-    if (!activeIsp) return;
-
-    const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
     const tableBody = document.getElementById('subscribers-table-body');
 
+    if (!authToken) {
+        console.error("No auth_token found in localStorage.");
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500 font-sans">Authentication error: Token missing. Please log in again.</td></tr>`;
+        }
+        return;
+    }
+
+    const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+
     try {
-        const response = await fetch(`${baseUrl}/api/subscribers?ispId=${encodeURIComponent(activeIsp)}`, {
+        const response = await fetch(`${baseUrl}/api/subscribers?ispId=${encodeURIComponent(activeIsp || '')}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
+                'Authorization': `Bearer ${authToken}`
             }
         });
 
         if (response.status === 401) {
-            throw new Error("Unauthorized: Session token missing or expired. Please log in again.");
+            throw new Error("Unauthorized: Invalid or expired session token. Please re-login.");
         }
 
         const data = await response.json();
 
-        if (!data.success) throw new Error(data.error || "Failed to load subscribers.");
+        if (!data.success && !data.subscribers) {
+            throw new Error(data.error || "Failed to load subscribers.");
+        }
 
         globalSubscribersCache = data.subscribers || [];
         renderSubscribersTable(globalSubscribersCache);
