@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { Firestore } = require('@google-cloud/firestore');
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
 const crypto = require('crypto');
 const { sendEmail, safeStr } = require('./emailUtils');
@@ -4792,7 +4792,7 @@ app.post('/api/sms/send', async (req, res) => {
         // ==============================
 
         await db.collection('settings').doc(targetTenant).set({
-            smsCredits: admin.firestore.FieldValue.increment(-1)
+            smsCredits: FieldValue.increment(-1)
         }, { merge: true });
 
         return res.status(200).json({
