@@ -6364,41 +6364,106 @@ async function fetchSmsCredits() {
 async function loadCommunicationLogs() {
     try {
         const activeIsp = getActiveTenantId();
+
         if (!activeIsp) {
             console.warn("Communication logs lookup skipped: No active session tenant detected.");
             return;
         }
 
         const baseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-        const response = await fetch(`${baseUrl}/api/sms/logs?ispId=${encodeURIComponent(activeIsp)}`);
 
-        // Guard against HTML 404/deployment error responses
+        const response = await fetch(
+            `${baseUrl}/api/sms/logs?ispId=${encodeURIComponent(activeIsp)}`
+        );
+
         const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+
+        if (
+            !response.ok ||
+            !contentType ||
+            !contentType.includes("application/json")
+        ) {
             console.warn("SMS logs endpoint returned non-JSON response.");
             return;
         }
 
         const logs = await response.json();
 
-        const tableBody = document.getElementById('tbl-communication-logs-body');
+        // ==========================================
+        // CALCULATE SMS STATISTICS
+        // ==========================================
+
+        const today = new Date();
+
+        const sentToday = Array.isArray(logs)
+            ? logs.filter(log => {
+                if (log.status !== 'SUCCESS' || !log.timestamp) {
+                    return false;
+                }
+
+                const logDate = new Date(log.timestamp);
+
+                return (
+                    logDate.getFullYear() === today.getFullYear() &&
+                    logDate.getMonth() === today.getMonth() &&
+                    logDate.getDate() === today.getDate()
+                );
+            }).length
+            : 0;
+
+        // Update "Messages Sent Today"
+        const sentTodayBadge = document.getElementById('lbl-sms-sent-today');
+
+        if (sentTodayBadge) {
+            sentTodayBadge.innerText = sentToday;
+        }
+
+        // ==========================================
+        // RENDER COMMUNICATION LOG TABLE
+        // ==========================================
+
+        const tableBody = document.getElementById(
+            'tbl-communication-logs-body'
+        );
+
         if (!tableBody) return;
 
         if (!Array.isArray(logs) || logs.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">No communication logs recorded yet.</td></tr>`;
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="py-4 text-center text-slate-400">
+                        No communication logs recorded yet.
+                    </td>
+                </tr>
+            `;
             return;
         }
 
         tableBody.innerHTML = logs.map(log => `
             <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                <td class="py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">${log.recipient || 'N/A'}</td>
-                <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">${log.message || ''}</td>
+
+                <td class="py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    ${log.recipient || 'N/A'}
+                </td>
+
+                <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">
+                    ${log.message || ''}
+                </td>
+
                 <td class="py-3 px-4 text-sm">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${
+                        log.status === 'SUCCESS'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                    }">
                         ${log.status || 'PENDING'}
                     </span>
                 </td>
-                <td class="py-3 px-4 text-sm text-slate-500">${new Date(log.timestamp || Date.now()).toLocaleString()}</td>
+
+                <td class="py-3 px-4 text-sm text-slate-500">
+                    ${new Date(log.timestamp || Date.now()).toLocaleString()}
+                </td>
+
             </tr>
         `).join('');
 
@@ -6406,7 +6471,7 @@ async function loadCommunicationLogs() {
         console.error("Communication Log Error:", err);
     }
 }
-
+        
 // Submit SMS Request to Backend Gateway
 async function sendSmsSubmit() {
     const phoneInput = document.getElementById('sms-recipient-input');
