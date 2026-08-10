@@ -5254,17 +5254,11 @@ app.get('/api/network/usage-analytics', async (req, res) => {
     }
 });
 
-// ====================================================================
-// REAL-TIME FIRESTORE SUBSCRIBERS DIRECTORY ENDPOINT
-// ====================================================================
-
-// ====================================================================
-// REAL-TIME SUBSCRIBERS DIRECTORY ENDPOINT
-// ====================================================================
-app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribers'), async (req, res) => {
+// Server route using req.targetIspId provided by authenticateUser
+app.get('/api/subscribers', authenticateUser, async (req, res) => {
     try {
-        // Use targetIspId attached by your authentication middleware
-        const targetIspId = req.targetIspId || req.query.ispId;
+        // Fallback tenant check
+        const targetIspId = req.targetIspId || req.user?.ispId || req.query.ispId;
 
         if (!targetIspId) {
             return res.status(400).json({ success: false, error: "Missing valid tenant identification." });
@@ -5272,7 +5266,7 @@ app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribe
 
         const db = req.db || global.db;
 
-        // Fetch master subscribers and active connection collections concurrently
+        // Fetch subscriber documents
         const [subscribersSnap, activeSnap, pppoeSnap, staticSnap, transactionsSnap] = await Promise.all([
             db.collection('subscribers').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
             db.collection('active_sessions').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
@@ -5281,7 +5275,6 @@ app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribe
             db.collection('transactions').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} }))
         ]);
 
-        // Map online active sessions
         const liveSessionsMap = new Map();
         const registerSession = (doc, connType) => {
             const data = doc.data();
@@ -5299,7 +5292,6 @@ app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribe
         if (pppoeSnap.forEach) pppoeSnap.forEach(doc => registerSession(doc, 'PPPoE'));
         if (staticSnap.forEach) staticSnap.forEach(doc => registerSession(doc, 'Static IP'));
 
-        // Map latest transaction per customer
         const lastPaymentMap = new Map();
         if (transactionsSnap.forEach) {
             transactionsSnap.forEach(doc => {
@@ -5319,7 +5311,6 @@ app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribe
             });
         }
 
-        // Construct response payload
         const subscribersList = [];
         if (subscribersSnap.forEach) {
             subscribersSnap.forEach(doc => {
