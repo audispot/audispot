@@ -4654,20 +4654,6 @@ app.get('/api/expenses', authenticateUser, authorizeScope('canManageExpenses'), 
     }
 });
 
-// 3. Subscribers (Uses `subscribers` collection)
-app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribers'), async (req, res) => {
-    try {
-        const snapshot = await req.db.collection('subscribers')
-            .where('ispId', '==', req.targetIspId)
-            .get();
-
-        const subscribers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        res.json({ subscribers });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // Submit Support Ticket (Saved under `help_tickets` collection)
 app.post('/api/help/tickets', authenticateUser, async (req, res) => {
     try {
@@ -5272,23 +5258,30 @@ app.get('/api/network/usage-analytics', async (req, res) => {
 // REAL-TIME FIRESTORE SUBSCRIBERS DIRECTORY ENDPOINT
 // ====================================================================
 
-app.get('/api/subscribers', async (req, res) => {
-    // Extract tenant ID from query param or attached auth token user
-    const ispId = req.query.ispId || (req.user && req.user.ispId);
-
-    if (!ispId || ispId === 'undefined' || ispId === 'null') {
-        return res.status(401).json({ success: false, error: "Unauthorized: Missing valid tenant identification." });
-    }
-
+// ====================================================================
+// REAL-TIME SUBSCRIBERS DIRECTORY ENDPOINT
+// ====================================================================
+app.get('/api/subscribers', authenticateUser, authorizeScope('canManageSubscribers'), async (req, res) => {
     try {
+        // Use targetIspId attached by your authentication middleware
+        const targetIspId = req.targetIspId || req.query.ispId;
+
+        if (!targetIspId) {
+            return res.status(400).json({ success: false, error: "Missing valid tenant identification." });
+        }
+
+        const db = req.db || global.db;
+
+        // Fetch master subscribers and active connection collections concurrently
         const [subscribersSnap, activeSnap, pppoeSnap, staticSnap, transactionsSnap] = await Promise.all([
-            db.collection('subscribers').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
-            db.collection('active_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
-            db.collection('pppoe_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
-            db.collection('static_clients').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
-            db.collection('transactions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} }))
+            db.collection('subscribers').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('active_sessions').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('pppoe_sessions').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('static_clients').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('transactions').where('ispId', '==', targetIspId).get().catch(() => ({ forEach: () => {} }))
         ]);
 
+        // Map online active sessions
         const liveSessionsMap = new Map();
         const registerSession = (doc, connType) => {
             const data = doc.data();
@@ -5306,6 +5299,7 @@ app.get('/api/subscribers', async (req, res) => {
         if (pppoeSnap.forEach) pppoeSnap.forEach(doc => registerSession(doc, 'PPPoE'));
         if (staticSnap.forEach) staticSnap.forEach(doc => registerSession(doc, 'Static IP'));
 
+        // Map latest transaction per customer
         const lastPaymentMap = new Map();
         if (transactionsSnap.forEach) {
             transactionsSnap.forEach(doc => {
@@ -5325,6 +5319,7 @@ app.get('/api/subscribers', async (req, res) => {
             });
         }
 
+        // Construct response payload
         const subscribersList = [];
         if (subscribersSnap.forEach) {
             subscribersSnap.forEach(doc => {
@@ -5376,7 +5371,7 @@ app.get('/api/subscribers', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Subscribers directory query error:", error);
+        console.error("Subscribers endpoint error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 });
