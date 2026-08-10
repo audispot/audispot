@@ -5268,5 +5268,123 @@ app.get('/api/network/usage-analytics', async (req, res) => {
     }
 });
 
+// ====================================================================
+// REAL-TIME FIRESTORE SUBSCRIBERS DIRECTORY ENDPOINT
+// ====================================================================
+
+app.get('/api/subscribers', async (req, res) => {
+    const { ispId } = req.query;
+
+    if (!ispId || ispId === 'undefined' || ispId === 'null') {
+        return res.status(401).json({ success: false, error: "Unauthorized: Missing valid tenant identification." });
+    }
+
+    try {
+        // 1. Fetch Subscriber master records and active sessions simultaneously
+        const [subscribersSnap, activeSnap, pppoeSnap, staticSnap, transactionsSnap] = await Promise.all([
+            db.collection('subscribers').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('active_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('pppoe_sessions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('static_clients').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} })),
+            db.collection('transactions').where('ispId', '==', ispId).get().catch(() => ({ forEach: () => {} }))
+        ]);
+
+        // Map online active sessions by phone, username, or MAC
+        const liveSessionsMap = new Map();
+        const registerSession = (doc, connType) => {
+            const data = doc.data();
+            const key = data.phoneNumber || data.username || data.mac || doc.id;
+            liveSessionsMap.set(key, {
+                isOnline: true,
+                connectionType: connType,
+                bytesIn: parseInt(data.bytesIn || data.download || 0, 10),
+                bytesOut: parseInt(data.bytesOut || data.upload || 0, 10),
+                uptime: data.uptime || 'Active'
+            });
+        };
+
+        if (activeSnap.forEach) activeSnap.forEach(doc => registerSession(doc, 'Hotspot'));
+        if (pppoeSnap.forEach) pppoeSnap.forEach(doc => registerSession(doc, 'PPPoE'));
+        if (staticSnap.forEach) staticSnap.forEach(doc => registerSession(doc, 'Static IP'));
+
+        // Map transactions for last payment tracking
+        const lastPaymentMap = new Map();
+        if (transactionsSnap.forEach) {
+            transactionsSnap.forEach(doc => {
+                const tx = doc.data();
+                const key = tx.phoneNumber || tx.subscriberId;
+                if (key) {
+                    const current = lastPaymentMap.get(key);
+                    const txTime = new Date(tx.createdAt || tx.timestamp || 0).getTime();
+                    if (!current || txTime > current.time) {
+                        lastPaymentMap.set(key, {
+                            time: txTime,
+                            dateStr: tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : 'N/A',
+                            amount: tx.amount || 0
+                        });
+                    }
+                }
+            });
+        }
+
+        // Construct final subscriber list
+        const subscribersList = [];
+        if (subscribersSnap.forEach) {
+            subscribersSnap.forEach(doc => {
+                const sub = doc.data();
+                const subId = doc.id;
+                const phone = sub.phoneNumber || '';
+                
+                // Match live session info
+                const session = liveSessionsMap.get(phone) || liveSessionsMap.get(subId) || {
+                    isOnline: false,
+                    connectionType: sub.connectionType || 'Hotspot',
+                    bytesIn: 0,
+                    bytesOut: 0,
+                    uptime: 'Offline'
+                };
+
+                // Match payment info
+                const payment = lastPaymentMap.get(phone) || lastPaymentMap.get(subId) || {
+                    dateStr: sub.lastPaymentDate || 'No payments recorded',
+                    amount: 0
+                };
+
+                subscribersList.push({
+                    id: subId,
+                    name: sub.name || sub.fullName || `Subscriber ${subId.substring(0, 6)}`,
+                    phoneNumber: phone,
+                    email: sub.email || '',
+                    location: sub.location || sub.address || 'Main Zone',
+                    username: sub.username || phone,
+                    packagePlan: sub.package || sub.lastActivePackage || 'Standard Package',
+                    accountStatus: sub.status || 'ACTIVE',
+                    balance: sub.balance || 0,
+                    loyaltyPoints: sub.loyaltyPoints || 0,
+                    connectionType: session.connectionType,
+                    installationDate: sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : 'N/A',
+                    lastPaymentDate: payment.dateStr,
+                    lastPaymentAmount: payment.amount,
+                    isOnline: session.isOnline,
+                    routerId: sub.routerId || 'Default Router',
+                    lastActiveTimestamp: sub.lastActiveTimestamp ? new Date(sub.lastActiveTimestamp).toLocaleString() : 'N/A',
+                    totalRxGb: (session.bytesIn / (1024 ** 3)).toFixed(2),
+                    totalTxGb: (session.bytesOut / (1024 ** 3)).toFixed(2),
+                    uptime: session.uptime
+                });
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            subscribers: subscribersList
+        });
+
+    } catch (error) {
+        console.error("Subscribers directory query error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
