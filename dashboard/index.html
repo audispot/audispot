@@ -6412,7 +6412,7 @@ async function loadCommunicationLogs() {
             : 0;
 
         // Update "Messages Sent Today"
-        const sentTodayBadge = document.getElementById('lbl-sms-sent-today');
+        const sentTodayBadge = document.getElementById('comm-metric-sent');
 
         if (sentTodayBadge) {
             sentTodayBadge.innerText = sentToday;
