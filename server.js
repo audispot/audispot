@@ -1834,7 +1834,7 @@ app.get('/api/hotspot/reconnect', async (req, res) => {
 });
 
 // ====================================================================
-// VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS (STRICT)
+// VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS (STRICT LOCK)
 // ====================================================================
 app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
     const { mpesaCode, routerId, macAddress, customerPhone } = req.body;
@@ -1847,43 +1847,38 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
     const cleanMac = macAddress ? macAddress.trim().toUpperCase() : null;
 
     try {
-        // 1. Search both 'transactions' and 'global_transactions'
-        let transactionRef = db.collection('transactions').doc(cleanCode);
-        let transactionDoc = await transactionRef.get();
+        // 1. Fetch transaction document from both collections
+        let transactionDoc = await db.collection('transactions').doc(cleanCode).get();
+        let collectionName = 'transactions';
 
         if (!transactionDoc.exists) {
-            transactionRef = db.collection('global_transactions').doc(cleanCode);
-            transactionDoc = await transactionRef.get();
+            transactionDoc = await db.collection('global_transactions').doc(cleanCode).get();
+            collectionName = 'global_transactions';
         }
         
         if (!transactionDoc.exists) {
-            return res.status(404).json({ error: "Invalid M-Pesa transaction token code provided." });
+            return res.status(404).json({ error: "Invalid M-Pesa transaction code." });
         }
 
         const txData = transactionDoc.data();
-        
-        // 2. STRICT CHECK: Prevent code sharing across different devices (MAC / Phone matching)
         const txPhone = txData.customerPhone || txData.phoneNumber;
-        const txMac = txData.macAddress || txData.mac;
+        const txMac = txData.macAddress || txData.mac || txData.usedByMac;
 
-        // If transaction recorded a MAC, verify it matches current requesting MAC
+        // 2. STRICT ENFORCEMENT: Check if code has already been claimed / used
+        if (txData.isUsed === true) {
+            // If used by a DIFFERENT MAC, block connection strictly
+            if (txMac && cleanMac && txMac.toUpperCase() !== cleanMac) {
+                return res.status(403).json({ 
+                    error: `This code (${cleanCode}) has already been redeemed by another device (${txMac}).` 
+                });
+            }
+        }
+
+        // 3. STRICT CHECK: Was device connected during purchase?
+        // If your system logs router sessions on purchase, enforce matching MAC or Phone
         if (txMac && cleanMac && txMac.toUpperCase() !== cleanMac) {
             return res.status(403).json({ 
-                error: "Unauthorized device. This transaction code was purchased on a different device." 
-            });
-        }
-
-        // Optional: If phone is provided by frontend, verify phone matches
-        if (customerPhone && txPhone && customerPhone.trim() !== txPhone.trim()) {
-            return res.status(403).json({ 
-                error: "Unauthorized user. Phone number does not match transaction purchaser." 
-            });
-        }
-
-        // 3. STRICT CHECK: Reuse tracking / Session binding
-        if (txData.isUsed && txData.usedByMac && cleanMac && txData.usedByMac !== cleanMac) {
-            return res.status(409).json({ 
-                error: "This code has already been redeemed by another device." 
+                error: "Device mismatch: This transaction code does not belong to this Wi-Fi client." 
             });
         }
 
@@ -1894,10 +1889,10 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
         const maxValidityMinutes = packageDurationHours * 60;
 
         if (elapsedMinutes >= maxValidityMinutes) {
-            return res.status(410).json({ error: "The transaction pass code for this package configuration has expired." });
+            return res.status(410).json({ error: "The transaction code for this package has expired." });
         }
 
-        // 5. Connect to MikroTik Router
+        // 5. MikroTik router connection & provisioning
         const routerDoc = await db.collection('routers').doc(routerId).get();
         if (routerDoc.exists) {
             const rData = routerDoc.data();
@@ -1907,32 +1902,40 @@ app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
                     const api = await client.connect();
                     
                     const profileName = txData.profileName || "1_Hour_Plan";
-                    const fallbackUser = txPhone || cleanMac || "HotspotUser";
+                    const hotspotUser = txPhone || cleanMac || `User_${cleanCode}`;
 
-                    // Provision or ensure hotspot user exists
-                    await api.write('/ip/hotspot/user/add', [
-                        `=name=${fallbackUser}`, 
-                        `=password=${fallbackUser}`, 
-                        `=profile=${profileName}`, 
-                        `=comment=CodeReconnect_${cleanCode}`
-                    ]);
+                    // Check if user already exists on MikroTik
+                    const existingUsers = await api.write('/ip/hotspot/user/print', [`?name=${hotspotUser}`]);
+
+                    if (!existingUsers || existingUsers.length === 0) {
+                        // Create hotspot user
+                        await api.write('/ip/hotspot/user/add', [
+                            `=name=${hotspotUser}`, 
+                            `=password=${hotspotUser}`, 
+                            `=profile=${profileName}`, 
+                            `=comment=CodeReconnect_${cleanCode}`
+                        ]);
+                    }
+
                     await api.close();
                 } catch (routerErr) {
-                    console.error("Router connection node synchronization drop:", routerErr.message);
+                    console.error("MikroTik sync error:", routerErr.message);
                 }
             }
         }
 
-        // 6. Update transaction doc to log usage metadata and prevent multi-device reuse
-        await transactionRef.set({
+        // 6. Lock transaction permanently to this MAC address in BOTH collections
+        const updateData = {
             isUsed: true,
-            usedByMac: cleanMac || txMac || 'UNKNOWN',
+            usedByMac: cleanMac || txMac || 'UNKNOWN_MAC',
             lastReconnectedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        await db.collection(collectionName).doc(cleanCode).set(updateData, { merge: true });
 
         return res.status(200).json({
             success: true,
-            message: "M-Pesa transaction reference authenticated successfully. Reconnecting."
+            message: "M-Pesa transaction authenticated successfully."
         });
 
     } catch (err) {
