@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { Firestore, FieldValue } = require('@google-cloud/firestore');
+const { RouterOSClient } = require('routeros-client');
 const {
     getRouterClient,
     withRouter,
@@ -48,33 +49,6 @@ app.use((req, res, next) => {
     next();
 });
 
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.SESSION_SECRET || 'CHANGE_ME_AUDISPOT_AUTH_SECRET';
-const AUTH_TTL_SECONDS = Number(process.env.AUTH_TTL_SECONDS || 60 * 60 * 12);
-if (AUTH_SECRET === 'CHANGE_ME_AUDISPOT_AUTH_SECRET') console.warn('[SECURITY] Set AUTH_SECRET in Cloud Run/production environment; using the built-in fallback is not production-safe.');
-
-function base64UrlEncode(value) {
-    return Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
-function base64UrlDecode(value) {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-    return Buffer.from(normalized + '='.repeat((4 - normalized.length % 4) % 4), 'base64').toString('utf8');
-}
-function createAuthToken({ uid, ispId, role }) {
-    const payload = { uid, ispId, role, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + AUTH_TTL_SECONDS };
-    const encoded = base64UrlEncode(JSON.stringify(payload));
-    const signature = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
-    return `${encoded}.${signature}`;
-}
-function verifyAuthToken(token) {
-    const [encoded, signature] = String(token || '').split('.');
-    if (!encoded || !signature) return null;
-    const expected = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
-    if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
-    const payload = JSON.parse(base64UrlDecode(encoded));
-    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return payload;
-}
-
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -84,44 +58,57 @@ const authenticateUser = async (req, res, next) => {
             return res.status(401).json({ error: "Authentication token required." });
         }
 
-        const tokenPayload = verifyAuthToken(token);
-        if (!tokenPayload || !tokenPayload.uid || !tokenPayload.ispId) {
-            return res.status(401).json({ error: "Invalid or expired authentication token. Please log in again." });
+        // Decode Base64 token (e.g. "officialbigi254@gmail.com:timestamp")
+        const decodedString = Buffer.from(token, 'base64').toString('utf-8');
+        const email = decodedString.split(':')[0].toLowerCase().trim();
+
+        if (!email) {
+            return res.status(403).json({ error: "Invalid token format." });
         }
 
         const db = req.db;
-        const requestedUserId = tokenPayload.uid;
-        const requestedRole = tokenPayload.role;
-        const requestedIspId = tokenPayload.ispId;
+
+        // 1. Check `isp_users` collection (ISP Owners / Admins)
+        let userSnap = await db.collection('isp_users')
+            .where('email', '==', email)
+            .limit(1)
+            .get();
 
         let userData = null;
-        let userId = requestedUserId;
+        let userId = null;
 
-        if (requestedRole === 'technician') {
-            const techDoc = await db.collection('technicians').doc(requestedUserId).get();
-            if (techDoc.exists) {
-                userData = techDoc.data();
-                userData.role = 'technician';
-            }
+        if (!userSnap.empty) {
+            userId = userSnap.docs[0].id;
+            userData = userSnap.docs[0].data();
+            // Default role for ISP owners if not specified in doc
+            if (!userData.role) userData.role = 'isp_admin'; 
         } else {
-            const ispDoc = await db.collection('isp_users').doc(requestedUserId).get();
-            if (ispDoc.exists) {
-                userData = ispDoc.data();
+            // 2. Fallback: Check direct document ID lookup in `isp_users` (formatted as email string)
+            const docId = email.replace(/[@.]/g, '_');
+            const docRef = await db.collection('isp_users').doc(docId).get();
+            
+            if (docRef.exists) {
+                userId = docRef.id;
+                userData = docRef.data();
                 if (!userData.role) userData.role = 'isp_admin';
             } else {
-                const byEmail = await db.collection('isp_users').where('email', '==', requestedUserId).limit(1).get();
-                if (!byEmail.empty) {
-                    userId = byEmail.docs[0].id;
-                    userData = byEmail.docs[0].data();
-                    if (!userData.role) userData.role = 'isp_admin';
+                // 3. Check `technicians` collection (Technician accounts)
+                const techSnap = await db.collection('technicians')
+                    .where('email', '==', email)
+                    .limit(1)
+                    .get();
+
+                if (!techSnap.empty) {
+                    userId = techSnap.docs[0].id;
+                    userData = techSnap.docs[0].data();
+                    userData.role = 'technician';
                 }
             }
         }
 
-        if (!userData) return res.status(401).json({ error: "User account not found." });
-        const actualIspId = userData.ispId || (userData.role === 'technician' ? null : userId);
-        if (!actualIspId || actualIspId !== requestedIspId) {
-            return res.status(401).json({ error: "Authentication tenant mismatch." });
+        // If user wasn't found in any of your user collections:
+        if (!userData) {
+            return res.status(401).json({ error: "User account not found." });
         }
 
         // Attach user context to request object
@@ -211,7 +198,6 @@ const requireRouterOwner = (options = {}) => async (req, res, next) => {
     }
 };
 
-const requireAuthenticated = [authenticateUser];
 const requireAuthenticatedIsp = [authenticateUser, authorizeScope('canManageRouters')];
 
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
@@ -387,8 +373,8 @@ app.get('/', (req, res) => {
 // ====================================================================
 // 1. SAVE M-PESA GATEWAY CONFIGURATIONS
 // ====================================================================
-app.post('/api/settings/mpesa', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.post('/api/settings/mpesa', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
         await db.collection('settings').doc(ispId).set({
             mpesaIntegrationType: req.body.mpesaIntegrationType || 'platform',
@@ -414,7 +400,7 @@ app.post('/api/settings/mpesa', ...requireAuthenticatedIsp, async (req, res) => 
 // ====================================================================
 // 2. DARAJA GATEWAY VERIFICATION & STK TEST ROUTINE
 // ====================================================================
-app.post('/api/settings/mpesa/verify-test', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/settings/mpesa/verify-test', async (req, res) => {
     const { phone, mpesaShortcode, mpesaConsumerKey, mpesaConsumerSecret, mpesaPasskey, mpesaEnv } = req.body;
     
     if (!phone || !mpesaConsumerKey || !mpesaConsumerSecret || !mpesaShortcode) {
@@ -484,8 +470,8 @@ app.post('/api/settings/mpesa/verify-test', ...requireAuthenticatedIsp, async (r
 
 // Fetch live real-time inbound logs directly from Firestore
 // 1. Fetch Hotspot Logs Filtered by ISP
-app.get('/api/hotspot/logs', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/hotspot/logs', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await req.db.collection('payments')
             .where('ispId', '==', ispId)
@@ -527,7 +513,7 @@ app.get('/api/hotspot/routers', authenticateUser, authorizeScope('canManageRoute
 });
 
 // 2. Admin Packages Initializer
-app.get('/api/admin/init-packages', ...requireAuthenticatedIsp, async (req, res) => {
+app.get('/api/admin/init-packages', async (req, res) => {
     try {
         const packagesRef = db.collection('subscriptions').doc('packages');
         await packagesRef.set({
@@ -1176,8 +1162,8 @@ app.post('/api/mpesa/stkpush', async (req, res) => {
 });
 
 // 7. Fetch Dual-Gateway Wallet & Revenue Statistics
-app.get('/api/isp/dashboard-stats/:ispId', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/isp/dashboard-stats/:ispId', async (req, res) => {
+    const { ispId } = req.params;
     try {
         const ispDoc = await db.collection('isp_users').doc(ispId).get();
         if (!ispDoc.exists) return res.status(404).json({ error: "ISP not found" });
@@ -1314,7 +1300,7 @@ app.get('/api/isp/dashboard-stats/:ispId', ...requireAuthenticatedIsp, async (re
 // ====================================================================
 // ISP SETTLEMENT DISBURSAL ENGINE (PLATFORM-ONLY ANYTIME WITHDRAWALS)
 // ====================================================================
-app.post('/api/isp/request-settlement', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/isp/request-settlement', async (req, res) => {
     const { ispId } = req.body;
 
     if (!ispId) {
@@ -2137,8 +2123,8 @@ app.post('/api/dhcp/setup-subnet', authenticateUser, authorizeScope('canManageRo
 // SYSTEM COMPONENT: SECURE SYSTEM ACCESS VOUCHERS API
 // ====================================================================
 
-app.get('/api/vouchers', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/vouchers', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await db.collection('isp_vouchers')
             .where('ispId', '==', ispId)
@@ -2154,9 +2140,8 @@ app.get('/api/vouchers', ...requireAuthenticatedIsp, async (req, res) => {
     }
 });
 
-app.post('/api/vouchers/generate', ...requireAuthenticatedIsp, async (req, res) => {
-    const { packageId, count, codeLength } = req.body;
-    const ispId = req.targetIspId;
+app.post('/api/vouchers/generate', async (req, res) => {
+    const { ispId, packageId, count, codeLength } = req.body;
     try {
         const pkgDoc = await db.collection('isp_packages').doc(packageId).get();
         if (!pkgDoc.exists) {
@@ -2245,7 +2230,7 @@ app.post('/api/vouchers/redeem', async (req, res) => {
     }
 });
 
-app.post('/api/vouchers/bulk-delete', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/vouchers/bulk-delete', async (req, res) => {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) {
         return res.status(400).json({ success: false, error: "Invalid identity array sequence profiles parameters." });
@@ -2318,15 +2303,15 @@ app.get('/api/portal/design', async (req, res) => {
     }
 });
 
-app.post('/api/portal/design/save', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/portal/design/save', async (req, res) => {
     const { 
-        brandName, welcomeGreeting, supportContact, accentColor,
+        ispId, brandName, welcomeGreeting, supportContact, accentColor,
         earnPoints, redeemPoints, rewardTiers, reconnectMsg, tvSetup,
         successTitle, successSub, successBtn
     } = req.body;
 
     try {
-        const targetTenant = req.targetIspId;
+        const targetTenant = ispId || 'default_isp';
         
         // Safely validate and map the incoming array elements to prevent database corruption
         const sanitizedTiers = Array.isArray(rewardTiers) ? rewardTiers.map(tier => ({
@@ -2361,8 +2346,8 @@ app.post('/api/portal/design/save', ...requireAuthenticatedIsp, async (req, res)
 // EXPENSES SYSTEM: CREATE, READ, & DELETE EXPENSE RECORDS
 // ====================================================================
 
-app.get('/api/expenses', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/expenses', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
 
     try {
         // Query matching documents WITHOUT orderBy to avoid Firestore Index errors
@@ -2401,7 +2386,7 @@ app.get('/api/expenses', ...requireAuthenticatedIsp, async (req, res) => {
     }
 });
 
-app.post('/api/expenses/create', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/expenses/create', async (req, res) => {
     const { ispId, description, amount, category, date } = req.body;
     
     if (!description || amount === undefined || isNaN(parseFloat(amount)) || !category) {
@@ -2426,18 +2411,13 @@ app.post('/api/expenses/create', ...requireAuthenticatedIsp, async (req, res) =>
     }
 });
 
-app.post('/api/expenses/delete', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/expenses/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
     
     try {
-        const expenseRef = db.collection('isp_expenses').doc(id);
-        const expenseSnap = await expenseRef.get();
-        if (!expenseSnap.exists || expenseSnap.data().ispId !== req.targetIspId) {
-            return res.status(404).json({ success: false, error: "Expense record not found." });
-        }
-        await expenseRef.delete();
-        return res.status(200).json({ success: true, message: "Expense record deleted." });
+        await db.collection('isp_expenses').doc(id).delete();
+        return res.status(200).json({ success: true, message: "Expense record scrubbed." });
     } catch (error) {
         console.error("Failed to delete expense:", error.message);
         return res.status(500).json({ success: false, error: error.message });
@@ -2448,8 +2428,9 @@ app.post('/api/expenses/delete', ...requireAuthenticatedIsp, async (req, res) =>
 // ANALYTICS ENGINE: LIVE STATISTICAL COMPILING
 // ====================================================================
 
-app.get('/api/isp/analytics/:ispId', ...requireAuthenticatedIsp, async (req, res) => {
-    const targetTenant = req.targetIspId;
+app.get('/api/isp/analytics/:ispId', async (req, res) => {
+    const { ispId } = req.params;
+    const targetTenant = ispId || "default_isp";
     
     try {
         // 1. Fetch Routers
@@ -2672,8 +2653,8 @@ app.post('/api/mpesa/b2c-callback', async (req, res) => {
 // SETTINGS MIDDLEWARE-DRIVEN ENDPOINTS
 // ====================================================================
 
-app.get('/api/settings', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/settings', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     const email = req.query.email || '';
     const name = req.query.name || '';
     
@@ -2685,8 +2666,8 @@ app.get('/api/settings', ...requireAuthenticatedIsp, async (req, res) => {
     }
 });
 
-app.post('/api/settings/account', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.post('/api/settings/account', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     const { accountName, accountEmail, accountCompany } = req.body;
     try {
         await req.db.collection('settings').doc(ispId).set({
@@ -2700,8 +2681,8 @@ app.post('/api/settings/account', ...requireAuthenticatedIsp, async (req, res) =
     }
 });
 
-app.post('/api/settings/pppoe', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.post('/api/settings/pppoe', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     const { defaultPppoePassword } = req.body;
     try {
         await req.db.collection('settings').doc(ispId).set({ defaultPppoePassword }, { merge: true });
@@ -2711,8 +2692,8 @@ app.post('/api/settings/pppoe', ...requireAuthenticatedIsp, async (req, res) => 
     }
 });
 
-app.post('/api/settings/branding', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.post('/api/settings/branding', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     const { brandName, serverIp, supportPhone, redirectUrl } = req.body;
 
     // Use provided redirectUrl or fall back to the default portal
@@ -2734,8 +2715,8 @@ app.post('/api/settings/branding', ...requireAuthenticatedIsp, async (req, res) 
     }
 });
 
-app.post('/api/settings/toggle-sms', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.post('/api/settings/toggle-sms', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const settingsRef = req.db.collection('settings').doc(ispId);
         const settingsDoc = await settingsRef.get();
@@ -2871,9 +2852,9 @@ async function sendRouterOfflineAlertEmail({
     });
 }
 
-app.post('/api/settings/monitoring/alerts', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/settings/monitoring/alerts', async (req, res) => {
     try {
-        const ispId = req.targetIspId;
+        const ispId = req.query.ispId || req.body.ispId;
         const { alertsEnabled, alertEmail } = req.body;
 
         if (!ispId || ispId === 'null' || ispId === 'undefined') {
@@ -2907,9 +2888,9 @@ app.post('/api/settings/monitoring/alerts', ...requireAuthenticatedIsp, async (r
  * 2. GET ALERT SETTINGS
  * Retrieves current monitoring alert configuration for initial frontend load.
  */
-app.get('/api/settings/monitoring/alerts', ...requireAuthenticatedIsp, async (req, res) => {
+app.get('/api/settings/monitoring/alerts', async (req, res) => {
     try {
-        const ispId = req.targetIspId;
+        const { ispId } = req.query;
 
         if (!ispId || ispId === 'null' || ispId === 'undefined') {
             return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID." });
@@ -3141,8 +3122,8 @@ app.post('/api/technicians', authenticateUser, async (req, res) => {
     }
 });
 
-app.get('/api/technicians', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/technicians', async (req, res) => {
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const snapshot = await req.db.collection('technicians')
             .where('ispId', '==', ispId)
@@ -3157,9 +3138,9 @@ app.get('/api/technicians', ...requireAuthenticatedIsp, async (req, res) => {
     }
 });
 
-app.delete('/api/technicians/:id', ...requireAuthenticatedIsp, async (req, res) => {
+app.delete('/api/technicians/:id', async (req, res) => {
     const techId = req.params.id;
-    const ispId = req.targetIspId;
+    const ispId = req.query.ispId || 'default_isp';
     try {
         const techRef = req.db.collection('technicians').doc(techId);
         const doc = await techRef.get();
@@ -3197,7 +3178,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
                 return res.status(401).json({ success: false, error: "Invalid email or password." });
             }
 
-            const token = createAuthToken({ uid: ispId, ispId, role: 'admin' });
+            const token = Buffer.from(`${ispId}:${Date.now()}`).toString('base64');
             const createdAt = ispData.createdAt?.toDate ? ispData.createdAt.toDate() : (ispData.createdAt ? new Date(ispData.createdAt) : new Date());
             const expiryDate = ispData.expiryDate?.toDate ? ispData.expiryDate.toDate() : (ispData.expiryDate ? new Date(ispData.expiryDate) : null);
 
@@ -3226,7 +3207,7 @@ app.post('/api/auth/isp-login', async (req, res) => {
                 return res.status(401).json({ success: false, error: "Invalid email or password." });
             }
 
-            const token = createAuthToken({ uid: techDoc.id, ispId: techData.ispId, role: 'technician' });
+            const token = Buffer.from(`tech_${techData.id}:${Date.now()}`).toString('base64');
 
             return res.status(200).json({
                 success: true,
@@ -3250,8 +3231,8 @@ app.post('/api/auth/isp-login', async (req, res) => {
 // ====================================================================
 // MULTI-TENANT ISOLATED PAYMENT HISTORY ENDPOINT (PURE LEDGER VERSION)
 // ====================================================================
-app.get('/api/isp/payment-history/:ispId', ...requireAuthenticatedIsp, async (req, res) => {
-    const ispId = req.targetIspId;
+app.get('/api/isp/payment-history/:ispId', async (req, res) => {
+    const { ispId } = req.params;
 
     if (!ispId || ispId === 'null' || ispId === 'undefined') {
         return res.status(400).json({ success: false, error: "Invalid ISP Tenant ID provided." });
@@ -3436,13 +3417,12 @@ const formatMpesaPhone = (phone) => {
     return cleaned;
 };
 
-app.post('/api/isp/renew-subscription', ...requireAuthenticatedIsp, async (req, res) => {
+app.post('/api/isp/renew-subscription', async (req, res) => {
     // Prevent browser 304 caching during active polling
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     
     try {
-        const { phoneNumber } = req.body;
-        const ispId = req.targetIspId;
+        const { phoneNumber, ispId } = req.body;
         const db = req.db;
 
         if (!phoneNumber || !ispId) {
@@ -4328,8 +4308,8 @@ app.get('/api/help/tickets', authenticateUser, async (req, res) => {
 // TALKSASA SMS INTEGRATION ROUTE (FIXED ENDPOINT & PAYLOAD)
 // ====================================================================
 
-app.post('/api/sms/send', ...requireAuthenticated, async (req, res) => {
-    const targetTenant = req.user.ispId || req.user.uid;
+app.post('/api/sms/send', async (req, res) => {
+    const targetTenant = getResolvedTenantId(req);
 
     if (!targetTenant) {
         return res.status(401).json({
@@ -4460,8 +4440,8 @@ app.post('/api/sms/send', ...requireAuthenticated, async (req, res) => {
 });
 
 // 2. Fetch SMS Balance / Credits
-app.get('/api/sms/credits', ...requireAuthenticated, async (req, res) => {
-    const targetTenant = req.user.ispId || req.user.uid;
+app.get('/api/sms/credits', async (req, res) => {
+    const targetTenant = getResolvedTenantId(req);
 
     if (!targetTenant) {
         return res.status(401).json({ success: false, error: "Unauthorized: Missing tenant ID." });
@@ -4477,8 +4457,8 @@ app.get('/api/sms/credits', ...requireAuthenticated, async (req, res) => {
 });
 
 // 3. Fetch Communication Logs
-app.get('/api/sms/logs', ...requireAuthenticated, async (req, res) => {
-    const targetTenant = req.user.ispId || req.user.uid;
+app.get('/api/sms/logs', async (req, res) => {
+    const targetTenant = getResolvedTenantId(req);
 
     if (!targetTenant) {
         return res.status(401).json({ success: false, error: "Unauthorized: Missing tenant ID." });
@@ -4506,9 +4486,8 @@ app.get('/api/sms/logs', ...requireAuthenticated, async (req, res) => {
 // REAL-TIME FIRESTORE & MIKROTIK ROUTEROS TELEMETRY ENDPOINT
 // ====================================================================
 
-app.get('/api/network/monitoring', ...requireAuthenticated, async (req, res) => {
-    const { routerId } = req.query;
-    const ispId = req.user.ispId || req.user.uid;
+app.get('/api/network/monitoring', async (req, res) => {
+    const { ispId, routerId } = req.query;
 
     if (!ispId || ispId === 'undefined' || ispId === 'null') {
         return res.status(401).json({ success: false, error: "Unauthorized: Missing valid tenant identification." });
@@ -4657,8 +4636,8 @@ app.get('/api/network/monitoring', ...requireAuthenticated, async (req, res) => 
 // REAL-TIME FIRESTORE BANDWIDTH ANALYTICS (FULLY DYNAMIC METRICS)
 // ====================================================================
 
-app.get('/api/network/usage-analytics', ...requireAuthenticated, async (req, res) => {
-    const ispId = req.user.ispId || req.user.uid;
+app.get('/api/network/usage-analytics', async (req, res) => {
+    const { ispId } = req.query;
 
     if (!ispId || ispId === 'undefined' || ispId === 'null') {
         return res.status(401).json({ success: false, error: "Unauthorized: Missing valid tenant identification." });
@@ -4880,10 +4859,10 @@ app.get('/api/network/usage-analytics', ...requireAuthenticated, async (req, res
 });
 
 // Server route using req.targetIspId provided by authenticateUser
-app.get('/api/subscribers', ...requireAuthenticated, async (req, res) => {
+app.get('/api/subscribers', authenticateUser, async (req, res) => {
     try {
         // Fallback tenant check
-        const targetIspId = req.user?.ispId || req.user?.uid;
+        const targetIspId = req.targetIspId || req.user?.ispId || req.query.ispId;
 
         if (!targetIspId) {
             return res.status(400).json({ success: false, error: "Missing valid tenant identification." });
