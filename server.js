@@ -160,6 +160,46 @@ function authorizeScope(requiredScope) {
     };
 }
 
+// ====================================================================
+// ROUTER OWNERSHIP AUTHORIZATION
+// Every administrative MikroTik route must resolve the router through
+// the authenticated ISP tenant. Never trust ispId supplied by the client.
+// ====================================================================
+const requireRouterOwner = (options = {}) => async (req, res, next) => {
+    try {
+        if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+        const routerId = req.params.routerId || req.query.routerId || req.body?.routerId;
+        if (!routerId) return res.status(400).json({ error: 'routerId is required.' });
+
+        const routerSnap = await req.db.collection('routers').doc(routerId).get();
+        if (!routerSnap.exists) {
+            if (options.allowCreate) {
+                req.targetIspId = req.user.ispId || req.user.uid;
+                return next();
+            }
+            return res.status(404).json({ error: 'Router not found.' });
+        }
+
+        const router = { id: routerSnap.id, ...routerSnap.data() };
+        const ownerIspId = router.ispId || router.ownerIspId || router.userId;
+        const callerIspId = req.user.ispId || req.user.uid;
+
+        if (!ownerIspId || ownerIspId !== callerIspId) {
+            console.warn(`[SECURITY] Router ownership denied: user=${req.user.uid} isp=${callerIspId} router=${routerId}`);
+            return res.status(403).json({ error: 'You are not authorized to manage this router.' });
+        }
+
+        req.router = router;
+        req.targetIspId = callerIspId;
+        next();
+    } catch (error) {
+        console.error('[SECURITY] Router ownership check failed:', error);
+        return res.status(500).json({ error: 'Unable to verify router ownership.' });
+    }
+};
+
+const requireAuthenticatedIsp = [authenticateUser, authorizeScope('canManageRouters')];
+
 const MPESA_HOST = process.env.MPESA_ENV === 'production' 
     ? 'https://api.safaricom.co.ke' 
     : 'https://sandbox.safaricom.co.ke';
@@ -453,8 +493,8 @@ app.get('/api/hotspot/logs', async (req, res) => {
 });
 
 // 2. Fetch Routers Filtered by ISP
-app.get('/api/hotspot/routers', async (req, res) => {
-    const ispId = req.query.ispId || 'default_isp';
+app.get('/api/hotspot/routers', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const ispId = req.user.ispId || req.user.uid;
     try {
         const snapshot = await req.db.collection('routers')
             .where('ispId', '==', ispId)
@@ -541,14 +581,23 @@ app.post('/api/auth/isp-signup', async (req, res) => {
 });
 
 // 4. Register Router Endpoint
-app.post('/api/hotspot/register-router', async (req, res) => {
-    const { routerId, ispId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
+app.post('/api/hotspot/register-router', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const { routerId, ispName, mpesaShortcode, mpesaPasskey, mpesaConsumerKey, mpesaConsumerSecret, routerIp, routerUser, routerPassword } = req.body;
     if (!routerId) {
         return res.status(400).json({ success: false, error: "Missing required tracking parameters." });
     }
     try {
+        const existingRouter = await db.collection('routers').doc(routerId).get();
+        if (existingRouter.exists) {
+            const existing = existingRouter.data() || {};
+            const callerIspId = req.user.ispId || req.user.uid;
+            const ownerIspId = existing.ispId || existing.ownerIspId || existing.userId;
+            if (ownerIspId && ownerIspId !== callerIspId) {
+                return res.status(403).json({ success: false, error: 'This router belongs to another ISP.' });
+            }
+        }
         await db.collection('routers').doc(routerId).set({
-            ispId: ispId || "default_isp",
+            ispId: req.user.ispId || req.user.uid,
             ispName: ispName || "AudiSpot Partner", 
             mpesaShortcode: mpesaShortcode || "4030905", 
             mpesaPasskey: mpesaPasskey || "", 
@@ -1527,8 +1576,9 @@ app.post('/api/mpesa/b2c-timeout', async (req, res) => {
 });
 
 // 4b. Dynamic Terminal Script Generation Factory Layer
-app.post('/api/hotspot/generate-script', async (req, res) => {
-    const { routerId, ispId } = req.body;
+app.post('/api/hotspot/generate-script', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner({ allowCreate: true }), async (req, res) => {
+    const { routerId } = req.body;
+    const ispId = req.user?.ispId || req.user?.uid;
     if (!routerId) {
         return res.status(400).json({ success: false, error: 'Target router ID is required.' });
     }
@@ -1567,9 +1617,8 @@ app.post('/api/hotspot/generate-script', async (req, res) => {
 // PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
 // ====================================================================
 
-app.get('/api/packages', async (req, res) => {
-    const { ispId } = req.query;
-    const targetTenant = ispId || "default_isp";
+app.get('/api/packages', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const targetTenant = req.user.ispId || req.user.uid;
     try {
         const snapshot = await db.collection('isp_packages')
             .where('ispId', '==', targetTenant)
@@ -1594,8 +1643,9 @@ app.get('/api/packages', async (req, res) => {
     }
 });
 
-app.post('/api/packages/create', async (req, res) => {
-    const { ispId, packageName, price, duration, bandwidthProfile } = req.body;
+app.post('/api/packages/create', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const { packageName, price, duration, bandwidthProfile } = req.body;
+    const ispId = req.user.ispId || req.user.uid;
     
     if (!packageName || !price || !duration || !bandwidthProfile) {
         return res.status(400).json({ success: false, error: "Missing required configuration fields." });
@@ -1604,7 +1654,7 @@ app.post('/api/packages/create', async (req, res) => {
     try {
         const newPackageRef = db.collection('isp_packages').doc();
         await newPackageRef.set({
-            ispId: ispId || "default_isp",
+            ispId: req.user.ispId || req.user.uid,
             packageName,
             price: parseFloat(price),
             duration: parseInt(duration),
@@ -1618,12 +1668,19 @@ app.post('/api/packages/create', async (req, res) => {
     }
 });
 
-app.post('/api/packages/delete', async (req, res) => {
+app.post('/api/packages/delete', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
     
     try {
-        await db.collection('isp_packages').doc(id).delete();
+        const packageRef = db.collection('isp_packages').doc(id);
+        const packageSnap = await packageRef.get();
+        if (!packageSnap.exists) return res.status(404).json({ success: false, error: 'Package not found.' });
+        const callerIspId = req.user.ispId || req.user.uid;
+        if ((packageSnap.data().ispId || '') !== callerIspId) {
+            return res.status(403).json({ success: false, error: 'You are not authorized to delete this package.' });
+        }
+        await packageRef.delete();
         return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -1958,7 +2015,7 @@ app.get('/api/portal/check-points', async (req, res) => {
 // SMART TV / GAME CONSOLE BRIDGING ENGINE
 // ====================================================================
 
-app.post('/api/hotspot/register-tv', async (req, res) => {
+app.post('/api/hotspot/register-tv', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
     const { routerId, tvMacAddress, targetMac, comment } = req.body;
     const rawMac = tvMacAddress || targetMac;
     if (!routerId || !rawMac) return res.status(400).json({ success: false, error: 'Router ID and MAC address are required.' });
@@ -1975,7 +2032,7 @@ app.post('/api/hotspot/register-tv', async (req, res) => {
 // HOTSPOT ENGINE: SESSIONS & LIVE DISCONNECTS
 // ====================================================================
 
-app.get('/api/hotspot/active-sessions', async (req, res) => {
+app.get('/api/hotspot/active-sessions', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
     const { routerId } = req.query;
     if (!routerId) return res.status(400).json({ error: 'Missing router ID.' });
     try {
@@ -1987,7 +2044,7 @@ app.get('/api/hotspot/active-sessions', async (req, res) => {
     }
 });
 
-app.post('/api/hotspot/disconnect', async (req, res) => {
+app.post('/api/hotspot/disconnect', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
     const { routerId, username } = req.body;
     if (!routerId || !username) return res.status(400).json({ error: 'Router ID and username are required.' });
     try {
@@ -2004,7 +2061,7 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
 // ====================================================================
 
 // Create PPPoE Secret on MikroTik + Sync to Database
-app.post('/api/pppoe/create-secret', async (req, res) => {
+app.post('/api/pppoe/create-secret', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
     const { routerId, username, password, profile } = req.body;
     if (!routerId || !username || !password) return res.status(400).json({ success: false, error: 'Missing required PPPoE fields.' });
     try {
@@ -2018,8 +2075,38 @@ app.post('/api/pppoe/create-secret', async (req, res) => {
     }
 });
 
+// PPPoE secrets sync endpoint used by the dashboard.
+app.get('/api/pppoe/secrets', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const snapshot = await db.collection('pppoe_subscribers').where('routerId', '==', routerId).get();
+        return res.status(200).json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error) {
+        console.error('[PPPOE] Secret sync failed:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Static DHCP lease sync endpoint used by the dashboard.
+app.get('/api/dhcp/leases', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
+    const { routerId } = req.query;
+    try {
+        const routerData = req.router;
+        const api = await getRouterClient(routerData);
+        try {
+            const leases = await api.write('/ip/dhcp-server/lease/print', []);
+            return res.status(200).json(Array.isArray(leases) ? leases : []);
+        } finally {
+            await api.close().catch(() => {});
+        }
+    } catch (error) {
+        console.error('[DHCP] Lease sync failed:', error);
+        return res.status(200).json([]);
+    }
+});
+
 // Setup Static Subnet & Optional DHCP Pool on MikroTik Router
-app.post('/api/dhcp/setup-subnet', async (req, res) => {
+app.post('/api/dhcp/setup-subnet', authenticateUser, authorizeScope('canManageRouters'), requireRouterOwner(), async (req, res) => {
     const { routerId, subnet, gateway, bridgeInterface, runDhcp } = req.body;
     if (!routerId || !subnet) return res.status(400).json({ success: false, error: 'Router and Subnet (CIDR) are required.' });
     try {
@@ -2309,7 +2396,7 @@ app.post('/api/expenses/create', async (req, res) => {
     try {
         const newExpenseRef = db.collection('isp_expenses').doc();
         await newExpenseRef.set({
-            ispId: ispId || "default_isp",
+            ispId: req.user.ispId || req.user.uid,
             description,
             amount: parseFloat(amount),
             category,
