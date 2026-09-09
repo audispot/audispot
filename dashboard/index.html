@@ -1633,7 +1633,7 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1">
                         <label class="text-slate-400">Dashboard Server Host</label>
-                        <input type="text" id="inp-sett-ip" name="serverIp" placeholder="10.5.5.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
+                        <input type="text" id="inp-sett-ip" name="serverIp" placeholder="10.5.50.1" class="w-full p-2.5 bg-slate-50 dark:bg-vunainput border border-slate-200 dark:border-vunaborder rounded-lg text-slate-900 dark:text-white font-mono">
                     </div>
                     <div class="space-y-1">
                         <label class="text-slate-400">Support Phone Line</label>
@@ -2939,7 +2939,7 @@ window.fetchModalDropdownOptions = async function() {
     const routerSelect = document.getElementById("modal-router-select");
 
     try {
-        const pkgRes = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
+        const pkgRes = await fetch(`${API_BASE_URL}/api/packages?ispId=${encodeURIComponent(CURRENT_ISP_ID)}`, { headers: getAuthHeaders() });
         if (pkgRes.ok && pkgSelect) {
             const packages = await pkgRes.json();
             if (packages && packages.length > 0) {
@@ -2980,7 +2980,7 @@ window.fetchStaticPlans = async function() {
     const counter = document.getElementById('static-plans-count');
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`);
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${encodeURIComponent(CURRENT_ISP_ID)}`, { headers: getAuthHeaders() });
         if (res.ok) {
             const packages = await res.json();
             if (counter) counter.innerText = packages.length;
@@ -3308,7 +3308,7 @@ async function fetchActiveBillingCatalog() {
 
     try {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'testisp_audispot_com'; 
-        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${targetTenant}`); 
+        const res = await fetch(`${API_BASE_URL}/api/packages?ispId=${encodeURIComponent(targetTenant)}`, { headers: getAuthHeaders() }); 
         
         contentRendered = true; 
         clearTimeout(fallbackTimeout);
@@ -3831,7 +3831,7 @@ function setCurrencyDOM(ids, rawAmount, suffix = '') {
 async function fetchIspPackageCatalog(tenantId) {
     try {
         const activeBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-        const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`);
+        const res = await fetch(`${activeBaseUrl}/api/packages?ispId=${encodeURIComponent(tenantId)}`, { headers: getAuthHeaders() });
         if (res.ok) {
             ispPackagesCache = await res.json();
             console.log(`[PACKAGE MAP] Successfully loaded ${ispPackagesCache.length} packages for catalog mapping.`);
@@ -4287,7 +4287,7 @@ async function populateVoucherPackageOptions() {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
         const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
         
-        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
+        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${encodeURIComponent(targetTenant)}`, { headers: getAuthHeaders() });
         if (!response.ok) throw new Error('Failed to pull packages');
         
         const packages = await response.json();
@@ -4482,7 +4482,7 @@ async function loadPortalPreviewPackages() {
         const targetTenant = typeof CURRENT_ISP_ID !== 'undefined' ? CURRENT_ISP_ID : 'default_isp';
         const baseEndpoint = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
         
-        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${targetTenant}`);
+        const response = await fetch(`${baseEndpoint}/api/packages?ispId=${encodeURIComponent(targetTenant)}`, { headers: getAuthHeaders() });
         if (!response.ok) throw new Error('Failed to pull packages');
         
         let packages = await response.json();
@@ -5200,7 +5200,7 @@ async function fetchAndRenderDashboard() {
         // Fetch Design, Packages, and Expenses concurrently
         const [designResponse, pkgResponse, expResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/api/portal/design?ispId=${CURRENT_ISP_ID}`),
-            fetch(`${API_BASE_URL}/api/packages?ispId=${CURRENT_ISP_ID}`),
+            fetch(`${API_BASE_URL}/api/packages?ispId=${encodeURIComponent(CURRENT_ISP_ID)}`, { headers: getAuthHeaders() }),
             fetch(`${API_BASE_URL}/api/expenses?ispId=${CURRENT_ISP_ID}`)
         ]);
 
@@ -5853,6 +5853,35 @@ function getAuthHeaders() {
     }
     return headers;
 }
+
+
+// Global API auth guard: every dashboard API request automatically carries
+// the current signed session token, including older code paths that forgot
+// to pass getAuthHeaders() explicitly.
+(function installAuthenticatedFetch() {
+    if (window.__audispotAuthenticatedFetchInstalled) return;
+    window.__audispotAuthenticatedFetchInstalled = true;
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = function(input, init = {}) {
+        try {
+            const url = typeof input === 'string' ? input : (input && input.url) || '';
+            const isApiRequest = /\/api\//i.test(url);
+            const isLogin = /\/api\/auth\/isp-login(?:\?|$)/i.test(url);
+            if (isApiRequest && !isLogin) {
+                const token = localStorage.getItem('auth_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
+                if (token) {
+                    const headers = new Headers(input instanceof Request ? input.headers : (init.headers || {}));
+                    if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+                    if (!headers.has('Content-Type') && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+                    init = { ...init, headers };
+                }
+            }
+        } catch (e) {
+            console.warn('[AUTH] Could not attach API session token:', e);
+        }
+        return nativeFetch(input, init);
+    };
+})();
 
 // Technician management routines
 async function handleTechnicianRegistration(e) {
