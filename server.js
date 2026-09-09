@@ -5,13 +5,28 @@ const cors = require('cors');
 const axios = require('axios');
 const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const { RouterOSClient } = require('routeros-client');
+const {
+    getRouterClient,
+    withRouter,
+    ensureHotspotProfile,
+    ensureHotspotServer,
+    provisionHotspotUser,
+    disconnectHotspotUser,
+    listActiveSessions,
+    bypassMac,
+    ensureDhcp,
+    createPppoeSecret,
+    generateBootstrapScript,
+    safeMac,
+    durationToSeconds,
+    MikroTikProvisioningError
+} = require('./mikrotikProvisioning');
 const crypto = require('crypto');
 const { sendEmail, safeStr } = require('./emailUtils');
 
 const subscriptionTransactions = new Map();
 
 const app = express();
-app.set('trust proxy', true)
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -268,17 +283,6 @@ async function sendMpesaB2CPayout(destinationNumber, amount, payoutId, destType 
     }
 }
 
-// Helper Function: Get RouterOS API Client instance
-function getRouterClient(routerData) {
-    return new RouterOSClient({
-        host: routerData.routerIp,
-        user: routerData.routerUser,
-        password: routerData.routerPassword || '',
-        port: parseInt(routerData.routerPort || '8728'),
-        timeout: 10000
-    });
-}
-
 // Helper: Ensure document exists with fallback default configuration schemas
 async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = "", registrantName = "") {
     const activeDb = databaseInstance || db;
@@ -293,7 +297,7 @@ async function getOrCreateSettings(databaseInstance, ispId, registrantEmail = ""
         const defaultData = {
             ispId: ispId,
             brandName: registrantName ? `${registrantName} Hotspot` : "My Premium Hotspot",
-            serverIp: "10.5.5.1",
+            serverIp: "10.5.50.1",
             supportPhone: "+254700000000",
             redirectUrl: "https://audispot.audiory.site",
             defaultPppoePassword: "AudiSpot",
@@ -553,6 +557,14 @@ app.post('/api/hotspot/register-router', async (req, res) => {
             routerIp: routerIp || null,
             routerUser: routerUser || null,
             routerPassword: routerPassword || null,
+            hotspotInterface: 'ether5',
+            hotspotAddress: '10.5.50.1/24',
+            hotspotGateway: '10.5.50.1',
+            hotspotPool: 'audispot-pool',
+            hotspotProfile: 'AudiSpot_Prof',
+            hotspotHtmlDirectory: 'flash/connect',
+            hotspotLoginBy: 'http-chap,http-pap',
+            hotspotDnsName: 'audiory.net',
             updatedAt: new Date().toISOString()
         });
         return res.status(200).json({ success: true, message: `Router ${routerId} successfully configured.` });
@@ -877,43 +889,65 @@ app.post('/api/mpesa/callback', async (req, res) => {
                         loyaltyPoints: currentPoints + pointsToAward,
                         lastActivePackage: amountPaid,
                         lastActiveTimestamp: new Date().toISOString(),
+                        lastActiveDurationHours: durationHours,
+                        lastActiveProfile: bandwidthProfile,
+                        expiresAt: new Date(Date.now() + durationHours * 3600000).toISOString(),
                         routerId: routerId || 'unknown',
                         ispId: ispId
                     }, { merge: true });
                 });
             }
 
-            // 7. DIRECT ROUTER PROVISIONING VIA MIKROTIK API
+            // 7. CANONICAL MIKROTIK PROVISIONING
+            // Payment is recorded first. Router provisioning is idempotent and its
+            // state is persisted so a later retry can safely finish the grant.
             if (ispConfig && ispConfig.routerIp && ispConfig.routerUser && ispConfig.routerPassword) {
-                let api = null;
                 try {
-                    const client = getRouterClient(ispConfig);
-                    api = await client.connect();
-                    
-                    const existingUsers = await api.write('/ip/hotspot/user/print', [
-                        `.query=name=${payingPhone}`
-                    ]);
+                    const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000).toISOString();
+                    const provisioning = await provisionHotspotUser(ispConfig, {
+                        username: payingPhone,
+                        password: payingPhone,
+                        profile: bandwidthProfile,
+                        durationHours,
+                        resetUsage: true,
+                        comment: `AudiSpot_${cleanMac}_${mpesaReceipt || Date.now()}|expires=${expiresAt}`
+                    });
 
-                    if (existingUsers && existingUsers.length > 0) {
-                        const userId = existingUsers[0]['.id'];
-                        await api.write('/ip/hotspot/user/set', [
-                            `=.id=${userId}`,
-                            `=profile=${bandwidthProfile}`,
-                            `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
-                        ]);
-                    } else {
-                        await api.write('/ip/hotspot/user/add', [
-                            `=name=${payingPhone}`, 
-                            `=password=${payingPhone}`, 
-                            `=profile=${bandwidthProfile}`, 
-                            `=comment=AudiSpot_${cleanMac}_${mpesaReceipt}`
-                        ]);
+                    if (mpesaReceipt) {
+                        await db.collection('transactions').doc(mpesaReceipt).set({
+                            provisioningStatus: 'provisioned',
+                            provisionedAt: new Date().toISOString(),
+                            provisionedUser: payingPhone,
+                            expiresAt
+                        }, { merge: true });
+                        await db.collection('global_transactions').doc(mpesaReceipt).set({
+                            provisioningStatus: 'provisioned',
+                            provisionedAt: new Date().toISOString(),
+                            provisionedUser: payingPhone,
+                            expiresAt
+                        }, { merge: true });
                     }
+                    console.log(`[MIKROTIK PROVISIONED] ${payingPhone} profile=${bandwidthProfile} duration=${durationHours}h created=${provisioning.created}`);
                 } catch (rErr) {
-                    console.error("Router provisioning error:", rErr.message);
-                } finally {
-                    if (api) await api.close();
+                    console.error('[MIKROTIK PROVISIONING PENDING]', rErr.message);
+                    if (mpesaReceipt) {
+                        await db.collection('transactions').doc(mpesaReceipt).set({
+                            provisioningStatus: 'pending',
+                            provisioningError: rErr.message,
+                            provisioningLastAttemptAt: new Date().toISOString()
+                        }, { merge: true });
+                        await db.collection('global_transactions').doc(mpesaReceipt).set({
+                            provisioningStatus: 'pending',
+                            provisioningError: rErr.message,
+                            provisioningLastAttemptAt: new Date().toISOString()
+                        }, { merge: true });
+                    }
                 }
+            } else if (mpesaReceipt) {
+                await db.collection('transactions').doc(mpesaReceipt).set({
+                    provisioningStatus: 'pending',
+                    provisioningError: 'Router credentials are not configured.'
+                }, { merge: true });
             }
 
         } catch (dbError) {
@@ -1496,42 +1530,33 @@ app.post('/api/mpesa/b2c-timeout', async (req, res) => {
 app.post('/api/hotspot/generate-script', async (req, res) => {
     const { routerId, ispId } = req.body;
     if (!routerId) {
-        return res.status(400).json({ success: false, error: "Target router key configuration index is missing." });
+        return res.status(400).json({ success: false, error: 'Target router ID is required.' });
     }
 
-    const defaultIspId = ispId || "default_isp";
-    
     try {
         const routerRef = db.collection('routers').doc(routerId);
         let doc = await routerRef.get();
-        
         if (!doc.exists) {
             await routerRef.set({
-                ispId: defaultIspId,
-                ispName: "AudiSpot Partner",
-                mpesaShortcode: "4030905",
-                mpesaPasskey: "",
-                mpesaConsumerKey: "",
-                mpesaConsumerSecret: "",
-                routerIp: "0.0.0.0",
-                routerUser: "admin",
+                ispId: ispId || 'default_isp',
+                ispName: 'AudiSpot Partner',
+                routerIp: '0.0.0.0',
+                routerUser: 'admin',
+                hotspotInterface: 'ether5',
+                hotspotAddress: '10.5.50.1/24',
+                hotspotGateway: '10.5.50.1',
+                hotspotPool: 'audispot-pool',
+                hotspotProfile: 'AudiSpot_Prof',
                 updatedAt: new Date().toISOString()
             });
             doc = await routerRef.get();
         }
-
-        const resolvedIspId = doc.data()?.ispId || defaultIspId;
-
-        // Script targets /connect/index.html and injects the ISP context
-        const provisioningScript = `/sys identity set name="${routerId}";
-/ip hotspot profile add name="AudiSpot_Prof" hotspot-address=10.5.5.1 login-by=http-chap,http-pap;
-/ip hotspot profile set "AudiSpot_Prof" html-directory=flash/connect;
-/ip hotspot walled-garden add dst-host="safaricom.co.ke" action=allow;
-/ip hotspot walled-garden add dst-host="audiory.site" action=allow;
-/ip hotspot walled-garden add dst-host="audispoty-749056206562.europe-west1.run.app" action=allow;
-/tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${resolvedIspId}" dst-path="flash/connect/index.html";
-:log info "AudiSpot Capital Edge Captive Gateway Core Stack Installed Successfully Instance ID: ${routerId}";`;
-
+        const data = doc.data() || {};
+        const provisioningScript = generateBootstrapScript({
+            routerId,
+            ispId: data.ispId || ispId || 'default_isp',
+            interfaceName: data.hotspotInterface || 'ether5'
+        });
         return res.status(200).json({ success: true, script: provisioningScript });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -1726,221 +1751,165 @@ app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
             };
         });
 
-        // 4. PROVISION ACCESS ON MIKROTIK ROUTER
-        if (routerData.routerIp && routerData.routerUser && routerData.routerPassword) {
-            let api = null;
-            try {
-                const client = getRouterClient(routerData);
-                api = await client.connect();
-
-                const userIdentifier = subscriberData.phoneNumber;
-
-                // Check if user already exists in MikroTik
-                const existingUsers = await api.write('/ip/hotspot/user/print', [
-                    `.query=name=${userIdentifier}`
-                ]);
-
-                if (existingUsers && existingUsers.length > 0) {
-                    const userId = existingUsers[0]['.id'];
-                    await api.write('/ip/hotspot/user/set', [
-                        `=.id=${userId}`,
-                        `=profile=${selectedProfile}`,
-                        `=comment=LoyaltyRedeem_${cleanMac}_${Date.now()}`
-                    ]);
-                } else {
-                    await api.write('/ip/hotspot/user/add', [
-                        `=name=${userIdentifier}`,
-                        `=password=${userIdentifier}`,
-                        `=profile=${selectedProfile}`,
-                        `=comment=LoyaltyRedeem_${cleanMac}`
-                    ]);
-                }
-            } catch (routerErr) {
-                console.error("MikroTik Provisioning Error during redemption:", routerErr.message);
-                // Return success since points were deducted, but alert client to reconnect
-                return res.status(200).json({
-                    success: true,
-                    message: "Points redeemed! Please reconnect to the Wi-Fi network.",
-                    remainingPoints: subscriberData.remainingPoints
-                });
-            } finally {
-                if (api) await api.close(); // Clean up router connection
-            }
+        // 4. CANONICAL MIKROTIK PROVISIONING
+        try {
+            const result = await provisionHotspotUser(routerData, {
+                username: subscriberData.phoneNumber,
+                password: subscriberData.phoneNumber,
+                profile: selectedProfile,
+                durationHours: Number(routerData.loyaltyDurationHours || 24),
+                resetUsage: true,
+                comment: `AudiSpot_Loyalty_${cleanMac}_${Date.now()}`
+            });
+            console.log(`[MIKROTIK LOYALTY PROVISIONED] ${subscriberData.phoneNumber}`, result);
+        } catch (routerErr) {
+            console.error('[MIKROTIK LOYALTY PROVISIONING PENDING]', routerErr.message);
+            return res.status(200).json({
+                success: true,
+                message: 'Points redeemed, but router provisioning is pending. Please reconnect shortly.',
+                remainingPoints: subscriberData.remainingPoints,
+                provisioningStatus: 'pending'
+            });
         }
 
         return res.status(200).json({
             success: true,
             message: `Successfully redeemed ${tierDisplayName}!`,
-            remainingPoints: subscriberData.remainingPoints
+            remainingPoints: subscriberData.remainingPoints,
+            provisioningStatus: 'provisioned'
         });
-
     } catch (error) {
         return res.status(400).json({ success: false, error: error.message });
     }
 });
 
 // ====================================================================
-// RECONNECT SESSION ENGINE (AUTO-LOGIN ALREADY PAID DEVICES)
+// CANONICAL RECONNECT ENGINE
 // ====================================================================
+
+async function resolveRouter(routerId) {
+    if (!routerId) throw new Error('Router ID is required.');
+    const routerDoc = await db.collection('routers').doc(routerId).get();
+    if (!routerDoc.exists) throw new Error('Router network not found.');
+    return routerDoc.data();
+}
+
+async function provisionFromTransaction(routerData, txData, sourceCode) {
+    const username = txData.customerPhone || txData.phoneNumber;
+    if (!username) throw new Error('Transaction does not contain a subscriber phone number.');
+    const durationHours = Number(txData.durationHours || 1);
+    const purchaseTime = new Date(txData.timestamp || txData.processedAt || txData.createdAt || Date.now());
+    const expiresAt = txData.expiresAt ? new Date(txData.expiresAt) : new Date(purchaseTime.getTime() + durationHours * 3600000);
+    const remainingSeconds = Math.max(60, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+    const profile = txData.profileName || 'Default_Limit';
+    return provisionHotspotUser(routerData, {
+        username,
+        password: username,
+        profile,
+        limitUptimeSeconds: remainingSeconds,
+        resetUsage: true,
+        comment: `AudiSpot_Reconnect_${sourceCode}|expires=${expiresAt.toISOString()}`
+    });
+}
 
 app.get('/api/hotspot/reconnect', async (req, res) => {
     const { macAddress, routerId } = req.query;
-    if (!macAddress || !routerId) return res.status(400).json({ error: "Missing verification criteria." });
-
-    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+    if (!macAddress || !routerId) return res.status(400).json({ error: 'Missing verification criteria.' });
 
     try {
+        const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
         const subDoc = await db.collection('subscribers').doc(cleanMac).get();
-        if (!subDoc.exists) return res.status(404).json({ error: "No recorded paid subscriptions mapped to this device." });
+        if (!subDoc.exists) return res.status(404).json({ error: 'No recorded paid subscription mapped to this device.' });
 
         const subData = subDoc.data();
-        const lastActiveTime = new Date(subData.lastActiveTimestamp);
-        const diffInMinutes = (new Date() - lastActiveTime) / 60000;
-
-        const lastPaidAmount = subData.lastActivePackage || 0;
-        let validityDurationMinutes = 60; 
-        if (lastPaidAmount >= 50) validityDurationMinutes = 1440; 
-        else if (lastPaidAmount >= 20) validityDurationMinutes = 180; 
-
-        if (diffInMinutes < validityDurationMinutes) {
-            const routerDoc = await db.collection('routers').doc(routerId).get();
-            if (routerDoc.exists) {
-                const rData = routerDoc.data();
-                if (rData.routerIp && rData.routerUser && rData.routerPassword) {
-                    try {
-                        const client = getRouterClient(rData);
-                        const api = await client.connect();
-                        
-                        let dynamicProfile = lastPaidAmount >= 20 ? (lastPaidAmount >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                        await api.write('/ip/hotspot/user/add', [
-                            `=name=${subData.phoneNumber}`, `=password=${subData.phoneNumber}`, `=profile=${dynamicProfile}`, `=comment=AutoReconnect_${cleanMac}`
-                        ]);
-                        await api.close();
-                    } catch (routerErr) {
-                        console.error("Autologin routing failure:", routerErr.message);
-                    }
-                }
-            }
-            return res.status(200).json({ 
-                success: true, 
-                phoneNumber: subData.phoneNumber, 
-                message: "Valid session verified. Connecting automatically." 
-            });
+        const lastActive = new Date(subData.lastActiveTimestamp || 0);
+        const durationHours = Number(subData.lastActiveDurationHours || 1);
+        const expiresAt = subData.expiresAt ? new Date(subData.expiresAt) : new Date(lastActive.getTime() + durationHours * 3600000);
+        if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+            return res.status(401).json({ error: 'Active package validity window has expired.' });
         }
 
-        return res.status(401).json({ error: "Active package validity window has expired." });
+        const routerData = await resolveRouter(routerId);
+        const remainingSeconds = Math.max(60, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+        const result = await provisionHotspotUser(routerData, {
+            username: subData.phoneNumber,
+            password: subData.phoneNumber,
+            profile: subData.lastActiveProfile || 'Default_Limit',
+            limitUptimeSeconds: remainingSeconds,
+            resetUsage: true,
+            comment: `AudiSpot_AutoReconnect_${cleanMac}|expires=${expiresAt.toISOString()}`
+        });
+        return res.status(200).json({ success: true, phoneNumber: subData.phoneNumber, expiresAt: expiresAt.toISOString(), provisioning: result, message: 'Valid session verified. Connecting automatically.' });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
 });
 
-// ====================================================================
-// VERIFY EXPLICIT M-PESA RECONNECT TRANSACTIONS (STRICT LOCK)
-// ====================================================================
 app.post('/api/hotspot/reconnect-by-code', async (req, res) => {
-    const { mpesaCode, routerId, macAddress, customerPhone } = req.body;
-    
-    if (!mpesaCode || !routerId) {
-        return res.status(400).json({ error: "Missing M-Pesa reference code configuration metrics." });
-    }
-
-    const cleanCode = mpesaCode.trim().toUpperCase();
-    const cleanMac = macAddress ? macAddress.trim().toUpperCase() : null;
+    const { mpesaCode, routerId, macAddress } = req.body;
+    if (!mpesaCode || !routerId) return res.status(400).json({ error: 'Missing M-Pesa reference code or router ID.' });
+    const cleanCode = String(mpesaCode).trim().toUpperCase();
+    const cleanMac = macAddress ? macAddress.replace(/[^a-fA-F0-9]/g, '').toUpperCase() : null;
 
     try {
-        // 1. Fetch transaction document from both collections
         let transactionDoc = await db.collection('transactions').doc(cleanCode).get();
         let collectionName = 'transactions';
-
         if (!transactionDoc.exists) {
             transactionDoc = await db.collection('global_transactions').doc(cleanCode).get();
             collectionName = 'global_transactions';
         }
-        
-        if (!transactionDoc.exists) {
-            return res.status(404).json({ error: "Invalid M-Pesa transaction code." });
-        }
+        if (!transactionDoc.exists) return res.status(404).json({ error: 'Invalid M-Pesa transaction code.' });
 
         const txData = transactionDoc.data();
-        const txPhone = txData.customerPhone || txData.phoneNumber;
         const txMac = txData.macAddress || txData.mac || txData.usedByMac;
-
-        // 2. STRICT ENFORCEMENT: Check if code has already been claimed / used
-        if (txData.isUsed === true) {
-            // If used by a DIFFERENT MAC, block connection strictly
-            if (txMac && cleanMac && txMac.toUpperCase() !== cleanMac) {
-                return res.status(403).json({ 
-                    error: `This code (${cleanCode}) has already been redeemed by another device (${txMac}).` 
-                });
-            }
+        if (txData.isUsed === true && txMac && cleanMac && txMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase() !== cleanMac) {
+            return res.status(403).json({ error: 'This transaction code is already bound to another device.' });
+        }
+        if (txMac && cleanMac && txMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase() !== cleanMac) {
+            return res.status(403).json({ error: 'Device mismatch for this transaction.' });
         }
 
-        // 3. STRICT CHECK: Was device connected during purchase?
-        // If your system logs router sessions on purchase, enforce matching MAC or Phone
-        if (txMac && cleanMac && txMac.toUpperCase() !== cleanMac) {
-            return res.status(403).json({ 
-                error: "Device mismatch: This transaction code does not belong to this Wi-Fi client." 
-            });
-        }
-
-        // 4. Time validity check
         const purchaseTime = new Date(txData.timestamp || txData.processedAt || txData.createdAt);
-        const elapsedMinutes = (new Date() - purchaseTime) / 60000;
-        const packageDurationHours = Number(txData.durationHours || 1); 
-        const maxValidityMinutes = packageDurationHours * 60;
+        const durationHours = Number(txData.durationHours || 1);
+        const expiresAt = txData.expiresAt ? new Date(txData.expiresAt) : new Date(purchaseTime.getTime() + durationHours * 3600000);
+        if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) return res.status(410).json({ error: 'The transaction package has expired.' });
 
-        if (elapsedMinutes >= maxValidityMinutes) {
-            return res.status(410).json({ error: "The transaction code for this package has expired." });
+        const routerData = await resolveRouter(routerId);
+        const result = await provisionFromTransaction(routerData, txData, cleanCode);
+        await db.collection(collectionName).doc(cleanCode).set({ isUsed: true, usedByMac: cleanMac || txMac || 'UNKNOWN_MAC', lastReconnectedAt: new Date().toISOString(), provisioningStatus: 'provisioned' }, { merge: true });
+        return res.status(200).json({ success: true, expiresAt: expiresAt.toISOString(), provisioning: result, message: 'M-Pesa transaction authenticated successfully.' });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/hotspot/reconnect-verify', async (req, res) => {
+    const { macAddress, routerId, mpesaCode } = req.body;
+    if (!routerId) return res.status(400).json({ error: 'Missing Router ID context.' });
+    try {
+        if (mpesaCode) {
+            const code = String(mpesaCode).trim().toUpperCase();
+            const txDoc = await db.collection('transactions').doc(code).get();
+            if (!txDoc.exists) return res.status(404).json({ error: 'Invalid M-Pesa transaction token code.' });
+            const routerData = await resolveRouter(routerId);
+            const result = await provisionFromTransaction(routerData, txDoc.data(), code);
+            return res.status(200).json({ success: true, provisioning: result, message: 'Transaction token authorized.' });
         }
-
-        // 5. MikroTik router connection & provisioning
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (routerDoc.exists) {
-            const rData = routerDoc.data();
-            if (rData.routerIp && rData.routerUser && rData.routerPassword) {
-                try {
-                    const client = getRouterClient(rData);
-                    const api = await client.connect();
-                    
-                    const profileName = txData.profileName || "1_Hour_Plan";
-                    const hotspotUser = txPhone || cleanMac || `User_${cleanCode}`;
-
-                    // Check if user already exists on MikroTik
-                    const existingUsers = await api.write('/ip/hotspot/user/print', [`?name=${hotspotUser}`]);
-
-                    if (!existingUsers || existingUsers.length === 0) {
-                        // Create hotspot user
-                        await api.write('/ip/hotspot/user/add', [
-                            `=name=${hotspotUser}`, 
-                            `=password=${hotspotUser}`, 
-                            `=profile=${profileName}`, 
-                            `=comment=CodeReconnect_${cleanCode}`
-                        ]);
-                    }
-
-                    await api.close();
-                } catch (routerErr) {
-                    console.error("MikroTik sync error:", routerErr.message);
-                }
-            }
+        if (macAddress) {
+            const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+            const subDoc = await db.collection('subscribers').doc(cleanMac).get();
+            if (!subDoc.exists) return res.status(404).json({ fallbackRequired: true, error: 'No active device session found. Please use your M-Pesa code.' });
+            const subData = subDoc.data();
+            const expiresAt = subData.expiresAt ? new Date(subData.expiresAt) : new Date(new Date(subData.lastActiveTimestamp).getTime() + Number(subData.lastActiveDurationHours || 1) * 3600000);
+            if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) return res.status(401).json({ fallbackRequired: true, error: 'Active session timeline expired. Please input your payment code.' });
+            const routerData = await resolveRouter(routerId);
+            const remainingSeconds = Math.max(60, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+            const result = await provisionHotspotUser(routerData, { username: subData.phoneNumber, password: subData.phoneNumber, profile: subData.lastActiveProfile || 'Default_Limit', limitUptimeSeconds: remainingSeconds, resetUsage: true, comment: `AudiSpot_MacReconnect_${cleanMac}|expires=${expiresAt.toISOString()}` });
+            return res.status(200).json({ success: true, expiresAt: expiresAt.toISOString(), provisioning: result, message: 'Valid active session found.' });
         }
-
-        // 6. Lock transaction permanently to this MAC address in BOTH collections
-        const updateData = {
-            isUsed: true,
-            usedByMac: cleanMac || txMac || 'UNKNOWN_MAC',
-            lastReconnectedAt: new Date().toISOString()
-        };
-
-        await db.collection(collectionName).doc(cleanCode).set(updateData, { merge: true });
-
-        return res.status(200).json({
-            success: true,
-            message: "M-Pesa transaction authenticated successfully."
-        });
-
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(400).json({ error: 'No query parameters specified.' });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
     }
 });
 
@@ -1986,149 +1955,19 @@ app.get('/api/portal/check-points', async (req, res) => {
 });
 
 // ====================================================================
-// 3. COMBINED RECONNECT ENGINE (MAC SYNC WITH M-PESA FALLBACK TRACING)
-// ====================================================================
-app.post('/api/hotspot/reconnect-verify', async (req, res) => {
-    const { macAddress, routerId, mpesaCode } = req.body;
-    if (!routerId) return res.status(400).json({ error: "Missing Router ID context." });
-
-    try {
-        // METHOD A: If an M-Pesa code is sent, verify the transaction token directly
-        if (mpesaCode) {
-            const cleanCode = mpesaCode.trim().toUpperCase();
-            const txDoc = await db.collection('transactions').doc(cleanCode).get();
-            
-            if (!txDoc.exists) return res.status(404).json({ error: "Invalid M-Pesa transaction token code." });
-            const txData = txDoc.data();
-
-            // Provision user session on Mikrotik
-            const routerDoc = await db.collection('routers').doc(routerId).get();
-            if (routerDoc.exists) {
-                const rData = routerDoc.data();
-                const client = getRouterClient(rData);
-                const api = await client.connect();
-                await api.write('/ip/hotspot/user/add', [
-                    `=name=${txData.phoneNumber}`, `=password=${txData.phoneNumber}`, `=profile=${txData.profileName || '1_Hour_Plan'}`, `=comment=CodeSync_${cleanCode}`
-                ]);
-                await api.close();
-            }
-            return res.status(200).json({ success: true, message: "Transaction token authorized! Device is now online." });
-        }
-
-        // METHOD B: Auto-reconnect via MAC Address timeline parameters
-        if (macAddress) {
-            const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
-            const subDoc = await db.collection('subscribers').doc(cleanMac).get();
-            
-            if (!subDoc.exists) {
-                return res.status(404).json({ fallbackRequired: true, error: "No active device session found. Please use your M-Pesa code." });
-            }
-
-            const subData = subDoc.data();
-            const diffInMinutes = (new Date() - new Date(subData.lastActiveTimestamp)) / 60000;
-            const lastPaidAmount = subData.lastActivePackage || 0;
-            let validityWindow = lastPaidAmount >= 50 ? 1440 : (lastPaidAmount >= 20 ? 180 : 60);
-
-            if (diffInMinutes < validityWindow) {
-                const routerDoc = await db.collection('routers').doc(routerId).get();
-                if (routerDoc.exists) {
-                    const rData = routerDoc.data();
-                    const client = getRouterClient(rData);
-                    const api = await client.connect();
-                    let dynamicProfile = lastPaidAmount >= 20 ? (lastPaidAmount >= 50 ? "24_Hour_Plan" : "3_Hour_Plan") : "1_Hour_Plan";
-                    await api.write('/ip/hotspot/user/add', [
-                        `=name=${subData.phoneNumber}`, `=password=${subData.phoneNumber}`, `=profile=${dynamicProfile}`, `=comment=AutoMac_${cleanMac}`
-                    ]);
-                    await api.close();
-                }
-                return res.status(200).json({ success: true, message: "Valid active session found! Connecting automatically..." });
-            }
-            return res.status(401).json({ fallbackRequired: true, error: "Active session timeline expired. Please input your payment code." });
-        }
-
-        return res.status(400).json({ error: "No query parameters specified." });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// ====================================================================
 // SMART TV / GAME CONSOLE BRIDGING ENGINE
 // ====================================================================
 
 app.post('/api/hotspot/register-tv', async (req, res) => {
-    // 1. Destructure with fallback to support both 'tvMacAddress' and 'targetMac'
     const { routerId, tvMacAddress, targetMac, comment } = req.body;
     const rawMac = tvMacAddress || targetMac;
-
-    if (!routerId || !rawMac) {
-        return res.status(400).json({ 
-            success: false, 
-            error: "Missing required setup parameters (routerId or MAC address)." 
-        });
-    }
-
-    // 2. Clean and format MAC Address strictly (AA:BB:CC:DD:EE:FF)
-    const cleanTvMac = rawMac.toUpperCase().replace(/[^A-F0-9]/g, '').replace(/(.{2})(?=.)/g, '$1:');
-    
-    if (cleanTvMac.length !== 17) {
-        return res.status(400).json({ success: false, error: "Invalid MAC address format." });
-    }
-
-    let api = null;
-
+    if (!routerId || !rawMac) return res.status(400).json({ success: false, error: 'Router ID and MAC address are required.' });
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) {
-            return res.status(404).json({ success: false, error: "Router node path not found." });
-        }
-        
-        const routerData = routerDoc.data();
-        const client = getRouterClient(routerData);
-        api = await client.connect();
-
-        // 3. Check if an IP binding already exists for this MAC address
-        const existingBindings = await api.write('/ip/hotspot/ip-binding/print', [
-            `?.mac-address=${cleanTvMac}`
-        ]);
-
-        if (existingBindings && existingBindings.length > 0) {
-            // Update existing binding to bypassed status
-            const bindingId = existingBindings[0]['.id'];
-            await api.write('/ip/hotspot/ip-binding/set', [
-                `=.id=${bindingId}`,
-                `=type=bypassed`,
-                `=comment=${comment || 'SmartTV Setup Bypass (Updated)'}`
-            ]);
-        } else {
-            // Create brand new IP binding
-            await api.write('/ip/hotspot/ip-binding/add', [
-                `=mac-address=${cleanTvMac}`,
-                `=type=bypassed`,
-                `=comment=${comment || 'SmartTV Setup Bypass'}`
-            ]);
-        }
-
-        return res.status(200).json({ 
-            success: true, 
-            message: `Appliance MAC (${cleanTvMac}) bypassed successfully!` 
-        });
-
+        const routerData = await resolveRouter(routerId);
+        const result = await bypassMac(routerData, rawMac, comment || 'AudiSpot SmartTV/Appliance Bypass');
+        return res.status(200).json({ success: true, message: `Appliance MAC (${result.mac}) bypassed successfully.`, provisioning: result });
     } catch (error) {
-        console.error("Smart TV Registration Error:", error);
-        return res.status(500).json({ 
-            success: false, 
-            error: error.message || "Failed to provision hardware bypass on router." 
-        });
-    } finally {
-        // Ensure connection is safely closed regardless of outcome
-        if (api) {
-            try {
-                await api.close();
-            } catch (closeErr) {
-                console.error("Error closing router socket connection:", closeErr);
-            }
-        }
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -2138,53 +1977,23 @@ app.post('/api/hotspot/register-tv', async (req, res) => {
 
 app.get('/api/hotspot/active-sessions', async (req, res) => {
     const { routerId } = req.query;
-    if (!routerId) return res.status(400).json({ error: "Missing active router parameters." });
-
+    if (!routerId) return res.status(400).json({ error: 'Missing router ID.' });
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) return res.status(404).json({ error: "Target node not registered." });
-        const routerData = routerDoc.data();
-        
-        const client = getRouterClient(routerData);
-        const api = await client.connect();
-        const activeSessions = await api.write('/ip/hotspot/active/print');
-        await api.close();
-
-        const standardized = activeSessions.map(s => ({
-            id: s['.id'],
-            user: s.user || 'Unknown',
-            address: s.address || '0.0.0.0',
-            macAddress: s['mac-address'] || '00:00:00:00:00:00',
-            uptime: s.uptime || '00:00:00',
-            bytesIn: parseInt(s['bytes-in'] || 0, 10),
-            bytesOut: parseInt(s['bytes-out'] || 0, 10)
-        }));
-
-        return res.status(200).json(standardized);
+        const routerData = await resolveRouter(routerId);
+        return res.status(200).json(await listActiveSessions(routerData));
     } catch (error) {
-        console.error("Session fetching error logs context:", error.message);
+        console.error('Session fetching error:', error.message);
         return res.status(200).json([]);
     }
 });
 
 app.post('/api/hotspot/disconnect', async (req, res) => {
     const { routerId, username } = req.body;
-    if (!routerId || !username) return res.status(400).json({ error: "Missing required identification keys." });
-
+    if (!routerId || !username) return res.status(400).json({ error: 'Router ID and username are required.' });
     try {
-        const routerDoc = await db.collection('routers').doc(routerId).get();
-        if (!routerDoc.exists) return res.status(404).json({ error: "Router record absent." });
-        const routerData = routerDoc.data();
-
-        const client = getRouterClient(routerData);
-        const api = await client.connect();
-        const items = await api.write('/ip/hotspot/active/print', [`.query=user=${username}`]);
-        if(items.length > 0) {
-            await api.write('/ip/hotspot/active/remove', [`.id=${items[0]['.id']}`]);
-        }
-        await api.close();
-
-        return res.status(200).json({ success: true, message: "Subscriber kicked from network interface." });
+        const routerData = await resolveRouter(routerId);
+        const result = await disconnectHotspotUser(routerData, username);
+        return res.status(200).json({ success: true, ...result, message: 'Subscriber disconnected from the hotspot.' });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
@@ -2196,364 +2005,30 @@ app.post('/api/hotspot/disconnect', async (req, res) => {
 
 // Create PPPoE Secret on MikroTik + Sync to Database
 app.post('/api/pppoe/create-secret', async (req, res) => {
-    const { routerId, username, password, profile, ispId } = req.body;
-    
-    if (!routerId || !username || !password) {
-        return res.status(400).json({ success: false, error: "Missing required PPPoE fields." });
-    }
-
-    let api = null;
+    const { routerId, username, password, profile } = req.body;
+    if (!routerId || !username || !password) return res.status(400).json({ success: false, error: 'Missing required PPPoE fields.' });
     try {
-        // 1. Fetch router doc by ID or name
-        let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = routerDoc.exists ? routerDoc.data() : null;
-
-        if (!routerData) {
-            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) routerData = snapshot.docs[0].data();
-        }
-
-        if (!routerData) {
-            return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
-        }
-
-        // 2. MOCK MODE CHECK: If IP is dummy/unconfigured, skip hardware TCP connection
-        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
-
-        if (!isTestMode) {
-            // Live Physical Router Execution
-            const client = getRouterClient(routerData);
-            api = await client.connect();
-
-            await api.write('/ppp/secret/add', [
-                `=name=${username}`,
-                `=password=${password}`,
-                `=profile=${profile || 'default'}`,
-                `=service=pppoe`
-            ]);
-        } else {
-            console.log(`[TEST MODE] Bypassed physical MikroTik API connection for subscriber '${username}' on router '${routerId}'`);
-        }
-
-        // 3. Persist in Firestore subscribers collection
-        await db.collection('subscribers').add({
-            ispId: ispId || routerData.ispId || 'default_isp',
-            routerId: routerId,
-            username: username,
-            type: 'pppoe',
-            profile: profile || 'default',
-            status: 'active',
-            createdAt: new Date()
-        });
-
-        return res.status(200).json({ success: true, mock: isTestMode });
-
+        const routerData = await resolveRouter(routerId);
+        const result = await createPppoeSecret(routerData, { username, password, profile });
+        const ispId = routerData.ispId || routerData.userId || 'default_isp';
+        await db.collection('pppoe_subscribers').doc(`${routerId}_${username}`).set({ routerId, ispId, username, profile: profile || null, updatedAt: new Date().toISOString() }, { merge: true });
+        return res.status(200).json({ success: true, ...result });
     } catch (error) {
-        console.error("PPPoE secret creation error:", error);
         return res.status(500).json({ success: false, error: error.message });
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
-    }
-});
-
-// Fetch Secrets from MikroTik Router or Firestore Fallback
-app.get('/api/pppoe/secrets', async (req, res) => {
-    const { routerId } = req.query;
-    if (!routerId) return res.status(400).json([]);
-
-    let api = null;
-    try {
-        // 1. Fetch router doc by ID or name
-        let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = routerDoc.exists ? routerDoc.data() : null;
-
-        if (!routerData) {
-            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) routerData = snapshot.docs[0].data();
-        }
-
-        const isTestMode = !routerData || !routerData.routerIp || routerData.routerIp === '0.0.0.0';
-
-        // 2. MOCK MODE / FALLBACK: Read directly from Firestore 'subscribers'
-        if (isTestMode) {
-            const subSnapshot = await db.collection('subscribers')
-                .where('routerId', '==', routerId)
-                .get();
-
-            const mockSecrets = subSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    name: data.username,
-                    profile: data.profile || 'default',
-                    disabled: data.status === 'suspended' ? "true" : "false",
-                    remoteAddress: '192.168.88.100 (Simulated)'
-                };
-            });
-
-            return res.status(200).json(mockSecrets);
-        }
-
-        // 3. Live Hardware Execution
-        const client = getRouterClient(routerData);
-        api = await client.connect();
-        const secrets = await api.write('/ppp/secret/print');
-
-        const formattedSecrets = (secrets || []).map(s => ({
-            id: s['.id'],
-            name: s.name,
-            profile: s.profile || 'default',
-            disabled: s.disabled || "false",
-            remoteAddress: s['remote-address'] || 'Dynamic Allocation'
-        }));
-
-        return res.status(200).json(formattedSecrets);
-
-    } catch (error) {
-        console.error("Fetch secrets API error:", error.message);
-        return res.status(200).json([]);
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
-    }
-});
-
-// ====================================================================
-// DHCP ENGINE: STATIC LEASE SUBSYSTEM MANAGEMENT
-// ====================================================================
-
-app.post('/api/dhcp/create-lease', async (req, res) => {
-    const { routerId, macAddress, ipAddress, fullName, phone, packageId, plan, ipType, email, location, comment, ispId } = req.body;
-    
-    const customerName = fullName || comment || 'AudiSpot Static Customer';
-    const selectedPackage = packageId || plan || 'Default Package';
-
-    if (!routerId) {
-        return res.status(400).json({ success: false, error: "Missing required routerId field." });
-    }
-
-    let api = null;
-    try {
-        let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = routerDoc.exists ? routerDoc.data() : null;
-
-        if (!routerData) {
-            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) routerData = snapshot.docs[0].data();
-        }
-
-        if (!routerData) {
-            return res.status(404).json({ success: false, error: `Router '${routerId}' configuration not found.` });
-        }
-
-        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
-
-        const finalMac = macAddress || `02:00:00:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}:${Math.floor(Math.random()*89+10)}`;
-        const finalIp = ipAddress || `192.168.88.${Math.floor(Math.random()*150+50)}`;
-
-        if (!isTestMode) {
-            const client = getRouterClient(routerData);
-            api = await client.connect();
-
-            await api.write('/ip/dhcp-server/lease/add', [
-                `=mac-address=${finalMac}`,
-                `=address=${finalIp}`,
-                `=comment=${customerName} - ${phone || ''}`
-            ]);
-        } else {
-            console.log(`[TEST MODE] Bypassed physical MikroTik API for static lease '${customerName}' on router '${routerId}'`);
-        }
-
-        // Persist Subscriber with mapped Package Name
-        await db.collection('subscribers').add({
-            ispId: ispId || routerData.ispId || 'default_isp',
-            routerId: routerId,
-            fullName: customerName,
-            phone: phone || '',
-            packageName: selectedPackage,
-            ipType: ipType || 'private',
-            email: email || '',
-            location: location || '',
-            macAddress: finalMac,
-            ipAddress: finalIp,
-            type: 'static-dhcp',
-            status: 'active',
-            createdAt: new Date()
-        });
-
-        return res.status(200).json({ success: true, mock: isTestMode });
-
-    } catch (error) {
-        console.error("Static DHCP creation error:", error);
-        return res.status(500).json({ success: false, error: error.message });
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
-    }
-});
-
-// Fetch Static Leases from MikroTik Router or Firestore Fallback
-app.get('/api/dhcp/leases', async (req, res) => {
-    const { routerId } = req.query;
-    if (!routerId) return res.status(200).json([]);
-
-    let api = null;
-    try {
-        // 1. Fetch router doc by ID or name
-        let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = routerDoc.exists ? routerDoc.data() : null;
-
-        if (!routerData) {
-            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) routerData = snapshot.docs[0].data();
-        }
-
-        const isTestMode = !routerData || !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
-
-        // 2. MOCK MODE / FALLBACK: Read from Firestore 'subscribers'
-        if (isTestMode) {
-            const subSnapshot = await db.collection('subscribers')
-                .where('routerId', '==', routerId)
-                .where('type', '==', 'static-dhcp')
-                .get();
-
-            const mockLeases = subSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    comment: data.fullName || data.comment || 'Static Customer',
-                    macAddress: data.macAddress || 'Auto-assigned',
-                    address: data.ipAddress || 'Dynamic Allocation',
-                    packageName: data.packageName || data.plan || 'Default Package',
-                    plan: data.packageName || data.plan || 'Default Package',
-                    status: data.status || 'active'
-                };
-            });
-
-            return res.status(200).json(mockLeases);
-        }
-
-        // 3. Live Hardware Execution
-        const client = getRouterClient(routerData);
-        api = await client.connect();
-
-        const leases = await api.write('/ip/dhcp-server/lease/print');
-
-        const staticLeases = (leases || [])
-            .filter(l => String(l.dynamic) === 'false' || !l.dynamic)
-            .map(l => ({
-                id: l['.id'],
-                macAddress: l['mac-address'],
-                address: l.address,
-                comment: l.comment || 'Permanent Hardware Binding',
-                status: l.disabled === 'true' || l.disabled === true ? 'suspended' : 'active'
-            }));
-
-        return res.status(200).json(staticLeases);
-
-    } catch (err) {
-        console.error("Fetch DHCP leases API error:", err.message);
-        return res.status(200).json([]);
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
     }
 });
 
 // Setup Static Subnet & Optional DHCP Pool on MikroTik Router
 app.post('/api/dhcp/setup-subnet', async (req, res) => {
-    const { routerId, subnet, gateway, bridgeInterface, runDhcp, ispId } = req.body;
-
-    if (!routerId || !subnet) {
-        return res.status(400).json({ success: false, error: "Router and Subnet (CIDR) are required." });
-    }
-
-    let api = null;
+    const { routerId, subnet, gateway, bridgeInterface, runDhcp } = req.body;
+    if (!routerId || !subnet) return res.status(400).json({ success: false, error: 'Router and Subnet (CIDR) are required.' });
     try {
-        let routerDoc = await db.collection('routers').doc(routerId).get();
-        let routerData = routerDoc.exists ? routerDoc.data() : null;
-
-        if (!routerData) {
-            const snapshot = await db.collection('routers').where('name', '==', routerId).limit(1).get();
-            if (!snapshot.empty) routerData = snapshot.docs[0].data();
-        }
-
-        if (!routerData) {
-            return res.status(404).json({ success: false, error: "Router configuration not found." });
-        }
-
-        const isTestMode = !routerData.routerIp || routerData.routerIp === '0.0.0.0' || routerData.routerIp === '127.0.0.1';
-
-        // Extract subnet prefix dynamically (e.g. "10.20.0.0/24" -> prefix "24")
-        const cidrMatch = subnet.match(/\/(\d+)$/);
-        const prefix = cidrMatch ? cidrMatch[1] : '24';
-        const gwAddress = gateway || subnet.replace(/\.0\/\d+$/, '.1');
-
-        if (!isTestMode) {
-            const client = getRouterClient(routerData);
-            api = await client.connect();
-
-            // 1. Add Gateway IP Address to interface (Safely catch duplicate errors)
-            try {
-                await api.write('/ip/address/add', [
-                    `=address=${gwAddress}/${prefix}`,
-                    `=interface=${bridgeInterface || 'bridge'}`
-                ]);
-            } catch (ipErr) {
-                console.warn("IP Address setup warning (may already exist):", ipErr.message);
-            }
-
-            // 2. Optionally configure DHCP Server Pool
-            if (runDhcp) {
-                const poolName = `static_pool_${routerId}`;
-                const poolRange = subnet.replace(/\.0\/\d+$/, '.10-.250');
-
-                try {
-                    await api.write('/ip/pool/add', [
-                        `=name=${poolName}`,
-                        `=ranges=${poolRange}`
-                    ]);
-                } catch (poolErr) {
-                    console.warn("Pool creation warning:", poolErr.message);
-                }
-
-                try {
-                    await api.write('/ip/dhcp-server/add', [
-                        `=name=dhcp_static_${routerId}`,
-                        `=interface=${bridgeInterface || 'bridge'}`,
-                        `=address-pool=${poolName}`,
-                        `=disabled=no`
-                    ]);
-                } catch (dhcpErr) {
-                    console.warn("DHCP server creation warning:", dhcpErr.message);
-                }
-            }
-        }
-
-        // Save setup record in Firestore
-        await db.collection('static_subnets').add({
-            ispId: ispId || routerData.ispId || 'default_isp',
-            routerId,
-            subnet,
-            gateway: gwAddress,
-            bridgeInterface: bridgeInterface || 'bridge',
-            createdAt: new Date()
-        });
-
-        return res.status(200).json({ success: true, mock: isTestMode });
-
+        const routerData = await resolveRouter(routerId);
+        if (runDhcp === false) return res.status(200).json({ success: true, message: 'DHCP setup skipped.', subnet });
+        const result = await ensureDhcp(routerData, { subnet, gateway, interface: bridgeInterface || routerData.hotspotInterface || 'ether5' });
+        return res.status(200).json({ success: true, ...result });
     } catch (error) {
-        console.error("Setup subnet error:", error);
         return res.status(500).json({ success: false, error: error.message });
-    } finally {
-        if (api && typeof api.close === 'function') {
-            try { await api.close(); } catch(e) {}
-        }
     }
 });
 
