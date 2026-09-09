@@ -32,6 +32,7 @@ const DEFAULTS = Object.freeze({
     hotspotGateway: '10.5.50.1',
     hotspotPool: 'audispot-pool',
     hotspotProfile: 'AudiSpot_Prof',
+    hotspotUserProfile: 'AudiSpot_UserProf',
     hotspotHtmlDirectory: 'flash/connect',
     hotspotLoginBy: 'http-chap,http-pap',
     hotspotDnsName: 'audiory.net'
@@ -106,6 +107,7 @@ function routerConfig(routerData = {}) {
         hotspotGateway: cleanString(routerData.hotspotGateway || DEFAULTS.hotspotGateway),
         hotspotPool: safeName(routerData.hotspotPool || DEFAULTS.hotspotPool),
         hotspotProfile: safeName(routerData.hotspotProfile || DEFAULTS.hotspotProfile),
+        hotspotUserProfile: safeName(routerData.hotspotUserProfile || DEFAULTS.hotspotUserProfile),
         hotspotHtmlDirectory: cleanString(routerData.hotspotHtmlDirectory || DEFAULTS.hotspotHtmlDirectory),
         hotspotLoginBy: cleanString(routerData.hotspotLoginBy || DEFAULTS.hotspotLoginBy),
         hotspotDnsName: cleanString(routerData.hotspotDnsName || DEFAULTS.hotspotDnsName)
@@ -202,7 +204,24 @@ async function ensureHotspotServer(api, cfg) {
         ]);
     }
 
-    await ensureHotspotProfile(api, cfg.hotspotProfile, { createIfMissing: true });
+    await ensureHotspotProfile(api, cfg.hotspotUserProfile, { createIfMissing: true, sharedUsers: 1 });
+
+    const serverProfile = await findOne(api, '/ip/hotspot/profile', 'name', cfg.hotspotProfile);
+    if (!serverProfile) {
+        await api.write('/ip/hotspot/profile/add', [
+            `=name=${escapeRouterValue(cfg.hotspotProfile)}`,
+            `=hotspot-address=${escapeRouterValue(cfg.hotspotGateway)}`,
+            `=login-by=${escapeRouterValue(cfg.hotspotLoginBy)}`,
+            `=html-directory=${escapeRouterValue(cfg.hotspotHtmlDirectory)}`
+        ]);
+    } else {
+        await api.write('/ip/hotspot/profile/set', [
+            `=.id=${serverProfile['.id']}`,
+            `=hotspot-address=${escapeRouterValue(cfg.hotspotGateway)}`,
+            `=login-by=${escapeRouterValue(cfg.hotspotLoginBy)}`,
+            `=html-directory=${escapeRouterValue(cfg.hotspotHtmlDirectory)}`
+        ]);
+    }
 
     const hotspotServers = await api.write('/ip/hotspot/print');
     const server = Array.isArray(hotspotServers)
@@ -230,7 +249,7 @@ async function ensureHotspotServer(api, cfg) {
 async function provisionHotspotUser(routerData, options = {}) {
     const username = safeUser(options.username);
     const password = safePassword(options.password || username);
-    const profile = safeName(options.profile || DEFAULTS.hotspotProfile);
+    const profile = safeName(options.profile || DEFAULTS.hotspotUserProfile);
     const comment = safeComment(options.comment || `AudiSpot_${username}`);
     const durationSeconds = options.limitUptimeSeconds ? Math.max(60, Math.round(Number(options.limitUptimeSeconds))) : (options.durationHours ? durationToSeconds(options.durationHours) : null);
     const resetUsage = options.resetUsage !== false;
@@ -412,12 +431,13 @@ function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hot
 :if ([:len [/ip pool find where name=audispot-pool]] = 0) do={ /ip pool add name=audispot-pool ranges=10.5.50.2-10.5.50.254 }
 :if ([:len [/ip dhcp-server network find where address=10.5.50.0/24]] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 comment="AudiSpot DHCP network" }
 :if ([:len [/ip dhcp-server find where name=audispot-dhcp]] = 0) do={ /ip dhcp-server add name=audispot-dhcp interface=${escapeRouterValue(iface)} address-pool=audispot-pool disabled=no comment="AudiSpot DHCP" } else={ /ip dhcp-server set [find where name=audispot-dhcp] interface=${escapeRouterValue(iface)} address-pool=audispot-pool disabled=no }
-:if ([:len [/ip hotspot user profile find where name=AudiSpot_Prof]] = 0) do={ /ip hotspot user profile add name=AudiSpot_Prof shared-users=1 }
-:if ([:len [/ip hotspot find where name=audispot-hotspot]] = 0) do={ /ip hotspot add name=audispot-hotspot interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no } else={ /ip hotspot set [find where name=audispot-hotspot] interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no }
 :if ([:len [/ip hotspot profile find where name=AudiSpot_Prof]] = 0) do={ /ip hotspot profile add name=AudiSpot_Prof hotspot-address=10.5.50.1 login-by=http-chap,http-pap html-directory=flash/connect } else={ /ip hotspot profile set [find where name=AudiSpot_Prof] hotspot-address=10.5.50.1 login-by=http-chap,http-pap html-directory=flash/connect }
+:if ([:len [/ip hotspot user profile find where name=AudiSpot_UserProf]] = 0) do={ /ip hotspot user profile add name=AudiSpot_UserProf shared-users=1 }
+:if ([:len [/ip hotspot find where name=audispot-hotspot]] = 0) do={ /ip hotspot add name=audispot-hotspot interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no } else={ /ip hotspot set [find where name=audispot-hotspot] interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no }
 /sys identity set name=${escapeRouterValue(rid)}
 :if ([:len [/ip hotspot walled-garden find where dst-host=safaricom.co.ke]] = 0) do={ /ip hotspot walled-garden add dst-host=safaricom.co.ke action=allow }
 :if ([:len [/ip hotspot walled-garden find where dst-host=audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audiory.site action=allow }
+:if ([:len [/ip hotspot walled-garden find where dst-host=audispot.audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audispot.audiory.site action=allow }
 :if ([:len [/ip hotspot walled-garden find where dst-host=audispoty-749056206562.europe-west1.run.app]] = 0) do={ /ip hotspot walled-garden add dst-host=audispoty-749056206562.europe-west1.run.app action=allow }
 /tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${encodeURIComponent(isp)}" dst-path=flash/connect/index.html
 :log info "AudiSpot provisioning bootstrap complete: ${rid}"`;
