@@ -54,6 +54,15 @@ app.use((req, res, next) => {
  * The router calls AudiSpot over HTTPS, so the cloud does not need to reach
  * the router's private WAN address or expose RouterOS API 8728 publicly.
  */
+app.get('/api/hotspot/agent/ping', (req, res) => {
+    return res.status(200).json({
+        ok: true,
+        service: 'audispot',
+        route: 'hotspot-agent',
+        version: 'agent-heartbeat-v6'
+    });
+});
+
 app.get('/api/hotspot/agent/heartbeat', async (req, res) => {
     try {
         const routerId = String(req.query.routerId || '').trim();
