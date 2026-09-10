@@ -1590,8 +1590,14 @@ app.post('/api/hotspot/generate-script', authenticateUser, authorizeScope('canMa
             await routerRef.set({
                 ispId: ispId || 'default_isp',
                 ispName: 'AudiSpot Partner',
-                routerIp: '0.0.0.0',
-                routerUser: 'admin',
+                routerIp: null,
+                managementIp: null,
+                routerUser: null,
+                routerPassword: null,
+                status: 'pending',
+                connectionType: 'audispot-agent',
+                lastSeen: null,
+                installedAt: null,
                 hotspotInterface: 'ether5',
                 hotspotAddress: '10.5.50.1/24',
                 hotspotGateway: '10.5.50.1',
@@ -1602,14 +1608,66 @@ app.post('/api/hotspot/generate-script', authenticateUser, authorizeScope('canMa
             doc = await routerRef.get();
         }
         const data = doc.data() || {};
+        const registrationToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(registrationToken).digest('hex');
+        await routerRef.set({
+            agentTokenHash: tokenHash,
+            connectionType: 'audispot-agent',
+            status: 'pending',
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
         const provisioningScript = generateBootstrapScript({
             routerId,
             ispId: data.ispId || ispId || 'default_isp',
-            interfaceName: data.hotspotInterface || 'ether5'
+            interfaceName: data.hotspotInterface || 'ether5',
+            agentToken: registrationToken,
+            agentBaseUrl: process.env.AUDISPOT_PUBLIC_URL || 'https://audispot.audiory.site'
         });
         return res.status(200).json({ success: true, script: provisioningScript });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * AudiSpot MikroTik outbound agent registration + heartbeat.
+ * The router calls AudiSpot over HTTPS, so the cloud does not need to reach
+ * the router's private WAN address or expose RouterOS API 8728 publicly.
+ */
+app.get('/api/hotspot/agent/heartbeat', async (req, res) => {
+    try {
+        const routerId = String(req.query.routerId || '').trim();
+        const token = String(req.query.token || '').trim();
+        if (!routerId || !token) return res.status(400).send('routerId and token required');
+
+        const routerRef = db.collection('routers').doc(routerId);
+        const snap = await routerRef.get();
+        if (!snap.exists) return res.status(404).send('router not found');
+
+        const router = snap.data() || {};
+        const suppliedHash = crypto.createHash('sha256').update(token).digest('hex');
+        if (!router.agentTokenHash || suppliedHash !== router.agentTokenHash) {
+            return res.status(401).send('invalid agent token');
+        }
+
+        const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+        const sourceIp = forwarded || req.ip || req.socket?.remoteAddress || null;
+        const now = new Date().toISOString();
+
+        await routerRef.set({
+            status: 'online',
+            lastSeen: now,
+            managementIp: sourceIp,
+            routerIp: sourceIp,
+            connectionType: 'audispot-agent',
+            installedAt: router.installedAt || now,
+            updatedAt: now
+        }, { merge: true });
+
+        return res.status(200).send('OK');
+    } catch (error) {
+        console.error('[AudiSpot Agent Heartbeat]', error);
+        return res.status(500).send('heartbeat error');
     }
 });
 
