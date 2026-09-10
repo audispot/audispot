@@ -422,7 +422,7 @@ async function createPppoeSecret(routerData, options = {}) {
     });
 }
 
-function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hotspotInterface, agentToken = '', agentBaseUrl = 'https://audispot.audiory.site' } = {}) {
+function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hotspotInterface, agentToken = '', agentBaseUrl = 'https://audispoty-749056206562.europe-west1.run.app' } = {}) {
     const rid = safeName(routerId, 'audispot-router');
     const isp = safeName(ispId, 'default_isp');
     const iface = safeName(interfaceName, DEFAULTS.hotspotInterface);
