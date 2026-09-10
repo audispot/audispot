@@ -49,6 +49,150 @@ app.use((req, res, next) => {
     next();
 });
 
+/**
+ * AudiSpot MikroTik outbound agent registration + heartbeat.
+ * The router calls AudiSpot over HTTPS, so the cloud does not need to reach
+ * the router's private WAN address or expose RouterOS API 8728 publicly.
+ */
+app.get('/api/hotspot/agent/heartbeat', async (req, res) => {
+    try {
+        const routerId = String(req.query.routerId || '').trim();
+        const token = String(req.query.token || '').trim();
+        if (!routerId || !token) return res.status(400).send('routerId and token required');
+
+        const routerRef = db.collection('routers').doc(routerId);
+        const snap = await routerRef.get();
+        if (!snap.exists) return res.status(404).send('router not found');
+
+        const router = snap.data() || {};
+        const suppliedHash = crypto.createHash('sha256').update(token).digest('hex');
+        if (!router.agentTokenHash || suppliedHash !== router.agentTokenHash) {
+            return res.status(401).send('invalid agent token');
+        }
+
+        const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+        const sourceIp = forwarded || req.ip || req.socket?.remoteAddress || null;
+        const now = new Date().toISOString();
+
+        await routerRef.set({
+            status: 'online',
+            lastSeen: now,
+            managementIp: sourceIp,
+            routerIp: sourceIp,
+            connectionType: 'audispot-agent',
+            installedAt: router.installedAt || now,
+            updatedAt: now
+        }, { merge: true });
+
+        return res.status(200).send('OK');
+    } catch (error) {
+        console.error('[AudiSpot Agent Heartbeat]', error);
+        return res.status(500).send('heartbeat error');
+    }
+});
+
+// ====================================================================
+// PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
+// ====================================================================
+
+app.get('/api/packages', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const targetTenant = req.user.ispId || req.user.uid;
+    try {
+        const snapshot = await db.collection('isp_packages')
+            .where('ispId', '==', targetTenant)
+            .get();
+            
+        const packages = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            packages.push({
+                id: doc.id,
+                packageName: data.packageName || "Unnamed Tier",
+                price: data.price || 0,
+                duration: data.duration || 0,
+                bandwidthProfile: data.bandwidthProfile || "Default_Limit"
+            });
+        });
+        
+        return res.status(200).json(packages);
+    } catch (error) {
+        console.error("Failed to fetch custom billing packages:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/packages/create', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const { packageName, price, duration, bandwidthProfile } = req.body;
+    const ispId = req.user.ispId || req.user.uid;
+    
+    if (!packageName || !price || !duration || !bandwidthProfile) {
+        return res.status(400).json({ success: false, error: "Missing required configuration fields." });
+    }
+    
+    try {
+        const newPackageRef = db.collection('isp_packages').doc();
+        await newPackageRef.set({
+            ispId: req.user.ispId || req.user.uid,
+            packageName,
+            price: parseFloat(price),
+            duration: parseInt(duration),
+            bandwidthProfile,
+            createdAt: new Date().toISOString()
+        });
+        
+        return res.status(200).json({ success: true, id: newPackageRef.id });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/packages/delete', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
+    
+    try {
+        const packageRef = db.collection('isp_packages').doc(id);
+        const packageSnap = await packageRef.get();
+        if (!packageSnap.exists) return res.status(404).json({ success: false, error: 'Package not found.' });
+        const callerIspId = req.user.ispId || req.user.uid;
+        if ((packageSnap.data().ispId || '') !== callerIspId) {
+            return res.status(403).json({ success: false, error: 'You are not authorized to delete this package.' });
+        }
+        await packageRef.delete();
+        return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ====================================================================
+// LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
+// ====================================================================
+
+app.get('/api/hotspot/loyalty/balance', async (req, res) => {
+    const { macAddress } = req.query;
+    if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
+    
+    // Normalize MAC address format
+    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
+
+    try {
+        const subDoc = await db.collection('subscribers').doc(cleanMac).get();
+        if (!subDoc.exists) {
+            return res.status(200).json({ points: 0, phoneNumber: null });
+        }
+        
+        const data = subDoc.data();
+        return res.status(200).json({
+            points: data.loyaltyPoints || 0,
+            phoneNumber: data.phoneNumber || null
+        });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -1635,148 +1779,6 @@ app.post('/api/hotspot/generate-script', authenticateUser, authorizeScope('canMa
     }
 });
 
-/**
- * AudiSpot MikroTik outbound agent registration + heartbeat.
- * The router calls AudiSpot over HTTPS, so the cloud does not need to reach
- * the router's private WAN address or expose RouterOS API 8728 publicly.
- */
-app.get('/api/hotspot/agent/heartbeat', async (req, res) => {
-    try {
-        const routerId = String(req.query.routerId || '').trim();
-        const token = String(req.query.token || '').trim();
-        if (!routerId || !token) return res.status(400).send('routerId and token required');
-
-        const routerRef = db.collection('routers').doc(routerId);
-        const snap = await routerRef.get();
-        if (!snap.exists) return res.status(404).send('router not found');
-
-        const router = snap.data() || {};
-        const suppliedHash = crypto.createHash('sha256').update(token).digest('hex');
-        if (!router.agentTokenHash || suppliedHash !== router.agentTokenHash) {
-            return res.status(401).send('invalid agent token');
-        }
-
-        const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-        const sourceIp = forwarded || req.ip || req.socket?.remoteAddress || null;
-        const now = new Date().toISOString();
-
-        await routerRef.set({
-            status: 'online',
-            lastSeen: now,
-            managementIp: sourceIp,
-            routerIp: sourceIp,
-            connectionType: 'audispot-agent',
-            installedAt: router.installedAt || now,
-            updatedAt: now
-        }, { merge: true });
-
-        return res.status(200).send('OK');
-    } catch (error) {
-        console.error('[AudiSpot Agent Heartbeat]', error);
-        return res.status(500).send('heartbeat error');
-    }
-});
-
-// ====================================================================
-// PACKAGES ENGINE: CREATE, READ, & DELETE BILLING PROFILES
-// ====================================================================
-
-app.get('/api/packages', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
-    const targetTenant = req.user.ispId || req.user.uid;
-    try {
-        const snapshot = await db.collection('isp_packages')
-            .where('ispId', '==', targetTenant)
-            .get();
-            
-        const packages = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            packages.push({
-                id: doc.id,
-                packageName: data.packageName || "Unnamed Tier",
-                price: data.price || 0,
-                duration: data.duration || 0,
-                bandwidthProfile: data.bandwidthProfile || "Default_Limit"
-            });
-        });
-        
-        return res.status(200).json(packages);
-    } catch (error) {
-        console.error("Failed to fetch custom billing packages:", error.message);
-        return res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/packages/create', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
-    const { packageName, price, duration, bandwidthProfile } = req.body;
-    const ispId = req.user.ispId || req.user.uid;
-    
-    if (!packageName || !price || !duration || !bandwidthProfile) {
-        return res.status(400).json({ success: false, error: "Missing required configuration fields." });
-    }
-    
-    try {
-        const newPackageRef = db.collection('isp_packages').doc();
-        await newPackageRef.set({
-            ispId: req.user.ispId || req.user.uid,
-            packageName,
-            price: parseFloat(price),
-            duration: parseInt(duration),
-            bandwidthProfile,
-            createdAt: new Date().toISOString()
-        });
-        
-        return res.status(200).json({ success: true, id: newPackageRef.id });
-    } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/packages/delete', authenticateUser, authorizeScope('canManageRouters'), async (req, res) => {
-    const { id } = req.body;
-    if (!id) return res.status(400).json({ success: false, error: "Missing document unique identity." });
-    
-    try {
-        const packageRef = db.collection('isp_packages').doc(id);
-        const packageSnap = await packageRef.get();
-        if (!packageSnap.exists) return res.status(404).json({ success: false, error: 'Package not found.' });
-        const callerIspId = req.user.ispId || req.user.uid;
-        if ((packageSnap.data().ispId || '') !== callerIspId) {
-            return res.status(403).json({ success: false, error: 'You are not authorized to delete this package.' });
-        }
-        await packageRef.delete();
-        return res.status(200).json({ success: true, message: "Billing package item scrubbed." });
-    } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ====================================================================
-// LOYALTY PROGRAM: BALANCE CHECK & REDEMPTION
-// ====================================================================
-
-app.get('/api/hotspot/loyalty/balance', async (req, res) => {
-    const { macAddress } = req.query;
-    if (!macAddress) return res.status(400).json({ error: "MAC Address parameter is required." });
-    
-    // Normalize MAC address format
-    const cleanMac = macAddress.toLowerCase().replace(/[^a-f0-9]/g, '');
-
-    try {
-        const subDoc = await db.collection('subscribers').doc(cleanMac).get();
-        if (!subDoc.exists) {
-            return res.status(200).json({ points: 0, phoneNumber: null });
-        }
-        
-        const data = subDoc.data();
-        return res.status(200).json({
-            points: data.loyaltyPoints || 0,
-            phoneNumber: data.phoneNumber || null
-        });
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
 
 app.post('/api/hotspot/loyalty/redeem', async (req, res) => {
     const { macAddress, routerId, pointsToRedeem, targetProfile } = req.body; 
