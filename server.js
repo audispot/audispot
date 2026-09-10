@@ -1608,20 +1608,26 @@ app.post('/api/hotspot/generate-script', authenticateUser, authorizeScope('canMa
             doc = await routerRef.get();
         }
         const data = doc.data() || {};
-        const registrationToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(registrationToken).digest('hex');
-        await routerRef.set({
-            agentTokenHash: tokenHash,
-            connectionType: 'audispot-agent',
-            status: 'pending',
-            updatedAt: new Date().toISOString()
-        }, { merge: true });
+        // Reuse the existing installer token so generating the installer again
+        // does not invalidate an already-installed router. A new token is
+        // created only for a router that has never received one.
+        const registrationToken = data.agentToken || crypto.randomBytes(32).toString('hex');
+        const tokenHash = data.agentTokenHash || crypto.createHash('sha256').update(registrationToken).digest('hex');
+        if (!data.agentTokenHash || !data.agentToken) {
+            await routerRef.set({
+                agentToken: registrationToken,
+                agentTokenHash: tokenHash,
+                connectionType: 'audispot-agent',
+                status: 'pending',
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+        }
         const provisioningScript = generateBootstrapScript({
             routerId,
             ispId: data.ispId || ispId || 'default_isp',
             interfaceName: data.hotspotInterface || 'ether5',
             agentToken: registrationToken,
-            agentBaseUrl: process.env.AUDISPOT_PUBLIC_URL || 'https://audispot.audiory.site'
+            agentBaseUrl: process.env.AUDISPOT_API_URL || 'https://audispoty-749056206562.europe-west1.run.app'
         });
         return res.status(200).json({ success: true, script: provisioningScript });
     } catch (error) {
