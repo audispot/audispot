@@ -431,7 +431,9 @@ function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hot
     if (!token) throw new MikroTikProvisioningError('Agent registration token is required.', 'AGENT_TOKEN_MISSING');
 
     const heartbeatUrl = `${base}/api/hotspot/agent/heartbeat?routerId=${encodeURIComponent(rid)}&token=${encodeURIComponent(token)}`;
-    const escapedHeartbeatUrl = heartbeatUrl.replace(/"/g, '\\"');
+    // RouterOS scheduler stores on-event as a quoted string, so the inner
+    // URL quotes must survive generation as literal backslash+quote characters.
+    const schedulerHeartbeatCommand = `/tool fetch url=\\"${heartbeatUrl}\\" keep-result=no`;
 
     return `# AudiSpot MikroTik installer - generated for ${rid}
 # WAN: ether1 (DHCP) | Customer LAN/Hotspot: ${iface} | Gateway: 10.5.50.1
@@ -464,12 +466,12 @@ function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hot
 :if ([:len [/ip hotspot walled-garden find where dst-host=audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audiory.site action=allow }
 :if ([:len [/ip hotspot walled-garden find where dst-host=safaricom.co.ke]] = 0) do={ /ip hotspot walled-garden add dst-host=safaricom.co.ke action=allow }
 :if ([:len [/ip hotspot walled-garden find where dst-host=audispoty-749056206562.europe-west1.run.app]] = 0) do={ /ip hotspot walled-garden add dst-host=audispoty-749056206562.europe-west1.run.app action=allow }
-/tool fetch url="${escapedHeartbeatUrl}" keep-result=no
+/tool fetch url="${heartbeatUrl}" keep-result=no
 /tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${encodeURIComponent(isp)}" dst-path=flash/connect/index.html keep-result=no
 
 # 7) Router identity + heartbeat scheduler
 /sys identity set name=${escapeRouterValue(rid)}
-:if ([:len [/system scheduler find where name="audispot-heartbeat"]] = 0) do={ /system scheduler add name="audispot-heartbeat" interval=1m on-event="/tool fetch url=\"${escapedHeartbeatUrl}\" keep-result=no" policy=read,write,test } else={ /system scheduler set [find where name="audispot-heartbeat"] interval=1m on-event="/tool fetch url=\"${escapedHeartbeatUrl}\" keep-result=no" policy=read,write,test disabled=no }
+:if ([:len [/system scheduler find where name="audispot-heartbeat"]] = 0) do={ /system scheduler add name="audispot-heartbeat" interval=1m on-event="${schedulerHeartbeatCommand}" policy=read,write,test } else={ /system scheduler set [find where name="audispot-heartbeat"] interval=1m on-event="${schedulerHeartbeatCommand}" policy=read,write,test disabled=no }
 
 :log info "AudiSpot installation complete: ${rid}"`; 
 }
