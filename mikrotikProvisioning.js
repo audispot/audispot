@@ -422,25 +422,56 @@ async function createPppoeSecret(routerData, options = {}) {
     });
 }
 
-function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hotspotInterface } = {}) {
+function generateBootstrapScript({ routerId, ispId, interfaceName = DEFAULTS.hotspotInterface, agentToken = '', agentBaseUrl = 'https://audispot.audiory.site' } = {}) {
     const rid = safeName(routerId, 'audispot-router');
     const isp = safeName(ispId, 'default_isp');
     const iface = safeName(interfaceName, DEFAULTS.hotspotInterface);
-    return `# AudiSpot MikroTik bootstrap - idempotent
+    const token = cleanString(agentToken);
+    const base = cleanString(agentBaseUrl).replace(/\/$/, '');
+    if (!token) throw new MikroTikProvisioningError('Agent registration token is required.', 'AGENT_TOKEN_MISSING');
+
+    const heartbeatUrl = `${base}/api/hotspot/agent/heartbeat?routerId=${encodeURIComponent(rid)}&token=${encodeURIComponent(token)}`;
+    const escapedHeartbeatUrl = heartbeatUrl.replace(/"/g, '\\"');
+
+    return `# AudiSpot MikroTik installer - generated for ${rid}
+# WAN: ether1 (DHCP) | Customer LAN/Hotspot: ${iface} | Gateway: 10.5.50.1
+
+# 1) WAN Internet connection
+:if ([:len [/ip dhcp-client find where interface=ether1]] = 0) do={ /ip dhcp-client add interface=ether1 disabled=no comment="AudiSpot WAN" } else={ /ip dhcp-client set [find where interface=ether1] disabled=no }
+
+# 2) Customer network
 :if ([:len [/ip address find where address=10.5.50.1/24]] = 0) do={ /ip address add address=10.5.50.1/24 interface=${escapeRouterValue(iface)} comment="AudiSpot Hotspot Gateway" }
 :if ([:len [/ip pool find where name=audispot-pool]] = 0) do={ /ip pool add name=audispot-pool ranges=10.5.50.2-10.5.50.254 }
 :if ([:len [/ip dhcp-server network find where address=10.5.50.0/24]] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 comment="AudiSpot DHCP network" }
 :if ([:len [/ip dhcp-server find where name=audispot-dhcp]] = 0) do={ /ip dhcp-server add name=audispot-dhcp interface=${escapeRouterValue(iface)} address-pool=audispot-pool disabled=no comment="AudiSpot DHCP" } else={ /ip dhcp-server set [find where name=audispot-dhcp] interface=${escapeRouterValue(iface)} address-pool=audispot-pool disabled=no }
+
+# 3) DNS + NAT
+/ip dns set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
+:if ([:len [/ip firewall nat find where comment="AudiSpot Internet NAT"]] = 0) do={ /ip firewall nat add chain=srcnat src-address=10.5.50.0/24 out-interface=ether1 action=masquerade comment="AudiSpot Internet NAT" }
+
+# 4) Basic firewall protection
+:if ([:len [/ip firewall filter find where comment="AudiSpot established"]] = 0) do={ /ip firewall filter add chain=input connection-state=established,related action=accept comment="AudiSpot established" }
+:if ([:len [/ip firewall filter find where comment="AudiSpot hotspot input"]] = 0) do={ /ip firewall filter add chain=input in-interface=${escapeRouterValue(iface)} action=accept comment="AudiSpot hotspot input" }
+:if ([:len [/ip firewall filter find where comment="AudiSpot forward established"]] = 0) do={ /ip firewall filter add chain=forward connection-state=established,related action=accept comment="AudiSpot forward established" }
+
+# 5) Hotspot
 :if ([:len [/ip hotspot profile find where name=AudiSpot_Prof]] = 0) do={ /ip hotspot profile add name=AudiSpot_Prof hotspot-address=10.5.50.1 login-by=http-chap,http-pap html-directory=flash/connect } else={ /ip hotspot profile set [find where name=AudiSpot_Prof] hotspot-address=10.5.50.1 login-by=http-chap,http-pap html-directory=flash/connect }
 :if ([:len [/ip hotspot user profile find where name=AudiSpot_UserProf]] = 0) do={ /ip hotspot user profile add name=AudiSpot_UserProf shared-users=1 }
 :if ([:len [/ip hotspot find where name=audispot-hotspot]] = 0) do={ /ip hotspot add name=audispot-hotspot interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no } else={ /ip hotspot set [find where name=audispot-hotspot] interface=${escapeRouterValue(iface)} address-pool=audispot-pool profile=AudiSpot_Prof disabled=no }
-/sys identity set name=${escapeRouterValue(rid)}
-:if ([:len [/ip hotspot walled-garden find where dst-host=safaricom.co.ke]] = 0) do={ /ip hotspot walled-garden add dst-host=safaricom.co.ke action=allow }
-:if ([:len [/ip hotspot walled-garden find where dst-host=audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audiory.site action=allow }
+
+# 6) Portal + required walled garden
 :if ([:len [/ip hotspot walled-garden find where dst-host=audispot.audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audispot.audiory.site action=allow }
+:if ([:len [/ip hotspot walled-garden find where dst-host=audiory.site]] = 0) do={ /ip hotspot walled-garden add dst-host=audiory.site action=allow }
+:if ([:len [/ip hotspot walled-garden find where dst-host=safaricom.co.ke]] = 0) do={ /ip hotspot walled-garden add dst-host=safaricom.co.ke action=allow }
 :if ([:len [/ip hotspot walled-garden find where dst-host=audispoty-749056206562.europe-west1.run.app]] = 0) do={ /ip hotspot walled-garden add dst-host=audispoty-749056206562.europe-west1.run.app action=allow }
-/tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${encodeURIComponent(isp)}" dst-path=flash/connect/index.html
-:log info "AudiSpot provisioning bootstrap complete: ${rid}"`;
+/tool fetch url="${escapedHeartbeatUrl}" keep-result=no
+/tool fetch url="https://audispot.audiory.site/connect/index.html?ispId=${encodeURIComponent(isp)}" dst-path=flash/connect/index.html keep-result=no
+
+# 7) Router identity + heartbeat scheduler
+/sys identity set name=${escapeRouterValue(rid)}
+:if ([:len [/system scheduler find where name="audispot-heartbeat"]] = 0) do={ /system scheduler add name="audispot-heartbeat" interval=1m on-event="/tool fetch url=\"${escapedHeartbeatUrl}\" keep-result=no" policy=read,write,test } else={ /system scheduler set [find where name="audispot-heartbeat"] interval=1m on-event="/tool fetch url=\"${escapedHeartbeatUrl}\" keep-result=no" policy=read,write,test disabled=no }
+
+:log info "AudiSpot installation complete: ${rid}"`; 
 }
 
 module.exports = {
