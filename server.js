@@ -49,20 +49,20 @@ app.use((req, res, next) => {
     next();
 });
 
+// Cloud Run health/startup diagnostics. These routes do not require Firestore.
+app.get('/healthz', (req, res) => {
+    res.status(200).json({ ok: true, service: 'audispot', version: 'cloud-run-fixed-v7' });
+});
+
+app.get('/api/hotspot/agent/ping', (req, res) => {
+    res.status(200).json({ ok: true, service: 'audispot', route: 'hotspot-agent', version: 'cloud-run-fixed-v7' });
+});
+
 /**
  * AudiSpot MikroTik outbound agent registration + heartbeat.
  * The router calls AudiSpot over HTTPS, so the cloud does not need to reach
  * the router's private WAN address or expose RouterOS API 8728 publicly.
  */
-app.get('/api/hotspot/agent/ping', (req, res) => {
-    return res.status(200).json({
-        ok: true,
-        service: 'audispot',
-        route: 'hotspot-agent',
-        version: 'agent-heartbeat-v6'
-    });
-});
-
 app.get('/api/hotspot/agent/heartbeat', async (req, res) => {
     try {
         const routerId = String(req.query.routerId || '').trim();
@@ -5046,5 +5046,11 @@ app.get('/api/subscribers', authenticateUser, async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => console.log(`AudiSpot Engine Active on port: ${PORT}`));
+const PORT = Number(process.env.PORT) || 8080;
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`AudiSpot Engine Active on 0.0.0.0:${PORT}`);
+});
+server.on('error', (error) => {
+    console.error('[AudiSpot Startup] HTTP server error:', error);
+    process.exit(1);
+});
